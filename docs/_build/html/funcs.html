@@ -1,0 +1,399 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>funcs &#8212; pycheops 0.0.1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="instrument" href="instrument.html" />
+    <link rel="prev" title="constants" href="constants.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="toctree-wrapper compound">
+</div>
+<span class="target" id="module-pycheops.funcs"></span><div class="section" id="funcs">
+<h1>funcs<a class="headerlink" href="#funcs" title="Permalink to this headline">¶</a></h1>
+<p>Functions relating observable properties of binary stars and exoplanet 
+systems to their fundamental properties, and vice versa. Also functions
+related to Keplerian orbits.</p>
+<div class="section" id="parameters">
+<h2>Parameters<a class="headerlink" href="#parameters" title="Permalink to this headline">¶</a></h2>
+<p>Functions are defined in terms of the following parameters. [1]</p>
+<ul class="simple">
+<li>a          - orbital semi-major axis in solar radii = a_1 + a_2</li>
+<li>P          - orbital period in mean solar days</li>
+<li>M          - total system mass in solar masses, M = m_1 + m_2</li>
+<li>e          - orbital eccentricity</li>
+<li>om         - longitude of periastron, omega, in _degrees_</li>
+<li>sini       - sine of the orbital inclination</li>
+<li>K          - 2.pi.a.sini/(P.sqrt(1-e^2)) = K_1 + K_2</li>
+<li>K_1, K_2   - orbital semi-amplitudes in km/s</li>
+<li>q          - mass ratio = m_2/m_1 = K_1/K_2 = a_1/a_2</li>
+<li><dl class="first docutils">
+<dt>f_m        - mass function = m_2^3.sini^3/(m_1+m_2)^2 in solar masses </dt>
+<dd>= K_1^3.P/(2.pi.G).(1-e^2)^(3/2)</dd>
+</dl>
+</li>
+<li>r_1        - radius of star 1 in units of the semi-major axis, r_1 = R_*/a</li>
+<li>rho_1      - mean stellar density = 3.pi/(GP^2(1+q)r_1^3)</li>
+</ul>
+<table class="docutils footnote" frame="void" id="id1" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label">[1]</td><td>Hilditch, R.W., An Introduction to Close Binary Stars, CUP 2001.</td></tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="functions">
+<h2>Functions<a class="headerlink" href="#functions" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="pycheops.funcs.a_rsun">
+<code class="descclassname">pycheops.funcs.</code><code class="descname">a_rsun</code><span class="sig-paren">(</span><em>P</em>, <em>M</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.a_rsun" title="Permalink to this definition">¶</a></dt>
+<dd><p>Semi-major axis in solar radii</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>P</strong> &#8211; orbital period in mean solar days</li>
+<li><strong>M</strong> &#8211; total mass in solar masses</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">a = (G.M.P^2/(4.pi^2))^(1/3) in solar radii</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.f_m">
+<code class="descclassname">pycheops.funcs.</code><code class="descname">f_m</code><span class="sig-paren">(</span><em>P</em>, <em>K</em>, <em>e=0</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.f_m" title="Permalink to this definition">¶</a></dt>
+<dd><p>Mass function in solar masses</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>P</strong> &#8211; orbital period in mean solar days</li>
+<li><strong>K</strong> &#8211; semi-amplitude of the spectroscopic orbit in km/s</li>
+<li><strong>e</strong> &#8211; orbital eccentricity</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">f_m =  m_2^3.sini^3/(m_1+m_2)^2  in solar masses</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.m1sin3i">
+<code class="descclassname">pycheops.funcs.</code><code class="descname">m1sin3i</code><span class="sig-paren">(</span><em>P</em>, <em>K_1</em>, <em>K_2</em>, <em>e=0</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.m1sin3i" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reduced mass of star 1 in solar masses</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>K_1</strong> &#8211; semi-amplitude of star 1 in km/s</li>
+<li><strong>K_2</strong> &#8211; semi-amplitude of star 2 in km/s</li>
+<li><strong>P</strong> &#8211; orbital period in mean solar days</li>
+<li><strong>e</strong> &#8211; orbital eccentricity</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">m_1.sini^3 in solar masses</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.m2sin3i">
+<code class="descclassname">pycheops.funcs.</code><code class="descname">m2sin3i</code><span class="sig-paren">(</span><em>P</em>, <em>K_1</em>, <em>K_2</em>, <em>e=0</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.m2sin3i" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reduced mass of star 2 in solar masses</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>K_1</strong> &#8211; semi-amplitude of star 1 in km/s</li>
+<li><strong>K_2</strong> &#8211; semi-amplitude of star 2 in km/s</li>
+<li><strong>P</strong> &#8211; orbital period in mean solar days</li>
+<li><strong>e</strong> &#8211; orbital eccentricity</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">m_2.sini^3 in solar masses</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.asini">
+<code class="descclassname">pycheops.funcs.</code><code class="descname">asini</code><span class="sig-paren">(</span><em>K</em>, <em>P</em>, <em>e=0</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.asini" title="Permalink to this definition">¶</a></dt>
+<dd><p>a.sini in solar radii</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>K</strong> &#8211; semi-amplitude of the spectroscopic orbit in km/s</li>
+<li><strong>P</strong> &#8211; orbital period in mean solar days</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">a.sin(i) in solar radii</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.rhostar">
+<code class="descclassname">pycheops.funcs.</code><code class="descname">rhostar</code><span class="sig-paren">(</span><em>r_1</em>, <em>P</em>, <em>q=0</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.rhostar" title="Permalink to this definition">¶</a></dt>
+<dd><p>Mean stellar density from scaled stellar radius.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>r_1</strong> &#8211; radius of star in units of the semi-major axis, r_1 = R_*/a</li>
+<li><strong>P</strong> &#8211; orbital period in mean solar days</li>
+<li><strong>q</strong> &#8211; mass ratio, m_2/m_1</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">Mean stellar density in solar units</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.K_kms">
+<code class="descclassname">pycheops.funcs.</code><code class="descname">K_kms</code><span class="sig-paren">(</span><em>m_1</em>, <em>m_2</em>, <em>P</em>, <em>sini</em>, <em>e</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.K_kms" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="docutils">
+<dt>Semi-amplitudes of the spectroscopic orbits in km/s</dt>
+<dd><ul class="first last simple">
+<li>K = 2.pi.a.sini/(P.sqrt(1-e^2))</li>
+<li>K_1 = K * m_2/(m_1+m_2)</li>
+<li>K_2 = K * m_1/(m_1+m_2)</li>
+</ul>
+</dd>
+</dl>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>m_1</strong> &#8211; mass of star 1 in solar masses</li>
+<li><strong>m_2</strong> &#8211; mass of star 2 in solar masses</li>
+<li><strong>P</strong> &#8211; orbital period in mean solar days</li>
+<li><strong>sini</strong> &#8211; sine of the orbital inclination</li>
+<li><strong>e</strong> &#8211; orbital eccentrcity</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">K_1, K_2 &#8211; semi-amplitudes in km/s</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.m_comp">
+<code class="descclassname">pycheops.funcs.</code><code class="descname">m_comp</code><span class="sig-paren">(</span><em>f_m</em>, <em>m_1</em>, <em>sini</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.m_comp" title="Permalink to this definition">¶</a></dt>
+<dd><p>Companion mass in solar masses given mass function and stellar mass</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>f_m</strong> &#8211; = K_1^3.P/(2.pi.G).(1-e^2)^(3/2) in solar masses</li>
+<li><strong>m_1</strong> &#8211; mass of star 1 in solar masses</li>
+<li><strong>sini</strong> &#8211; sine of orbital inclination</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">m_2 = mass of companion to star 1 in solar masses</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.transit_width">
+<code class="descclassname">pycheops.funcs.</code><code class="descname">transit_width</code><span class="sig-paren">(</span><em>r</em>, <em>k</em>, <em>b</em>, <em>p=1</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.transit_width" title="Permalink to this definition">¶</a></dt>
+<dd><p>Total transit duration.</p>
+<p>See equation (3) from Seager and Malen-Ornelas, 2003ApJ...585.1038S.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>r</strong> &#8211; R_star/a</li>
+<li><strong>k</strong> &#8211; R_planet/R_star</li>
+<li><strong>b</strong> &#8211; impact parameter = a.cos(i)/R_star</li>
+<li><strong>p</strong> &#8211; orbital period (optional, default=1)</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">Total transit duration in the same units as p.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.esolve">
+<code class="descclassname">pycheops.funcs.</code><code class="descname">esolve</code><span class="sig-paren">(</span><em>M</em>, <em>e</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.esolve" title="Permalink to this definition">¶</a></dt>
+<dd><p>Solve Kepler&#8217;s equation M = E - e.sin(E)</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>M</strong> &#8211; mean anomaly</li>
+<li><strong>e</strong> &#8211; eccentricity</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">eccentric anomaly, E</p>
+</td>
+</tr>
+</tbody>
+</table>
+<p>Algorithm is from Markley 1995, CeMDA, 63, 101 via pyAstronomy class
+keplerOrbit.py</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Example:</th><td class="field-body"></td>
+</tr>
+</tbody>
+</table>
+<p>Test precision using random values:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pycheops.funcs</span> <span class="k">import</span> <span class="n">esolve</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">numpy</span> <span class="k">import</span> <span class="n">pi</span><span class="p">,</span> <span class="n">sin</span><span class="p">,</span> <span class="nb">abs</span><span class="p">,</span> <span class="nb">max</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">numpy.random</span> <span class="k">import</span> <span class="n">uniform</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">e</span> <span class="o">=</span> <span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1000</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">M</span> <span class="o">=</span> <span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">pi</span><span class="p">,</span><span class="mi">4</span><span class="o">*</span><span class="n">pi</span><span class="p">,</span><span class="mi">1000</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">E</span> <span class="o">=</span> <span class="n">esolve</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">maxerr</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">E</span> <span class="o">-</span> <span class="n">e</span><span class="o">*</span><span class="n">sin</span><span class="p">(</span><span class="n">E</span><span class="p">)</span> <span class="o">-</span> <span class="p">(</span><span class="n">M</span> <span class="o">%</span> <span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">pi</span><span class="p">))</span> <span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Maximum error = </span><span class="si">{:0.2e}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">maxerr</span><span class="p">))</span>
+<span class="go">Maximum error = 8.88e-16</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">funcs</a><ul>
+<li><a class="reference internal" href="#parameters">Parameters</a></li>
+<li><a class="reference internal" href="#functions">Functions</a></li>
+</ul>
+</li>
+</ul>
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="constants.html" title="previous chapter">constants</a></li>
+      <li>Next: <a href="instrument.html" title="next chapter">instrument</a></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/funcs.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, Pierre Maxted.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.4</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+      |
+      <a href="_sources/funcs.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
