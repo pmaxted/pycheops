@@ -42,6 +42,11 @@ Related constants
 * au              - IAU 2009 value for astronomical constant in metres. [3]
 * pc              - 1 parsec = 3600*au*180/pi
 
+Fundamental constants
+---------------------
+* c               - speed of light in m.s-1 [3]
+
+
 Example
 -------
 Calculate the density relative to Jupiter for a planet 1/10 the radius of the
@@ -106,3 +111,4 @@ mean_solar_day = 86400.002    # seconds
 au =  1.49597870700E11        # m, IAU 2009 Astronomical unit
 pc =  3600*au*180/pi          # m, parsec
 
+c = 2.99792458e8              # m/s, Speed of light
