@@ -12,6 +12,7 @@ Welcome to pycheops's documentation!
    funcs
    instrument
    ld
+   quantities
 
 
 Indices and tables
