@@ -4,8 +4,8 @@ quantities
 Nominal values of solar and planetary constants from IAU Resolution B3 [1] 
 plus related constants as astropy quantities.
 
-Masses in SI units are derived using the 2014 CODATA value for the Newtonian
-constant, G=6.67408E-11 m3.kg-1.s-2.
+Masses are derived using the 2014 CODATA value for the Newtonian constant,
+G=6.67408E-11 m3.kg-1.s-2.
 
 The following conversion constants are defined.
 
@@ -39,12 +39,12 @@ Related constants
 -----------------
 * G_2014          - 2014 CODATA value for the Newtonian constant
 * mean_solar_day  - 86,400.002 seconds [2] 
-* au              - IAU 2009 value for astronomical constant in metres. [3]
+* au              - IAU 2009 value for astronomical constant [3]
 * pc              - 1 parsec = 3600*au*180/pi
 
 Fundamental constants
 ---------------------
-* c               - speed of light in m.s-1 [3]
+* c               - speed of light [3]
 
 Example
 -------
