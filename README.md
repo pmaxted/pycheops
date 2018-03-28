@@ -4,7 +4,7 @@
 [ESA CHEOPS mission](http://cheops.unibe.ch/).
 
  Documentation is available on
- [readthedocs.org/projects/pycheops](https://readthedocs.org/projects/pycheops/)
+ [pycheops.readthedocs.io](http://pycheops.readthedocs.io/en/latest/)
 
 
 
