@@ -1,7 +1,7 @@
 PYCHEOPS
 ========
 
-Python module for the analysis of light curves from the `ESA CHEOPS
+Python package for the analysis of light curves from the `ESA CHEOPS
 mission <http://cheops.unibe.ch/>`__.
 
 Documentation is available on
