@@ -140,7 +140,5 @@ class pModel(Model):
         lp = 0.0
         for p,g  in zip(self.parameter_vector, self.parameter_priors):
             if g[0] is not None  and g[1] is not None:
-                print('log_prior',p,g,lp)
                 lp -= 0.5*((p-g[0])/g[1])**2
-
         return lp
