@@ -6,5 +6,5 @@
  CHEOPS mission <http://cheops.unibe.ch/>.
 
 """
-          __version__ = '0.1.2-alpha'
+__version__ = '0.1.2'
 
