@@ -20,6 +20,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 # VERSION
 try:
     from pycheops.version import get_version
+    __version__ = get_version()
 except:
     __version__ = ''
 
@@ -27,7 +28,7 @@ setup(
     name='pycheops',
 
     # VERSION
-    version = get_version(),
+    version = __version__,
 
     description='CHEOPS light curve analysis software',
     long_description=long_description,
