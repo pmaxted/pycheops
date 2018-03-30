@@ -19,10 +19,9 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 # VERSION
 try:
-    from version import get_version
-    __version__ = get_version()
+    from pycheops import __version__
 except:
-    __version__ = ''
+    raise RuntimeError("Unable to find version string.")
 
 setup(
     name='pycheops',
