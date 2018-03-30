@@ -142,9 +142,3 @@ class pModel(Model):
             lp -= 0.5*((p-g[0])/g[1])**2
 
         return lp
-
-    @property
-    def parameter_priors(self):
-        return list(chain(*(
-            m.parameter_priors for m in self.models.values()
-        )))
