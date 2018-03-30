@@ -9,7 +9,7 @@ Models for use within the celerite framework
 from __future__ import (absolute_import, division, print_function,
                                 unicode_literals)
 import numpy as np
-from celerite import Model
+from celerite.modeling import Model
 from itertools import chain
 from collections import OrderedDict
 
