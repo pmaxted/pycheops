@@ -19,7 +19,7 @@ with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 # VERSION
 try:
-    from pycheops.version import get_version
+    from version import get_version
     __version__ = get_version()
 except:
     __version__ = ''
