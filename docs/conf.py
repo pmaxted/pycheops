@@ -172,5 +172,5 @@ class Mock(MagicMock):
     def __getattr__(cls, name):
         return MagicMock()
 
-MOCK_MODULES = ['numpy', 'scipy','numba','astropy','emcee','celerite']
+MOCK_MODULES = ['numpy', 'scipy','numba']
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
