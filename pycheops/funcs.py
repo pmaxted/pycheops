@@ -322,9 +322,9 @@ def t2z(t,tzero,P,sini,rstar,ecc=0,omdeg=90):
         
     """
     if ecc == 0:
-        return sqrt(1 - cos(2*pi*(t-tzero)/p)**2*sini**2)/rs
-    tp = tzero2tperi(tzero,p,sini,ecc,omdeg)
-    M = 2*pi*(t-tp)/p
+        return sqrt(1 - cos(2*pi*(t-tzero)/P)**2*sini**2)/rs
+    tp = tzero2tperi(tzero,P,sini,ecc,omdeg)
+    M = 2*pi*(t-tp)/P
     E = esolve(M,ecc)
     nu = 2*arctan(sqrt((1+ecc)/(1-ecc))*tan(E/2))
     omrad = pi*omdeg/180
@@ -332,14 +332,14 @@ def t2z(t,tzero,P,sini,rstar,ecc=0,omdeg=90):
 
 #---------
 
-def tzero2tperi(tzero,p,sini,ecc,omdeg):
+def tzero2tperi(tzero,P,sini,ecc,omdeg):
     """
     Calculate time of periastron from time of mid-eclipse
 
     Uses the method by Lacy, 1992AJ....104.2213L
 
     :param tzero: times of mid-eclipse
-    :param p: orbital period
+    :param P: orbital period
     :param sini: sine of orbital inclination 
     :param ecc: eccentricity 
     :param omdeg: longitude of periastron in degrees
@@ -365,17 +365,17 @@ def tzero2tperi(tzero,p,sini,ecc,omdeg):
         E = pi 
     else:
         E = 2*arctan(sqrt((1-ecc)/(1+ecc))*tan(theta/2))
-    return tzero - (E - ecc*sin(E))*p/(2*pi)
+    return tzero - (E - ecc*sin(E))*P/(2*pi)
 
 #---------------
 
-def vrad(t,tzero,p,sini,K,ecc=0,omdeg=90):
+def vrad(t,tzero,P,sini,K,ecc=0,omdeg=90):
     """
     Calculate radial velocity, V_r, for body in a Keplerian orbit
 
     :param t: array of input times 
     :param tzero: time of inferior conjunction, i.e., mid-transit
-    :param p: orbital period
+    :param P: orbital period
     :param sini:  sine of the orbital inclination
     :param K: radial velocity semi-amplitude 
     :param ecc: eccentricity (optional, default=0)
@@ -384,8 +384,8 @@ def vrad(t,tzero,p,sini,K,ecc=0,omdeg=90):
     :returns: V_r in same units as K relative to the barycentre of the binary
 
     """
-    tp = tzero2tperi(tzero,p,sini,ecc,omdeg)
-    M = 2*pi*(t-tp)/p
+    tp = tzero2tperi(tzero,P,sini,ecc,omdeg)
+    M = 2*pi*(t-tp)/P
     E = esolve(M,ecc)
     nu = 2*arctan(sqrt((1+ecc)/(1-ecc))*tan(E/2))
     omrad = omdeg*pi/180
