@@ -161,52 +161,73 @@ class pModel(Model):
         return lp
 
 #@jit()
-def qpower2(z,p,c,a):
+def qpower2(z,k,c,a):
     """
     Fast and accurate transit light curves for the power-2 limb-darkening law
 
     The power-2 limb-darkening law is I(mu) = 1 - c (1 - mu**a)
 
     Light curves are calculated using the qpower2 approximation [1]. The
-    approximation is accurate to better than 100ppm for radius ratio p < 0.1.
+    approximation is accurate to better than 100ppm for radius ratio k < 0.1.
 
-    N.B. qpower2 is untested/inaccurate for values of p > 0.2
+    N.B. qpower2 is untested/inaccurate for values of k > 0.2
 
-    .. [1] Maxted, P.F.L.  & Gill, S. in prep, 2018
+    .. [1] Maxted, P.F.L. & Gill, S., 2019, accepted for publication in A&A.
 
     :param z: star-planet separation on the sky cf. star radius (array)
-    :param p: planet-star radius ratio (scalar, p<1) 
+    :param k: planet-star radius ratio (scalar, k<1) 
     :param c: power-2 limb darkening coefficient
     :param a: power-2 limb darkening exponent
 
     :returns: light curve (observed flux)  
+
+    :Example:
+    >>> from pycheops.models import qpower2
+    >>> from pycheops.funcs import t2z
+    >>> from numpy import linspace
+    >>> import matplotlib.pyplot as plt
+    >>> t = linspace(-0.025,0.025,1000)
+    >>> sini = 0.999
+    >>> rs = 0.05
+    >>> ecc = 0.2
+    >>> om = 120
+    >>> tzero = 0.0
+    >>> P = 0.1
+    >>> z=t2z(t,tzero,P,sini,rs,ecc,om)
+    >>> c = 0.5
+    >>> a = 0.7
+    >>> k = 0.1
+    >>> f = qpower2(z,k,c,a)
+    >>> plt.plot(t,f)
+    >>> plt.show()
+
     """
 
-    if (p > 1):
-        raise ValueError("qpower2 requires p < 1")
+    if (k > 1):
+        raise ValueError("qpower2 requires k < 1")
 
-    if (p > 0.2):
-        warn ("qpower2 is untested/inaccurate for values of p > 0.2")
+    if (k > 0.2):
+        warn ("qpower2 is untested/inaccurate for values of k > 0.2")
 
     f = np.ones_like(z)
     I_0 = (a+2)/(np.pi*(a-c*a+2))
     g = 0.5*a
     for i,zi in enumerate(z):
         zt = np.abs(zi)
-        if zt <= (1-p):
+        if zt <= (1-k):
             s = 1-zt**2
             c0 = (1-c+c*s**g)
             c2 = 0.5*a*c*s**(g-2)*((a-1)*zt**2-1)
-            f[i] = 1-I_0*np.pi*p**2*(
-                    c0 + 0.25*p**2*c2 - 0.125*a*c*p**2*s**(g-1) )
-        elif np.abs(zt-1) < p:
-            d = (zt**2 - p**2 + 1)/(2*zt)
-            ra = 0.5*(zt-p+d)
+            f[i] = 1-I_0*np.pi*k**2*(
+                    c0 + 0.25*k**2*c2 - 0.125*a*c*k**2*s**(g-1) )
+        elif np.abs(zt-1) < k:
+            d = (zt**2 - k**2 + 1)/(2*zt)
+            ra = 0.5*(zt-k+d)
             rb = 0.5*(1+d)
             sa = 1-ra**2
             sb = 1-rb**2
-            q = min(max(-1.,(zt-d)/p),1.)
-            w2 = p**2-(d-zt)**2
+            q = min(max(-1.,(zt-d)/k),1.)
+            w2 = k**2-(d-zt)**2
             w = np.sqrt(w2)
             b0 = 1 - c + c*sa**g
             b1 = -a*c*ra*sa**(g-1)
@@ -215,9 +236,9 @@ def qpower2(z,p,c,a):
             a1 = b1+2*b2*(zt-ra)
             aq = np.arccos(q)
             J1 = ( (a0*(d-zt)-(2/3)*a1*w2 + 
-                0.25*b2*(d-zt)*(2*(d-zt)**2-p**2))*w
-                 + (a0*p**2 + 0.25*b2*p**4)*aq )
-            J2 = a*c*sa**(g-1)*p**4*(
+                0.25*b2*(d-zt)*(2*(d-zt)**2-k**2))*w
+                 + (a0*k**2 + 0.25*b2*k**4)*aq )
+            J2 = a*c*sa**(g-1)*k**4*(
                 0.125*aq + (1/12)*q*(q**2-2.5)*np.sqrt(max(0.,1-q**2)) )
             d0 = 1 - c + c*sb**g
             d1 = -a*c*rb*sb**(g-1)
@@ -229,29 +250,29 @@ def qpower2(z,p,c,a):
     return f
 
 @jit()
-def ueclipse(z,p,f):
+def ueclipse(z,k,f):
     """
     Eclipse light curve for a planet with uniform surface brightness by a star
 
     :param z: star-planet separation on the sky cf. star radius (array)
-    :param p: planet-star radius ratio (scalar, p<1) 
+    :param k: planet-star radius ratio (scalar, k<1) 
     :param f: planet-star flux ratio (scalar) 
 
     :returns: light curve (observed flux)  
     """
-    if (p > 1):
-        raise ValueError("ueclipse requires p < 1")
+    if (k > 1):
+        raise ValueError("ueclipse requires k < 1")
 
     fl = np.ones_like(z)
     for i,zi in enumerate(z):
         zt = np.abs(zi)
-        if zt <= (1-p):
+        if zt <= (1-k):
             fl[i] = 1/(1+f)
-        elif np.abs(zt-1) < p:
-            t1 = np.arccos(min(max(-1.,(zt**2+p**2-1)/(2*zt*p)),1.))
-            t2 = np.arccos(min(max(-1.,(zt**2+1-p**2)/(2*zt)),1.))
-            t3 = 0.5*np.sqrt(max(0.,(1+p-zt)*(zt+p-1)*(zt-p+1)*(zt+p+1)))
-            fl[i] = 1 - f/(1+f)*(p**2*t1 + t2 - t3)/(np.pi*p**2)
+        elif np.abs(zt-1) < k:
+            t1 = np.arccos(min(max(-1.,(zt**2+k**2-1)/(2*zt*k)),1.))
+            t2 = np.arccos(min(max(-1.,(zt**2+1-k**2)/(2*zt)),1.))
+            t3 = 0.5*np.sqrt(max(0.,(1+k-zt)*(zt+k-1)*(zt-k+1)*(zt+k+1)))
+            fl[i] = 1 - f/(1+f)*(k**2*t1 + t2 - t3)/(np.pi*k**2)
     return fl
 
 #class TransitModel(pModel):
