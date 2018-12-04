@@ -175,6 +175,7 @@ class Mock(MagicMock):
 MOCK_MODULES = ['numba',  
         'numpy',
         'scipy', 'scipy.optimize','scipy.interpolate',
+        'scipy.interpolate.ndgriddata',
         'celerite','celerite.modeling',
         'astropy', 'astropy.table', 'astropy.units' ]
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
