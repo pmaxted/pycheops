@@ -20,7 +20,6 @@
 """
 models
 ======
-
 Models for use within the celerite framework
 
 """
@@ -269,9 +268,9 @@ def ueclipse(z,k,f):
         if zt <= (1-k):
             fl[i] = 1/(1+f)
         elif np.abs(zt-1) < k:
-            t1 = np.arccos(min(max(-1.,(zt**2+k**2-1)/(2*zt*k)),1.))
-            t2 = np.arccos(min(max(-1.,(zt**2+1-k**2)/(2*zt)),1.))
-            t3 = 0.5*np.sqrt(max(0.,(1+k-zt)*(zt+k-1)*(zt-k+1)*(zt+k+1)))
+            t1 = np.arccos(min(max(-1,(zt**2+k**2-1)/(2*zt*k)),1))
+            t2 = np.arccos(min(max(-1,(zt**2+1-k**2)/(2*zt)),1))
+            t3 = 0.5*np.sqrt(max(0,(1+k-zt)*(zt+k-1)*(zt-k+1)*(zt+k+1)))
             fl[i] = 1 - f/(1+f)*(k**2*t1 + t2 - t3)/(np.pi*k**2)
     return fl
 
