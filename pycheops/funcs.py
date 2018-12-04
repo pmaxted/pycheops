@@ -322,8 +322,8 @@ def t2z(t,tzero,P,sini,rstar,ecc=0,omdeg=90):
         
     """
     if ecc == 0:
-        return sqrt(1 - cos(2*pi*(t-t0)/p)**2*sini**2)/rs
-    tp = tzero2tperi(t0,p,sini,ecc,omdeg)
+        return sqrt(1 - cos(2*pi*(t-tzero)/p)**2*sini**2)/rs
+    tp = tzero2tperi(tzero,p,sini,ecc,omdeg)
     M = 2*pi*(t-tp)/p
     E = esolve(M,ecc)
     nu = 2*arctan(sqrt((1+ecc)/(1-ecc))*tan(E/2))
@@ -332,19 +332,19 @@ def t2z(t,tzero,P,sini,rstar,ecc=0,omdeg=90):
 
 #---------
 
-def tzero2tperi(t0,p,sini,ecc,omdeg):
+def tzero2tperi(tzero,p,sini,ecc,omdeg):
     """
     Calculate time of periastron from time of mid-eclipse
 
     Uses the method by Lacy, 1992AJ....104.2213L
 
-    :param t0: times of mid-eclipse
+    :param tzero: times of mid-eclipse
     :param p: orbital period
     :param sini: sine of orbital inclination 
     :param ecc: eccentricity 
     :param omdeg: longitude of periastron in degrees
 
-    :returns: time of periastron prior to t0
+    :returns: time of periastron prior to tzero
 
     :Example:
      To do
@@ -365,16 +365,16 @@ def tzero2tperi(t0,p,sini,ecc,omdeg):
         E = pi 
     else:
         E = 2*arctan(sqrt((1-ecc)/(1+ecc))*tan(theta/2))
-    return t0 - (E - ecc*sin(E))*p/(2*pi)
+    return tzero - (E - ecc*sin(E))*p/(2*pi)
 
 #---------------
 
-def vrad(t,t0,p,sini,K,ecc=0,omdeg=90):
+def vrad(t,tzero,p,sini,K,ecc=0,omdeg=90):
     """
     Calculate radial velocity, V_r, for body in a Keplerian orbit
 
     :param t: array of input times 
-    :param t0: time of inferior conjunction, i.e., mid-transit
+    :param tzero: time of inferior conjunction, i.e., mid-transit
     :param p: orbital period
     :param sini:  sine of the orbital inclination
     :param K: radial velocity semi-amplitude 
@@ -384,7 +384,7 @@ def vrad(t,t0,p,sini,K,ecc=0,omdeg=90):
     :returns: V_r in same units as K relative to the barycentre of the binary
 
     """
-    tp = tzero2tperi(t0,p,sini,ecc,omdeg)
+    tp = tzero2tperi(tzero,p,sini,ecc,omdeg)
     M = 2*pi*(t-tp)/p
     E = esolve(M,ecc)
     nu = 2*arctan(sqrt((1+ecc)/(1-ecc))*tan(E/2))
