@@ -1,0 +1,211 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>models &#8212; pycheops 0.0.3 documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.0.3',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="ld" href="ld.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="toctree-wrapper compound">
+</div>
+<span class="target" id="module-pycheops.models"></span><div class="section" id="models">
+<h1>models<a class="headerlink" href="#models" title="Permalink to this headline">¶</a></h1>
+<blockquote>
+<div>Models for use within the celerite framework</div></blockquote>
+<dl class="class">
+<dt id="pycheops.models.pModel">
+<em class="property">class </em><code class="descclassname">pycheops.models.</code><code class="descname">pModel</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.models.pModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>A subclass of the celerite abstract class Model with Gaussian priors and
+default values and initial states (frozen/thawed) for parameters.</p>
+<p>Initial parameter values must be set by name as keyword arguments.</p>
+<dl class="docutils">
+<dt>Args:</dt>
+<dd><dl class="first last docutils">
+<dt>bounds (Optional[list or dict]): Bounds can be given for each</dt>
+<dd>parameter setting their minimum and maximum allowed values.
+This parameter can either be a <code class="docutils literal"><span class="pre">list</span></code> (with length
+<code class="docutils literal"><span class="pre">full_size</span></code>) or a <code class="docutils literal"><span class="pre">dict</span></code> with named parameters. Any parameters
+that are omitted from the <code class="docutils literal"><span class="pre">dict</span></code> will be assumed to have no
+bounds. These bounds can be retrieved later using the
+<code class="xref py py-func docutils literal"><span class="pre">celerite.Model.get_parameter_bounds()</span></code> method and, by
+default, they are used in the <code class="xref py py-func docutils literal"><span class="pre">celerite.Model.log_prior()</span></code>
+method.</dd>
+<dt>priors (Optional[list or dict]): priors can be given for each</dt>
+<dd>parameter setting the mean and standard deviation of the Gaussian
+prior probability distribution.
+This parameter can either be a <code class="docutils literal"><span class="pre">list</span></code> (with length
+<code class="docutils literal"><span class="pre">full_size</span></code>) or a <code class="docutils literal"><span class="pre">dict</span></code> with named parameters. Any parameters
+that are omitted from the <code class="docutils literal"><span class="pre">dict</span></code> will be assumed to have no
+priors (but bounds on the parameter, if specified, are applied).
+These priors can be retrieved later using the
+<code class="xref py py-func docutils literal"><span class="pre">celerite.Model.get_parameter_priors()</span></code> method and, by
+default, they are used in the <code class="xref py py-func docutils literal"><span class="pre">celerite.Model.log_prior()</span></code>
+method.</dd>
+</dl>
+</dd>
+</dl>
+<dl class="method">
+<dt id="pycheops.models.pModel.get_parameter_priors">
+<code class="descname">get_parameter_priors</code><span class="sig-paren">(</span><em>include_frozen=False</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.models.pModel.get_parameter_priors" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get a list of the parameter priors
+Args:</p>
+<blockquote>
+<div><dl class="docutils">
+<dt>include_frozen (Optional[bool]): Should the frozen parameters be</dt>
+<dd>included in the returned value? (default: <code class="docutils literal"><span class="pre">False</span></code>)</dd>
+</dl>
+</div></blockquote>
+</dd></dl>
+
+<dl class="method">
+<dt id="pycheops.models.pModel.log_prior">
+<code class="descname">log_prior</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.models.pModel.log_prior" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the log prior probability of the current parameters</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pycheops.models.qpower2">
+<code class="descclassname">pycheops.models.</code><code class="descname">qpower2</code><a class="headerlink" href="#pycheops.models.qpower2" title="Permalink to this definition">¶</a></dt>
+<dd><p>Fast and accurate transit light curves for the power-2 limb-darkening law</p>
+<p>The power-2 limb-darkening law is I(mu) = 1 - c (1 - mu**a)</p>
+<p>Light curves are calculated using the qpower2 approximation [1]. The
+approximation is accurate to better than 100ppm for radius ratio p &lt; 0.1.</p>
+<p>N.B. qpower2 is untested/inaccurate for values of p &gt; 0.2</p>
+<table class="docutils footnote" frame="void" id="id1" rules="none">
+<colgroup><col class="label" /><col /></colgroup>
+<tbody valign="top">
+<tr><td class="label">[1]</td><td>Maxted, P.F.L.  &amp; Gill, S. in prep, 2018</td></tr>
+</tbody>
+</table>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>z</strong> &#8211; star-planet separation on the sky cf. star radius (array)</li>
+<li><strong>p</strong> &#8211; planet-star radius ratio (scalar, p&lt;1)</li>
+<li><strong>c</strong> &#8211; power-2 limb darkening coefficient</li>
+<li><strong>a</strong> &#8211; power-2 limb darkening exponent</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">light curve (observed flux)</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pycheops.models.ueclipse">
+<code class="descclassname">pycheops.models.</code><code class="descname">ueclipse</code><a class="headerlink" href="#pycheops.models.ueclipse" title="Permalink to this definition">¶</a></dt>
+<dd><p>Eclipse light curve for a planet with uniform surface brightness by a star</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>z</strong> &#8211; star-planet separation on the sky cf. star radius (array)</li>
+<li><strong>p</strong> &#8211; planet-star radius ratio (scalar, p&lt;1)</li>
+<li><strong>f</strong> &#8211; planet-star flux ratio (scalar)</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">light curve (observed flux)</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="ld.html" title="previous chapter">ld</a></li>
+  </ul></li>
+</ul>
+</div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/models.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, p.maxted@keele.ac.uk.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.4</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.10</a>
+      
+      |
+      <a href="_sources/models.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
