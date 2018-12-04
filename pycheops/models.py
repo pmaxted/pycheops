@@ -205,7 +205,7 @@ def qpower2(z,p,c,a):
             rb = 0.5*(1+d)
             sa = 1-ra**2
             sb = 1-rb**2
-            q = np.min(np.max(-1.,(zt-d)/p),1.)
+            q = min(max(-1.,(zt-d)/p),1.)
             w2 = p**2-(d-zt)**2
             w = np.sqrt(w2)
             b0 = 1 - c + c*sa**g
@@ -218,12 +218,12 @@ def qpower2(z,p,c,a):
                 0.25*b2*(d-zt)*(2*(d-zt)**2-p**2))*w
                  + (a0*p**2 + 0.25*b2*p**4)*aq )
             J2 = a*c*sa**(g-1)*p**4*(
-                0.125*aq + (1/12)*q*(q**2-2.5)*np.sqrt(np.max(0.,1-q**2)) )
+                0.125*aq + (1/12)*q*(q**2-2.5)*np.sqrt(max(0.,1-q**2)) )
             d0 = 1 - c + c*sb**g
             d1 = -a*c*rb*sb**(g-1)
             K1 = ((d0-rb*d1)*np.arccos(d) + 
                     ((rb*d+(2/3)*(1-d**2))*d1 - d*d0) * 
-                    np.sqrt(np.max(0.,1-d**2)) )
+                    np.sqrt(max(0.,1-d**2)) )
             K2 = (1/3)*c*a*sb**(g+0.5)*(1-d)
             f[i] = 1 - I_0*(J1 - J2 + K1 - K2)
     return f
@@ -248,9 +248,9 @@ def ueclipse(z,p,f):
         if zt <= (1-p):
             fl[i] = 1/(1+f)
         elif np.abs(zt-1) < p:
-            t1 = np.arccos(np.min(np.max(-1.,(zt**2+p**2-1)/(2*zt*p)),1.))
-            t2 = np.arccos(np.min(np.max(-1.,(zt**2+1-p**2)/(2*zt)),1.))
-            t3 = 0.5*np.sqrt(np.max(0.,(1+p-zt)*(zt+p-1)*(zt-p+1)*(zt+p+1)))
+            t1 = np.arccos(min(max(-1.,(zt**2+p**2-1)/(2*zt*p)),1.))
+            t2 = np.arccos(min(max(-1.,(zt**2+1-p**2)/(2*zt)),1.))
+            t3 = 0.5*np.sqrt(max(0.,(1+p-zt)*(zt+p-1)*(zt-p+1)*(zt+p+1)))
             fl[i] = 1 - f/(1+f)*(p**2*t1 + t2 - t3)/(np.pi*p**2)
     return fl
 
