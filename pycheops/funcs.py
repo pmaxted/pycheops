@@ -311,24 +311,25 @@ def t2z(t,tzero,P,sini,rstar,ecc=0,omdeg=90):
     >>> import matplotlib.pyplot as plt
     >>> t = linspace(0,1,1000)
     >>> sini = 0.999
-    >>> rs = 0.1
-    >>> plt.plot(t, t2z(t,0,1,sini,rs))
+    >>> rstar = 0.1
+    >>> plt.plot(t, t2z(t,0,1,sini,rstar))
     >>> plt.xlim(0,1)
     >>> plt.ylim(0,12)
     >>> ecc = 0.1
     >>> for omdeg in (0, 90, 180, 270):
-    >>>     plt.plot(t, t2z(t,0,1,sini,rs,ecc,omdeg))
+    >>>     plt.plot(t, t2z(t,0,1,sini,rstar,ecc,omdeg))
     >>> plt.show()
         
     """
     if ecc == 0:
-        return sqrt(1 - cos(2*pi*(t-tzero)/P)**2*sini**2)/rs
+        return sqrt(1 - cos(2*pi*(t-tzero)/P)**2*sini**2)/rstar
     tp = tzero2tperi(tzero,P,sini,ecc,omdeg)
     M = 2*pi*(t-tp)/P
     E = esolve(M,ecc)
     nu = 2*arctan(sqrt((1+ecc)/(1-ecc))*tan(E/2))
     omrad = pi*omdeg/180
-    return ((1-ecc**2)/(1+ecc*cos(nu))*sqrt(1-sin(omrad+nu)**2*sini**2))/rs
+    z = ((1-ecc**2)/(1+ecc*cos(nu))*sqrt(1-sin(omrad+nu)**2*sini**2))/rstar
+    return z
 
 #---------
 

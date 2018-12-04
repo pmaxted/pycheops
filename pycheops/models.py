@@ -188,12 +188,12 @@ def qpower2(z,k,c,a):
     >>> import matplotlib.pyplot as plt
     >>> t = linspace(-0.025,0.025,1000)
     >>> sini = 0.999
-    >>> rs = 0.05
+    >>> rstar = 0.05
     >>> ecc = 0.2
     >>> om = 120
     >>> tzero = 0.0
     >>> P = 0.1
-    >>> z=t2z(t,tzero,P,sini,rs,ecc,om)
+    >>> z=t2z(t,tzero,P,sini,rstar,ecc,om)
     >>> c = 0.5
     >>> a = 0.7
     >>> k = 0.1
