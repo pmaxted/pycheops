@@ -188,7 +188,7 @@ def qpower2(z,p,c,a):
     if (p > 0.2):
         warn ("qpower2 is untested/inaccurate for values of p > 0.2")
 
-    f = ones_like(z)
+    f = np.ones_like(z)
     I_0 = (a+2)/(pi*(a-c*a+2))
     g = 0.5*a
     for i,zi in enumerate(z):
@@ -241,7 +241,7 @@ def ueclipse(z,p,f):
     if (p > 1):
         raise ValueError("ueclipse requires p < 1")
 
-    fl = ones_like(z)
+    fl = np.ones_like(z)
     for i,zi in enumerate(z):
         zt = abs(zi)
         if zt <= (1-p):
