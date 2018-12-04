@@ -172,7 +172,7 @@ class Mock(MagicMock):
     def __getattr__(cls, name):
         return MagicMock()
 
-MOCK_MODULES = ['numba',  
+MOCK_MODULES = ['numba',  'ellc', 
         'numpy',
         'scipy', 'scipy.optimize','scipy.interpolate',
         'scipy.interpolate.ndgriddata',
