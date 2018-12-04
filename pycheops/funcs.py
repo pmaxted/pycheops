@@ -1,3 +1,22 @@
+# -*- coding: utf-8 -*-
+#
+#   pycheops - Tools for the analysis of data from the ESA CHEOPS mission
+#
+#   Copyright (C) 2018  Dr Pierre Maxted, Keele University
+#
+#   This program is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
 """
 funcs
 =====
@@ -36,12 +55,15 @@ Functions
 from __future__ import (absolute_import, division, print_function,
                                 unicode_literals)
 from .constants import *
-from numpy import roots, imag, real, vectorize, isscalar, ceil
-from numpy import arcsin, sqrt, pi, sin, cos, tan, arctan
-from scipy.optimize import minimize_scalar
+from numpy import roots, imag, real, vectorize, isscalar, isfinite, array, abs
+from numpy import arcsin, sqrt, pi, sin, cos, tan, arctan, nan, empty_like
+from scipy.optimize import brent
+from numba import vectorize
+
 
 __all__ = [ 'a_rsun','f_m','m1sin3i','m2sin3i','asini','rhostar',
-        'K_kms','m_comp','transit_width','esolve']
+        'K_kms','m_comp','transit_width','esolve','t2z',
+        'tzero2tperi', 'vrad']
 
 _arsun   = (GM_SunN*mean_solar_day**2/(4*pi**2))**(1/3.)/R_SunN
 _f_m     = mean_solar_day*1e9/(2*pi)/GM_SunN
@@ -174,6 +196,8 @@ def m_comp(f_m, m_1, sini):
     """
 
     def _m_comp_scalar(f_m, m_1, sini):
+        if not isfinite(f_m*m_1*sini):
+            return nan
         for r in roots([sini**3, -f_m,-2*f_m*m_1, -f_m*m_1**2]):
             if imag(r) == 0:
                 return real(r)
@@ -207,18 +231,18 @@ def transit_width(r, k, b, p=1):
 
 #---------------
 
+@vectorize(nopython=True)
 def esolve(M, e):
     """
     Solve Kepler's equation M = E - e.sin(E) 
 
-    :param M: mean anomaly
-    :param e: eccentricity
+    :param M: mean anomaly (scalar or array)
+    :param e: eccentricity (scalar or array)
 
     :returns: eccentric anomaly, E
 
     Algorithm is from Markley 1995, CeMDA, 63, 101 via pyAstronomy class
     keplerOrbit.py
-
 
     :Example:
 
@@ -235,42 +259,131 @@ def esolve(M, e):
      Maximum error = 8.88e-16
 
     """
-
-    def _esolve_scalar(M, e):
-        if (e < 0) or (e >= 1):
-            raise ValueError("Invalid eccentricity value")
-
-        if e == 0:
-            return M
-
-        m = M % (2*pi)
-        if m > pi:
-            m = 2*pi - m
-            flip = True
-        else:
-            flip = False
-
-        alpha = (3*pi + 1.6*(pi-abs(m))/(1+e) )/(pi - 6/pi)
-        d = 3*(1 - e) + alpha*e
-        r = 3*alpha*d * (d-1+e)*m + m**3
-        q = 2*alpha*d*(1-e) - m**2
-        w = (abs(r) + sqrt(q**3 + r**2))**(2/3)
-        E = (2*r*w/(w**2 + w*q + q**2) + m) / d
-        f_0 = E - e*sin(E) - m
-        f_1 = 1 - e*cos(E)
-        f_2 = e*sin(E)
-        f_3 = 1-f_1
-        d_3 = -f_0/(f_1 - 0.5*f_0*f_2/f_1)
-        d_4 = -f_0/(f_1 + 0.5*d_3*f_2 + (d_3**2)*f_3/6)
-        E = E -f_0/(f_1 + 0.5*d_4*f_2 + d_4**2*f_3/6 - d_4**3*f_2/24)
-        if flip:
-            E =  2*pi - E
-        return E
-
-    _esolve_vector = vectorize(_esolve_scalar )
-
-    if isscalar(M) & isscalar(e):
-        return float(_esolve_scalar(M, e))
+    M = M % (2*pi)
+    if e == 0:
+        return M
+    if M > pi:
+        M = 2*pi - M
+        flip = True
     else:
-        return _esolve_vector(M, e)
+        flip = False
+    alpha = (3*pi + 1.6*(pi-abs(M))/(1+e) )/(pi - 6/pi)
+    d = 3*(1 - e) + alpha*e
+    r = 3*alpha*d * (d-1+e)*M + M**3
+    q = 2*alpha*d*(1-e) - M**2
+    w = (abs(r) + sqrt(q**3 + r**2))**(2/3)
+    E = (2*r*w/(w**2 + w*q + q**2) + M) / d
+    f_0 = E - e*sin(E) - M
+    f_1 = 1 - e*cos(E)
+    f_2 = e*sin(E)
+    f_3 = 1-f_1
+    d_3 = -f_0/(f_1 - 0.5*f_0*f_2/f_1)
+    d_4 = -f_0/(f_1 + 0.5*d_3*f_2 + (d_3**2)*f_3/6)
+    E = E -f_0/(f_1 + 0.5*d_4*f_2 + d_4**2*f_3/6 - d_4**3*f_2/24)
+    if flip:
+        E =  2*pi - E
+    return E
+
+#---------------
+
+def t2z(t,t0,p,sini,rs,e=0,om=90):
+    """
+    Calculate star-planet separation
+
+    :param t: time of observation (scalar or array)
+    :param t0: time of inferior conjunction, i.e., mid-transit
+    :param p: orbital period
+    :param sini: sine of orbital inclination
+    :param rs: scaled stellar radius, R_star/a
+    :param e: eccentricity (optional, default=0)
+    :param om: longitude of periastron in degrees (optional, default=90)
+
+    :returns: star-planet separation relative to scaled stellar radius
+
+    :Example:
+    
+    >>> from pycheops.funcs import t2z
+    >>> from numpy import linspace
+    >>> import matplotlib.pyplot as plt
+    >>> t = linspace(0,1,1000)
+    >>> sini = 0.999
+    >>> rs = 0.1
+    >>> plt.plot(t, t2z(t,0,1,sini,rs))
+    >>> plt.xlim(0,1)
+    >>> plt.ylim(0,12)
+    >>> ecc = 0.1
+    >>> for om in (0, 90, 180, 270):
+    >>>     plt.plot(t, t2z(t,0,1,sini,rs,ecc,om))
+    >>> plt.show()
+        
+    """
+    if e == 0:
+        return sqrt(1 - cos(2*pi*(t-t0)/p)**2*sini**2)/rs
+    tp = tzero2tperi(t0,p,sini,e,om)
+    M = 2*pi*(t-tp)/p
+    E = esolve(M,e)
+    nu = 2*arctan(sqrt((1+e)/(1-e))*tan(E/2))
+    omrad = pi*om/180
+    return ((1-e**2)/(1+e*cos(nu))*sqrt(1-sin(omrad+nu)**2*sini**2))/rs
+
+#---------
+
+def tzero2tperi(t0,p,sini,e,om):
+    """
+    Calculate time of periastron from time of mid-eclipse
+
+    Uses the method by Lacy, 1992AJ....104.2213L
+
+    :param t0: times of mid-eclipse
+    :param p: orbital period
+    :param sini: sine of orbital inclination 
+    :param e: eccentricity 
+    :param om: longitude of periastron in degrees
+
+    :returns: time of periastron prior to t0
+
+    :Example:
+     To do
+
+    """
+
+    def _delta(th, sin2i, om, e):
+        # Separation of centres of mass in units of a - equation (8) from
+        # Lacy, 1992. 
+        # theta = nu + om - pi/2 (7)
+        return (1-e**2)*sqrt(1-sin2i*sin(th+om)**2)/(1+e*cos(th))
+
+    omrad = om*pi/180
+    theta = brent(_delta, 
+            args = (sini**2, omrad, e),
+            brack = (0.25*pi-omrad,0.5*pi-omrad,0.75*pi-omrad))
+    if theta == pi:
+        E = pi 
+    else:
+        E = 2*arctan(sqrt((1-e)/(1+e))*tan(theta/2))
+    return t0 - (E - e*sin(E))*p/(2*pi)
+
+#---------------
+
+def vrad(t,t0,p,sini,K,e=0,om=90):
+    """
+    Calculate radial velocity, V_r, for body in a Keplerian orbit
+
+    :param t: array of input times 
+    :param t0: time of inferior conjunction, i.e., mid-transit
+    :param p: orbital period
+    :param sini:  sine of the orbital inclination
+    :param K: radial velocity semi-amplitude 
+    :param e: eccentricity (optional, default=0)
+    :param om: longitude of periastron in degrees (optional, default=90)
+
+    :returns: V_r in same units as K relative to the barycentre of the binary
+
+    """
+    tp = tzero2tperi(t0,p,sini,e,om)
+    M = 2*pi*(t-tp)/p
+    E = esolve(M,e)
+    nu = 2*arctan(sqrt((1+e)/(1-e))*tan(E/2))
+    omr = om*pi/180
+    return K*(cos(nu+omr)+e*cos(omr))
 

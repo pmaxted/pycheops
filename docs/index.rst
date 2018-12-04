@@ -1,4 +1,7 @@
-.. pycheops documentation master file, created by sphinx-quickstart 
+.. pycheops documentation master file, created by
+   sphinx-quickstart on Thu May 11 20:51:32 2017.
+   You can adapt this file completely to your liking, but it should at least
+   contain the root `toctree` directive.
 
 Welcome to pycheops's documentation!
 ====================================
@@ -12,7 +15,7 @@ Welcome to pycheops's documentation!
    funcs
    instrument
    ld
-   quantities
+   models
 
 
 Indices and tables

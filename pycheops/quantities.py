@@ -1,11 +1,30 @@
+# -*- coding: utf-8 -*-
+#
+#   pycheops - Tools for the analysis of data from the ESA CHEOPS mission
+#
+#   Copyright (C) 2018  Dr Pierre Maxted, Keele University
+#
+#   This program is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
 """
 quantities
 ==========
 Nominal values of solar and planetary constants from IAU Resolution B3 [1] 
 plus related constants as astropy quantities.
 
-Masses are derived using the 2014 CODATA value for the Newtonian constant,
-G=6.67408E-11 m3.kg-1.s-2.
+Masses in SI units are derived using the 2014 CODATA value for the Newtonian
+constant, G=6.67408E-11 m3.kg-1.s-2.
 
 The following conversion constants are defined.
 
@@ -39,12 +58,12 @@ Related constants
 -----------------
 * G_2014          - 2014 CODATA value for the Newtonian constant
 * mean_solar_day  - 86,400.002 seconds [2] 
-* au              - IAU 2009 value for astronomical constant [3]
+* au              - IAU 2009 value for astronomical constant in metres. [3]
 * pc              - 1 parsec = 3600*au*180/pi
 
 Fundamental constants
 ---------------------
-* c               - speed of light [3]
+* c               - speed of light in m.s-1 [3]
 
 Example
 -------

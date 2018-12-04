@@ -3,3 +3,4 @@ scipy
 astropy
 emcee
 celerite
+numba
