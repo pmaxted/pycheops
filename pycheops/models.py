@@ -160,7 +160,7 @@ class pModel(Model):
 
         return lp
 
-@jit()
+#@jit()
 def qpower2(z,p,c,a):
     """
     Fast and accurate transit light curves for the power-2 limb-darkening law
