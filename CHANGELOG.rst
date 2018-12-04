@@ -60,3 +60,8 @@
 0.0.15 (2018-12-04)
 ~~~~~~~~~~~~~~~~~~~
  Moved development back to github 
+
+0.0.16 (2018-12-04)
+~~~~~~~~~~~~~~~~~~~
+ Various bug-fixes and homogenization of parameters in funcs.py and models.py
+
