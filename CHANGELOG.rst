@@ -65,3 +65,7 @@
 ~~~~~~~~~~~~~~~~~~~
  Various bug-fixes and homogenization of parameters in funcs.py and models.py
 
+0.0.17 (2018-12-05)
+~~~~~~~~~~~~~~~~~~~
+ Removed link to readthedocs from README
+
