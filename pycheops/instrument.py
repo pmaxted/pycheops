@@ -40,11 +40,11 @@ from numpy import round
 
 _data_path = join(dirname(abspath(__file__)),'data')
 
-with open(join(_data_path,'instrument','visibility_interpolator.p'),'rb') as fp:
-    _visibility_interpolator = load(fp)
-
 with open(join(_data_path,'instrument','exposure_time.p'),'rb') as fp:
     _exposure_time_interpolator = load(fp)
+
+with open(join(_data_path,'instrument','visibility_interpolator.p'),'rb') as fp:
+    _visibility_interpolator = load(fp)
 
 def visibility(ra, dec):
     """

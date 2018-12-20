@@ -69,3 +69,11 @@
 ~~~~~~~~~~~~~~~~~~~
  Removed link to readthedocs from README
 
+0.0.18 (2018-12-09)
+~~~~~~~~~~~~~~~~~~~
+ Added missing data files
+
+0.1.0 (2018-12-20)
+~~~~~~~~~~~~~~~~~~
+ Promote previous version to 0.1.0 since it has been used for CHEOPS SV3
+ exercise.
