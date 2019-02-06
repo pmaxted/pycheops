@@ -29,5 +29,5 @@
 try:
           from .version import __version__
 except:
-          __version__ = '0.1.0'
+          __version__ = '0.1.1'
 

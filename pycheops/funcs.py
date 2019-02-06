@@ -290,7 +290,7 @@ def esolve(M, ecc):
 
 #---------------
 
-def t2z(t,tzero,P,sini,rstar,ecc=0,omdeg=90):
+def t2z(t, tzero, P, sini, rstar, ecc=0, omdeg=90, signFlag=False):
     """
     Calculate star-planet separation
 
@@ -301,6 +301,7 @@ def t2z(t,tzero,P,sini,rstar,ecc=0,omdeg=90):
     :param rstar: scaled stellar radius, R_star/a
     :param ecc: eccentricity (optional, default=0)
     :param omdeg: longitude of periastron in degrees (optional, default=90)
+    :param signFlag: set z negative if companion is further away than the star
 
     :returns: star-planet separation relative to scaled stellar radius
 
@@ -322,13 +323,19 @@ def t2z(t,tzero,P,sini,rstar,ecc=0,omdeg=90):
         
     """
     if ecc == 0:
-        return sqrt(1 - cos(2*pi*(t-tzero)/P)**2*sini**2)/rstar
-    tp = tzero2tperi(tzero,P,sini,ecc,omdeg)
-    M = 2*pi*(t-tp)/P
-    E = esolve(M,ecc)
-    nu = 2*arctan(sqrt((1+ecc)/(1-ecc))*tan(E/2))
-    omrad = pi*omdeg/180
-    z = ((1-ecc**2)/(1+ecc*cos(nu))*sqrt(1-sin(omrad+nu)**2*sini**2))/rstar
+        nu = 2*pi*(t-tzero)/P
+        omrad = 0.5*pi
+        z = sqrt(1 - cos(nu)**2*sini**2)/rstar
+    else:
+        tp = tzero2tperi(tzero,P,sini,ecc,omdeg)
+        M = 2*pi*(t-tp)/P
+        E = esolve(M,ecc)
+        nu = 2*arctan(sqrt((1+ecc)/(1-ecc))*tan(E/2))
+        omrad = pi*omdeg/180
+        z = ((1-ecc**2)/(1+ecc*cos(nu))*sqrt(1-sin(omrad+nu)**2*sini**2))/rstar
+    if signFlag:
+        q = sin(nu + omrad)*sini
+        z[q < 0] = -z[q < 0]
     return z
 
 #---------
@@ -348,10 +355,15 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg):
     :returns: time of periastron prior to tzero
 
     :Example:
-     To do
+     >>> tzero = 54321.6789
+     >>> P = 1.23456
+     >>> sini = 0.987
+     >>> ecc = 0.123
+     >>> omdeg = 89.01
+     >>> print(tzero2tperi(tzero,P,sini,ecc,omdeg))
+     54321.6762764
 
     """
-
     def _delta(th, sin2i, omrad, ecc):
         # Separation of centres of mass in units of a - equation (8) from
         # Lacy, 1992. 

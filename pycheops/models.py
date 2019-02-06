@@ -30,6 +30,7 @@ import numpy as np
 from celerite.modeling import Model
 from collections import OrderedDict
 from numba import jit
+from warnings import warn
 
 __all__ = ['pModel','qpower2','ueclipse']
 
