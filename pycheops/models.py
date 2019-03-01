@@ -20,145 +20,19 @@
 """
 models
 ======
-Models for use within the celerite framework
+Models and likelihood functions for use with lmfit
 
 """
 
 from __future__ import (absolute_import, division, print_function,
                                 unicode_literals)
 import numpy as np
-from celerite.modeling import Model
-from collections import OrderedDict
+from lmfit.model import Model
+from lmfit.models import COMMON_INIT_DOC
 from numba import jit
 from warnings import warn
 
-__all__ = ['pModel','qpower2','ueclipse']
-
-class pModel(Model):
-    """
-
-    A subclass of the celerite abstract class Model with Gaussian priors and
-    default values and initial states (frozen/thawed) for parameters.
-
-    Initial parameter values must be set by name as keyword arguments.
-
-    Args:
-        bounds (Optional[list or dict]): Bounds can be given for each
-            parameter setting their minimum and maximum allowed values.
-            This parameter can either be a ``list`` (with length
-            ``full_size``) or a ``dict`` with named parameters. Any parameters
-            that are omitted from the ``dict`` will be assumed to have no
-            bounds. These bounds can be retrieved later using the
-            :func:`celerite.Model.get_parameter_bounds` method and, by
-            default, they are used in the :func:`celerite.Model.log_prior`
-            method.
-
-        priors (Optional[list or dict]): priors can be given for each
-            parameter setting the mean and standard deviation of the Gaussian
-            prior probability distribution.
-            This parameter can either be a ``list`` (with length
-            ``full_size``) or a ``dict`` with named parameters. Any parameters
-            that are omitted from the ``dict`` will be assumed to have no
-            priors (but bounds on the parameter, if specified, are applied).
-            These priors can be retrieved later using the
-            :func:`celerite.Model.get_parameter_priors` method and, by
-            default, they are used in the :func:`celerite.Model.log_prior`
-            method.
-    """
-
-    parameter_names = tuple()
-    parameter_defaults = tuple()
-    parameter_initial_thawed = tuple()  # True = thawed, False=frozen
-
-    def __init__(self, *args, **kwargs):
-
-        if len(self.parameter_names) != len(self.parameter_defaults):
-            raise ValueError("the number of defaults must equal the number of "
-                             "parameters")
-
-        if len(self.parameter_names) != len(self.parameter_initial_thawed):
-            raise ValueError("the number of initial states must equal the "
-                             "number of parameters")
-
-        self.unfrozen_mask = np.array(self.parameter_initial_thawed)
-        self.dirty = True
-
-        # Deal with bounds
-        self.parameter_bounds = []
-        bounds = kwargs.pop("bounds", dict())
-        try:
-            # Try to treat 'bounds' as a dictionary
-            for name in self.parameter_names:
-                self.parameter_bounds.append(bounds.get(name, (None, None)))
-        except AttributeError:
-            # 'bounds' isn't a dictionary - it had better be a list
-            self.parameter_bounds = list(bounds)
-        if len(self.parameter_bounds) != self.full_size:
-            raise ValueError("the number of bounds must equal the number of "
-                             "parameters")
-        if any(len(b) != 2 for b in self.parameter_bounds):
-            raise ValueError("the bounds for each parameter must have the "
-                             "format: '(min, max)'")
-
-        # Deal with priors
-        self.parameter_priors = []
-        priors = kwargs.pop("priors", dict())
-        try:
-            # Try to treat 'priors' as a dictionary
-            for name in self.parameter_names:
-                self.parameter_priors.append(priors.get(name, (None, None)))
-        except AttributeError:
-            # 'priors' isn't a dictionary - it had better be a list
-            self.parameter_priors = list(priors)
-        if len(self.parameter_priors) != self.full_size:
-            raise ValueError("the number of priors must equal the number of "
-                             "parameters")
-        if any(len(b) != 2 for b in self.parameter_priors):
-            raise ValueError("the priors for each parameter must have the "
-                             "format: '(min, max)'")
-
-        # Parameter values must be specified keywords
-        params = list(self.parameter_defaults)
-        # Loop over the kwargs and set the parameter values
-        for k in kwargs:
-            try:
-                params[self.parameter_names.index(k)] = kwargs[k]
-            except ValueError:
-                raise ValueError("No such parameter name {}".format(k))
-        self.parameter_vector = params
-
-        # Check the initial prior value
-        quiet = kwargs.get("quiet", False)
-        if not quiet and not np.isfinite(self.log_prior()):
-             raise ValueError("non-finite log prior value")
-
-
-    def get_parameter_priors(self, include_frozen=False):
-        """
-        Get a list of the parameter priors
-        Args:
-            include_frozen (Optional[bool]): Should the frozen parameters be
-                included in the returned value? (default: ``False``)
-        """
-        if include_frozen:
-            return self.parameter_priors
-        return list(p
-                for p, f in zip(self.parameter_priors, self.unfrozen_mask)
-                if f)
-
-    def log_prior(self):
-        """Compute the log prior probability of the current parameters"""
-        for p, b in zip(self.parameter_vector, self.parameter_bounds):
-            if b[0] is not None and p < b[0]:
-                return -np.inf
-            if b[1] is not None and p > b[1]:
-                return -np.inf
-        lp = 0.0
-        for p,g in zip(self.parameter_vector, self.parameter_priors):
-            if g[0] is not None and g[1] is not None:
-                lp -= 0.5*((p-g[0])/g[1])**2
-
-        return lp
+__all__ = ['qpower2', 'ueclipse', 'TransitModel']
 
 @jit()
 def qpower2(z,k,c,a):
@@ -275,24 +149,99 @@ def ueclipse(z,k,f):
             fl[i] = 1 - f/(1+f)*(k**2*t1 + t2 - t3)/(np.pi*k**2)
     return fl
 
-#class TransitModel(pModel):
-#    parameter_names = ("T_0", "P", "D", "W", "S", "F", "h_1", "h_2",
-#            "dFdx", "dFdy","d2Fdx2", "d2Fdy2", "d2Fdxdy",
-#            "dFdt", "dFdt2",
-#            "Fratio", "f_s", "f_c")
-#
+def _pdsv_func(t, F, dFdx, dFdy, d2Fdxdy, d2Fdx2, d2Fdy2, xy=None):
+    if xy is None:
+        return 1
+    else:
+        x = xy['x'](t)
+        y = xy['y'](t)
+        return F + dFdx*x + dFdy*y + d2Fdxdy*x*y + d2Fdx2*x**2 + d2Fdy2*y**2
 
+def _transit_func(t, T_0, P, D, W, S, f_c, f_s, h_1, h_2, 
+        F, dFdx, dFdy, d2Fdxdy, d2Fdx2, d2Fdy2, xy=None):
+    # Note: x, y is included in the list of keyword arguments to avoid
+    # UserWarning when called from lmfit, it is not used in this model.
+    # 
+    from pycheops.funcs import t2z
+    from pycheops.models import qpower2
 
-#class EclipseModel(pModel):
-#    parameter_names = ("Fratio", "f_s", "f_c", "asini",
-#            "T_0", "P", "D", "W", "S", "F", 
-#            "dFdx", "dFdy","d2Fdx2", "d2Fdy2", "d2Fdxdy",
-#            "dFdt", "dFdt2")
-#
+    k = np.sqrt(D)
+    r_star = 0.5*np.pi*np.sqrt(W**2*(1-S**2)/k)
+    sini = np.sqrt(1 - ((1-k)**2 - S**2*(1+k)**2)/(1-S**2)*r_star**2)
+    c2 = 1 - h_1 + h_2
+    a2 = np.log2(c2/h_2)
+    z = t2z(t, T_0, P, sini, r_star, signFlag = True)
+    # Set z values where planet is behind star to a large nominal value
+    z[z < 0]  = 9999
+    pdsv = _pdsv_func(t, F, dFdx, dFdy, d2Fdxdy, d2Fdx2, d2Fdy2, xy=xy)
+    return qpower2(z, k, c2, a2)*pdsv
 
+class TransitModel(Model):
+    r"""Light curve model for the transit of a spherical star by an opaque
+    spherical body (planet).
 
+    Limb-darkening is described by the power-2 law:
+    .. math::
+        I(\mu; c, \alpha) = 1 - c (1 - mu^\alpha)
 
-#class RVModel(pModel):
-#    parameter_names = ("T_0", "P", "K", "f_s", "f_c", V, dVdt)
-#
+    The light curve depth, width and shape are parameterised by D, W, and S as
+    defined below in terms of the star and planet radii, R_s and R_p,
+    respectively, the semi-major axis, a, and the orbital inclination, i. The
+    following parameters are used for convenience - k = R_p/R_s,
+    b=a.cos(i)/R_s. The shape parameter is approximately (t_F/t_T)^2 where
+    t_T=W*P is the duration of the transit (1st to 4th contact points) and t_F
+    is the duration of the "flat" part of the transit between the 2nd and 3rd
+    contact points. The eccentricity and longitude of periastron for the
+    planet's orbit are ecc and omega, respectively. These parameters are all
+    available as constraints within the model.
+
+    The model includes a position-dependent sensitivity variation model
+    F + dFdx*x + dFdy*y + d2Fdxdy*x*y + d2Fdx2*x**2 + d2Fdy2*y**2
+
+    :param t:    - independent variable (time)
+    :param T_0:  - time of mid-transit
+    :param P:    - orbital period
+    :param D:    - (R_p/R_s)^2 = k^2
+    :param W:    - (R_*/a)*sqrt((1+k)^2 - b^2)/pi
+    :param S:    - ((1-k)^2-b^2)/((1+k)^2 - b^2)
+    :param f_c:  - sqrt(ecc).cos(omega)
+    :param f_s:  - sqrt(ecc).sin(omega)
+    :param h_1:  - I(0.5) = 1 - c*(1-0.5**alpha)
+    :param h_2:  - I(0.5) - I(0) = c*0.5**alpha
+
+    The flux value outside of transit is 1. The light curve is calculated using
+    the qpower2 algorithm, which is fast but only accurate for k < ~0.3.
+
+    """
+
+    def __init__(self, independent_vars=['t'], prefix='', nan_policy='raise',
+                 **kwargs):
+        kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
+                       'independent_vars': independent_vars})
+        super(TransitModel, self).__init__(_transit_func, **kwargs)
+        self._set_paramhints_prefix()
+
+    def _set_paramhints_prefix(self):
+        self.set_param_hint('P', min=1e-15)
+        self.set_param_hint('D', min=0, max=1)
+        self.set_param_hint('W', min=0, max=0.3)
+        self.set_param_hint('S', min=0, max=1)
+        self.set_param_hint('f_c', value=0, min=-1, max=1)
+        self.set_param_hint('f_s', value=0, min=-1, max=1)
+        self.set_param_hint('h_1', min=0, max=1)
+        self.set_param_hint('h_2', min=0, max=1)
+        expr = "sqrt({prefix:s}D)".format(prefix=self.prefix)
+        self.set_param_hint('k', expr=expr, min=0, max=1)
+        self.set_param_hint('R_s',min=0,max=1, expr=
+          "0.5*pi*{p:s}W*sqrt((1-{p:s}S)/k)".format(p=self.prefix) )
+        self.set_param_hint('bsq', min=0,  expr = 
+          "((1-k)**2-{p:s}S*(1+k)**2)/(1-{p:s}S)".format(p=self.prefix) )
+        self.set_param_hint('b', max=1.3, expr = 
+          "sqrt(bsq)".format(p=self.prefix) )
+        self.set_param_hint('F', min=0, value=1)
+        self.set_param_hint('dFdx', value=0, vary=False)
+        self.set_param_hint('dFdy', value=0, vary=False)
+        self.set_param_hint('d2Fdxdy', value=0, vary=False)
+        self.set_param_hint('d2Fdx2', value=0, vary=False)
+        self.set_param_hint('d2Fdy2', value=0, vary=False)
 
