@@ -77,3 +77,9 @@
 ~~~~~~~~~~~~~~~~~~
  Promote previous version to 0.1.0 since it has been used for CHEOPS SV3
  exercise.
+
+0.1.1 (2019-03-02)
+~~~~~~~~~~~~~~~~~~
+ Replaced missing make_xml_files.py file
+ Includes some development work on models with lmfit (incomplete)
+
