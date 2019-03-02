@@ -56,7 +56,7 @@ from sys import exit
 from contextlib import redirect_stderr, redirect_stdout
 import pickle
 from .instrument import visibility, exposure_time
-from .version import __version__
+from . import __version__
 
 __all__ = ['SpTypeToGminusV', 'SpTypeToTeff', '_GaiaDR2match']
 
@@ -455,7 +455,7 @@ def _GaiaDR2Match(row, fC, match_radius=1,  gaia_mag_tolerance=0.5,
 
     cat = SkyCoord(DR2Table['ra'],DR2Table['dec'],
             frame='icrs',
-            distance=Distance(parallax=DR2Table['parallax']),
+            distance=Distance(parallax=DR2Table['parallax'].quantity),
             pm_ra_cosdec=DR2Table['pmra'], pm_dec=DR2Table['pmdec'],
             obstime=Time(2015.0, format='decimalyear')
            ).apply_space_motion(new_obstime=Time('2000-01-01 00:00:00.0'))
