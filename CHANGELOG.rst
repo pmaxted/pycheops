@@ -83,3 +83,10 @@
  Replaced missing make_xml_files.py file
  Includes some development work on models with lmfit (incomplete)
 
+0.1.2 (2019-03-04)
+~~~~~~~~~~~~~~~~~~
+ Update make_xml_files for new version of Feasibility Checker
+
+0.1.3 (2019-03-05)
+~~~~~~~~~~~~~~~~~~
+ Bug fix in  make_xml_files for non time-critical observations.

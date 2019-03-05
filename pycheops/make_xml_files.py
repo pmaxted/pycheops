@@ -210,6 +210,9 @@ _xml_time_critical_fmt = """<?xml version="1.0" encoding="UTF-8"?>
 
         <!--  PHT2, CHEOPSim : set the exposure repetition period (optional) . Use fastest repetition period if not specified -->
         <Number_Stacked_Images>{:d}</Number_Stacked_Images>
+        
+        <!-- PHT2, CHEOPSim : mandatory but not relevant for the FC  -->
+        <Number_Stacked_Imagettes>{:d}</Number_Stacked_Imagettes>
 
         <!--  PHT2, FC, CHEOPSim/GTO : set the central time of the transit (in BJD) (time critical only)  -->
         <Transit_Time unit="BJD">{:0.6f}</Transit_Time>
@@ -250,6 +253,10 @@ _xml_time_critical_fmt = """<?xml version="1.0" encoding="UTF-8"?>
     	<!--  In this version, you should input "Start" < "End" (will be improved in future version)  -->
     	<!--  PHT2, FC : set the critical phase ranges  -->
 {}
+                <!--  If two critical phase ranges are defined above, this parameter is used to request that both ("true") or                             -->
+                <!--         only one of the two phase ranges ("false") are observed. This can be seen as a AND / OR operator, respectively.              -->
+                <!--  #############################   Set the critical phase ranges    -->
+                <Fulfil_all_Phase_Ranges>{}</Fulfil_all_Phase_Ranges>
 
         <Send_Data_Taking_During_SAA>false</Send_Data_Taking_During_SAA>
         <Send_Data_Taking_During_Earth_Constraints>false</Send_Data_Taking_During_Earth_Constraints>
@@ -373,6 +380,9 @@ _xml_non_time_critical_fmt = """<?xml version="1.0" encoding="UTF-8"?>
     
         <!--  PHT2, CHEOPSim : set the exposure repetition period (optional) . Use fastest repetition period if not specified -->
         <Number_Stacked_Images>{:d}</Number_Stacked_Images>
+        
+        <!-- PHT2, CHEOPSim : mandatory but not relevant for the FC  -->
+        <Number_Stacked_Imagettes>{:d}</Number_Stacked_Imagettes>
 
         <!--  1 orbit  =  6000 seconds  -->
         <!--  PHT2, FC, CHEOPSim : set the visit duration (in seconds)  -->
@@ -503,13 +513,84 @@ def _GaiaDR2Match(row, fC, match_radius=1,  gaia_mag_tolerance=0.5,
 
     return DR2Table[idx], contam, flags, cat[idx]
 
-def _choose_stacking(t_exp):
-    if t_exp >= 30:
-        return 1
-    return int(60//t_exp)
+def _choose_stacking(Texp):
+    if Texp < 0.1:
+        return 40, 4
+    elif Texp < 0.15:
+        return 39, 3
+    elif Texp < 0.20:
+        return 36, 3
+    elif Texp < 0.40:
+        return 33, 3
+    elif Texp < 0.50:
+        return 30, 3
+    elif Texp < 0.55:
+        return 28, 2
+    elif Texp < 0.65:
+        return 26, 2
+    elif Texp < 0.85:
+        return 24,23
+    elif Texp < 1.05:
+        return 22, 2
+    elif Texp < 1.10:
+        return 44, 4
+    elif Texp < 1.20:
+        return 40, 4
+    elif Texp < 1.25:
+        return 39, 3
+    elif Texp < 1.30:
+        return 36, 3
+    elif Texp < 1.50:
+        return 33, 3
+    elif Texp < 1.60:
+        return 30, 3
+    elif Texp < 1.65:
+        return 28, 2
+    elif Texp < 1.75:
+        return 26, 2
+    elif Texp < 1.95:
+        return 24, 2
+    elif Texp < 2.15:
+        return 22, 2
+    elif Texp < 2.40:
+        return 20, 2
+    elif Texp < 2.70:
+        return 18, 2
+    elif Texp < 2.80:
+        return 16, 2
+    elif Texp < 2.90:
+        return 15, 1
+    elif Texp < 3.05:
+        return 14, 1
+    elif Texp < 3.20:
+        return 13, 1
+    elif Texp < 3.40:
+        return 12, 1
+    elif Texp < 3.65:
+        return 11, 1
+    elif Texp < 3.90:
+        return 10, 1
+    elif Texp < 4.25:
+        return 9, 1
+    elif Texp < 4.70:
+        return 8, 1
+    elif Texp < 5.25:
+        return 7, 1
+    elif Texp < 6.05:
+        return 6, 1
+    elif Texp < 7.25:
+        return 5, 1
+    elif Texp < 9.20:
+        return 4, 1
+    elif Texp < 12.5:
+        return 3, 1
+    elif Texp < 22.65:
+        return 2, 1
+    else:
+        return 1, 0
 
 def _choose_romode(t_exp):
-    if t_exp < 1:
+    if t_exp < 1.05:
         return 'ultrabright'
     if t_exp < 2.226:
         return 'bright'
@@ -573,11 +654,11 @@ def _parcheck_time_critical(Priority, MinEffDur,
         return """
         The latest start phase should be a number between 0 and 1, inclusive
         """
-    if not Num_Ranges in (0,1,2):
+    if not Num_Ranges in (-2,0,1,2):
         return """
-        The number of constrained ranges is too large (or negative)
+        The number of constrained ranges is invalid (not 0, 1, 2 or -2)
         """
-    if Num_Ranges > 0:
+    if abs(Num_Ranges) > 0:
         if (BegPh1 < 0) or (BegPh1 > 1) or (EndPh1 < 0) or (EndPh1 > 1):
             return """
             Invalid phase range for phase constraint 1
@@ -587,7 +668,7 @@ def _parcheck_time_critical(Priority, MinEffDur,
             Invalid efficiency for phase constraint 1
             """
 
-    if Num_Ranges > 1:
+    if abs(Num_Ranges) > 1:
         if (BegPh2 < 0) or (BegPh2 > 1) or (EndPh2 < 0) or (EndPh2 > 1):
             return """
             Invalid phase range for phase constraint 2
@@ -605,6 +686,7 @@ def _target_table_row_to_xml(row,
 
     period = row['Period'] 
     t_exp = row['T_exp']
+    n_stack_image, n_stack_imagettes = _choose_stacking(t_exp)
 
     c = SkyCoord("{} {}".format(row['_RAJ2000'],row['_DEJ2000']),
             frame='icrs', obstime='J2000.0',
@@ -637,14 +719,15 @@ def _target_table_row_to_xml(row,
               radeg, dedeg, row['pmra'], row['pmdec'],
               row['parallax'], row['T_eff'], 
               row['BJD_early'], row['BJD_late'], t_exp,
-              _choose_stacking(t_exp),
+              n_stack_image, n_stack_imagettes,
               row['BJD_0'], period, 
               row['T_visit'], row['N_Visits'], row['Priority'],
               row['MinEffDur'],
               row['Ph_early'], row['Ph_late'],
               _make_list_of_phase_ranges(row['N_Ranges'],
                   row["BegPh1"], row["EndPh1"], row["Effic1"],
-                  row["BegPh2"], row["EndPh2"], row["Effic2"])
+                  row["BegPh2"], row["EndPh2"], row["Effic2"]),
+              "true" if int(row['N_Ranges']) < 0 else "false"
               )
       
     else:
@@ -665,7 +748,7 @@ def _target_table_row_to_xml(row,
               radeg, dedeg, row['pmra'], row['pmdec'],
               row['parallax'], row['T_eff'],
               row['BJD_early'], row['BJD_late'], t_exp,
-              _choose_stacking(t_exp),
+              n_stack_image, n_stack_imagettes,
               row['T_visit'], row['N_Visits'], row['Priority'],
               row['MinEffDur']
               )
@@ -740,6 +823,8 @@ def main():
          BegPh2     - start of phase range 1
          EndPh2     - end of phase range 1
          Effic2     - minimum observing efficiency (%), phase range 2 (integer)
+        N.B. If you have 2 phase ranges with extra efficiency constraints but
+        only require one of them to be satisified then use N_Ranges = -2
          
         The terminal output includes the following columns
 
