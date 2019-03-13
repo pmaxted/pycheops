@@ -253,10 +253,6 @@ _xml_time_critical_fmt = """<?xml version="1.0" encoding="UTF-8"?>
     	<!--  In this version, you should input "Start" < "End" (will be improved in future version)  -->
     	<!--  PHT2, FC : set the critical phase ranges  -->
 {}
-                <!--  If two critical phase ranges are defined above, this parameter is used to request that both ("true") or                             -->
-                <!--         only one of the two phase ranges ("false") are observed. This can be seen as a AND / OR operator, respectively.              -->
-                <!--  #############################   Set the critical phase ranges    -->
-                <Fulfil_all_Phase_Ranges>{}</Fulfil_all_Phase_Ranges>
 
         <Send_Data_Taking_During_SAA>false</Send_Data_Taking_During_SAA>
         <Send_Data_Taking_During_Earth_Constraints>false</Send_Data_Taking_During_Earth_Constraints>
@@ -435,6 +431,10 @@ _phase_range_format_2 = """
             <Minimum_Phase_Duration unit="%">{:d}</Minimum_Phase_Duration>
         </Phase_Range>
     </List_of_Phase_Ranges>
+      <!--  If two critical phase ranges are defined above, this parameter is used to request that both ("true") or                             -->
+      <!--         only one of the two phase ranges ("false") are observed. This can be seen as a AND / OR operator, respectively.              -->
+      <!--  #############################   Set the critical phase ranges    -->
+      <Fulfil_all_Phase_Ranges>{}</Fulfil_all_Phase_Ranges>
 """
 
 def _GaiaDR2Match(row, fC, match_radius=1,  gaia_mag_tolerance=0.5, 
@@ -607,15 +607,20 @@ def _make_list_of_phase_ranges(Num_Ranges,
         BegPh1, EndPh1, Effic1,
         BegPh2, EndPh2, Effic2):
 
-    if Num_Ranges == 0:
-        return ""
-
     if Num_Ranges == 1 :
         return _phase_range_format_1.format(BegPh1, EndPh1, Effic1)
 
+    if Num_Ranges == 2 :
+        return _phase_range_format_2.format(BegPh1, EndPh1, Effic1,
+                BegPh2, EndPh2, Effic2, 'true')
 
-    return _phase_range_format_2.format(BegPh1, EndPh1, Effic1,
-            BegPh2, EndPh2, Effic2)
+    if Num_Ranges == -2 :
+        return _phase_range_format_2.format(BegPh1, EndPh1, Effic1,
+                BegPh2, EndPh2, Effic2, 'false')
+
+    return ""
+
+
 
 def _parcheck_non_time_critical(Priority, MinEffDur, 
         Earliest_start_date, Latest_end_date):
@@ -726,8 +731,7 @@ def _target_table_row_to_xml(row,
               row['Ph_early'], row['Ph_late'],
               _make_list_of_phase_ranges(row['N_Ranges'],
                   row["BegPh1"], row["EndPh1"], row["Effic1"],
-                  row["BegPh2"], row["EndPh2"], row["Effic2"]),
-              "true" if int(row['N_Ranges']) < 0 else "false"
+                  row["BegPh2"], row["EndPh2"], row["Effic2"])
               )
       
     else:
