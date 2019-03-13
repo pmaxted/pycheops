@@ -90,3 +90,7 @@
 0.1.3 (2019-03-05)
 ~~~~~~~~~~~~~~~~~~
  Bug fix in  make_xml_files for non time-critical observations.
+
+0.1.4 (2019-03-08)
+~~~~~~~~~~~~~~~~~~
+ No Fulfil_all_Phase_Ranges in make_xml_files if there are no phase ranges. 
