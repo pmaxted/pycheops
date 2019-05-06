@@ -4,3 +4,10 @@ build
 dist
 venv
 test
+*.ipynb_checkpoints
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+pyvenv

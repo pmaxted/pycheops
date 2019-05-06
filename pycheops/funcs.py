@@ -41,7 +41,7 @@ Functions are defined in terms of the following parameters. [1]
 * f_m        - mass function = m_2^3.sini^3/(m_1+m_2)^2 in solar masses 
                              = K_1^3.P/(2.pi.G).(1-e^2)^(3/2)
 * r_1        - radius of star 1 in units of the semi-major axis, r_1 = R_*/a
-* rho_1      - mean stellar density = 3.pi/(GP^2(1+q)r_1^3)
+* rhostar    - mean stellar density = 3.pi/(GP^2(1+q)r_1^3)
 * rstar      - host star radius/semi-major axis, rstar = R_*/a
 * k          - planet/star radius ratio, k = R_planet/R_star
 * tzero      - time of mid-transit (minimum on-sky star-planet separation). 
@@ -59,15 +59,15 @@ Functions
 from __future__ import (absolute_import, division, print_function,
                                 unicode_literals)
 from .constants import *
-from numpy import roots, imag, real, isscalar, isfinite, array
-from numpy import arcsin, sqrt, pi, sin, cos, tan, arctan, nan, empty_like
+from numpy import roots, imag, real, isscalar, isfinite, array, empty_like
+from numpy import arcsin, sqrt, pi, sin, cos, tan, arctan, nan, hypot, finfo
 from scipy.optimize import brent
 from numba import vectorize
 
 
 __all__ = [ 'a_rsun','f_m','m1sin3i','m2sin3i','asini','rhostar',
         'K_kms','m_comp','transit_width','esolve','t2z',
-        'tzero2tperi', 'vrad']
+        'tzero2tperi', 'vrad', 'xyz_planet']
 
 _arsun   = (GM_SunN*mean_solar_day**2/(4*pi**2))**(1/3.)/R_SunN
 _f_m     = mean_solar_day*1e9/(2*pi)/GM_SunN
@@ -135,7 +135,7 @@ def asini(K, P, ecc=0):
      :returns: a.sin(i) in solar radii
 
     """
-    return _asini * K * P 
+    return _asini * K * P *sqrt(1-ecc**2)
 
 def r_star(rho, P, q=0):
     """ 
@@ -290,9 +290,13 @@ def esolve(M, ecc):
 
 #---------------
 
-def t2z(t, tzero, P, sini, rstar, ecc=0, omdeg=90, signFlag=False):
+def t2z(t, tzero, P, sini, rstar, ecc=0, omdeg=90, returnMask=False):
     """
-    Calculate star-planet separation
+    Calculate star-planet separation relative to scaled stellar radius, z
+
+    Optionally, return a flag/mask to indicate cases where the planet is
+    further from the observer than the star, i.e., whether phases with z<1 are
+    transits (mask==True) or eclipses (mask==False)
 
     :param t: time of observation (scalar or array)
     :param tzero: time of inferior conjunction, i.e., mid-transit
@@ -301,9 +305,9 @@ def t2z(t, tzero, P, sini, rstar, ecc=0, omdeg=90, signFlag=False):
     :param rstar: scaled stellar radius, R_star/a
     :param ecc: eccentricity (optional, default=0)
     :param omdeg: longitude of periastron in degrees (optional, default=90)
-    :param signFlag: set z negative if companion is further away than the star
+    :param returnFlag: return a flag to distinguish transits from eclipses.
 
-    :returns: star-planet separation relative to scaled stellar radius
+    :returns: z [, mask]
 
     :Example:
     
@@ -333,10 +337,10 @@ def t2z(t, tzero, P, sini, rstar, ecc=0, omdeg=90, signFlag=False):
         nu = 2*arctan(sqrt((1+ecc)/(1-ecc))*tan(E/2))
         omrad = pi*omdeg/180
         z = ((1-ecc**2)/(1+ecc*cos(nu))*sqrt(1-sin(omrad+nu)**2*sini**2))/rstar
-    if signFlag:
-        q = sin(nu + omrad)*sini
-        z[q < 0] = -z[q < 0]
-    return z
+    if returnMask:
+        return z, sin(nu + omrad)*sini < 0
+    else:
+        return z
 
 #---------
 
@@ -371,9 +375,11 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg):
         return (1-ecc**2)*sqrt(1-sin2i*sin(th+omrad)**2)/(1+ecc*cos(th))
 
     omrad = omdeg*pi/180
-    theta = brent(_delta, 
-            args = (sini**2, omrad, ecc),
-            brack = (0.25*pi-omrad,0.5*pi-omrad,0.75*pi-omrad))
+    if (1-sini**2) < finfo(0.).eps :
+        theta = 0.5*pi-omrad
+    else:
+        theta = brent(_delta, args = (sini**2, omrad, ecc),
+                brack = (-omrad,0.5*pi-omrad,pi-omrad))
     if theta == pi:
         E = pi 
     else:
@@ -382,17 +388,17 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg):
 
 #---------------
 
-def vrad(t,tzero,P,sini,K,ecc=0,omdeg=90):
+def vrad(t,tzero,P,K,ecc=0,omdeg=90,sini=1):
     """
     Calculate radial velocity, V_r, for body in a Keplerian orbit
 
     :param t: array of input times 
     :param tzero: time of inferior conjunction, i.e., mid-transit
     :param P: orbital period
-    :param sini:  sine of the orbital inclination
     :param K: radial velocity semi-amplitude 
     :param ecc: eccentricity (optional, default=0)
     :param omdeg: longitude of periastron in degrees (optional, default=90)
+    :param sini: sine of orbital inclination
 
     :returns: V_r in same units as K relative to the barycentre of the binary
 
@@ -403,4 +409,61 @@ def vrad(t,tzero,P,sini,K,ecc=0,omdeg=90):
     nu = 2*arctan(sqrt((1+ecc)/(1-ecc))*tan(E/2))
     omrad = omdeg*pi/180
     return K*(cos(nu+omrad)+ecc*cos(omrad))
+
+#---------------
+
+def xyz_planet(t, tzero, P, sini, ecc=0, omdeg=90):
+    """
+    Position of the planet in Cartesian coordinates.
+
+    The position of the ascending node is taken to be Omega=0 and the
+    semi-major axis is taken to be a=1.
+
+    :param t: time of observation (scalar or array)
+    :param tzero: time of inferior conjunction, i.e., mid-transit
+    :param P: orbital period
+    :param sini: sine of orbital inclination
+    :param ecc: eccentricity (optional, default=0)
+    :param omdeg: longitude of periastron in degrees (optional, default=90)
+    N.B. omdeg is the longitude of periastron for the star's orbit
+
+    :returns: (x, y, z)
+
+    :Example:
+    
+    >>> from pycheops.funcs import phase_angle
+    >>> from numpy import linspace
+    >>> import matplotlib.pyplot as plt
+    >>> t = linspace(0,1,1000)
+    >>> sini = 0.9
+    >>> ecc = 0.1
+    >>> omdeg = 90
+    >>> x, y, z = xyz_planet(t,0,1,sini,ecc,omdeg)
+    >>> plt.plot(x, y)
+    >>> plt.plot(x, z)
+    >>> plt.show()
+        
+    """
+    if ecc == 0:
+        nu = 2*pi*(t-tzero)/P
+        r = 1
+        cosw = 0
+        sinw = -1
+    else:
+        tp = tzero2tperi(tzero,P,sini,ecc,omdeg)
+        M = 2*pi*(t-tp)/P
+        E = esolve(M,ecc)
+        nu = 2*arctan(sqrt((1+ecc)/(1-ecc))*tan(E/2))
+        r = (1-ecc**2)/(1+ecc*cos(nu))
+        omrad = pi*omdeg/180
+        # negative here since om_planet = om_star + pi
+        cosw = -cos(omrad)
+        sinw = -sin(omrad)
+    sinv = sin(nu) 
+    cosv = cos(nu)
+    cosi = sqrt(1-sini**2)
+    x = r*(-sinv*sinw + cosv*cosw)
+    y = r*cosi*(cosv*sinw + sinv*cosw)
+    z = -r*sini*(cosw*sinv + cosv*sinw)
+    return x, y, z
 

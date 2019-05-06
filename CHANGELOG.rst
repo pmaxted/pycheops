@@ -94,3 +94,12 @@
 0.1.4 (2019-03-08)
 ~~~~~~~~~~~~~~~~~~
  No Fulfil_all_Phase_Ranges in make_xml_files if there are no phase ranges. 
+
+0.1.4 (2019-03-14)
+~~~~~~~~~~~~~~~~~~
+ lmfit...
+
+0.1.5 (2019-05-06)
+~~~~~~~~~~~~~~~~~~
+ Use string comparison for Gaia ID check (issue #39)
+ Gaia epoch change 2015.0 -> 2015.5 (issue #40)
