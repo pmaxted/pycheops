@@ -28,18 +28,21 @@ from __future__ import (absolute_import, division, print_function,
                                 unicode_literals)
 import numpy as np
 from lmfit.model import Model
-from lmfit.models import COMMON_INIT_DOC
+from lmfit.models import COMMON_INIT_DOC, COMMON_GUESS_DOC
 from numba import jit
+from .funcs import t2z, xyz_planet, vrad
 from warnings import warn
 
-__all__ = ['qpower2', 'ueclipse', 'TransitModel']
+__all__ = ['qpower2', 'ueclipse', 'TransitModel', 'EclipseModel', 
+           'FactorModel', 'ThermalPhaseModel', 'ReflectionModel',
+           'RVModel']
 
 @jit()
 def qpower2(z,k,c,a):
-    """
+    r"""
     Fast and accurate transit light curves for the power-2 limb-darkening law
 
-    The power-2 limb-darkening law is I(mu) = 1 - c (1 - mu**a)
+    The power-2 limb-darkening law is I(\mu) = 1 - c (1 - \mu^\alpha)
 
     Light curves are calculated using the qpower2 approximation [1]. The
     approximation is accurate to better than 100ppm for radius ratio k < 0.1.
@@ -124,15 +127,14 @@ def qpower2(z,k,c,a):
     return f
 
 @jit()
-def ueclipse(z,k,f):
+def ueclipse(z,k):
     """
     Eclipse light curve for a planet with uniform surface brightness by a star
 
     :param z: star-planet separation on the sky cf. star radius (array)
     :param k: planet-star radius ratio (scalar, k<1) 
-    :param f: planet-star flux ratio (scalar) 
 
-    :returns: light curve (observed flux)  
+    :returns: light curve (observed flux from eclipsed source)  
     """
     if (k > 1):
         raise ValueError("ueclipse requires k < 1")
@@ -141,40 +143,13 @@ def ueclipse(z,k,f):
     for i,zi in enumerate(z):
         zt = np.abs(zi)
         if zt <= (1-k):
-            fl[i] = 1/(1+f)
+            fl[i] = 0
         elif np.abs(zt-1) < k:
             t1 = np.arccos(min(max(-1,(zt**2+k**2-1)/(2*zt*k)),1))
             t2 = np.arccos(min(max(-1,(zt**2+1-k**2)/(2*zt)),1))
             t3 = 0.5*np.sqrt(max(0,(1+k-zt)*(zt+k-1)*(zt-k+1)*(zt+k+1)))
-            fl[i] = 1 - f/(1+f)*(k**2*t1 + t2 - t3)/(np.pi*k**2)
+            fl[i] = 1 - (k**2*t1 + t2 - t3)/(np.pi*k**2)
     return fl
-
-def _pdsv_func(t, F, dFdx, dFdy, d2Fdxdy, d2Fdx2, d2Fdy2, xy=None):
-    if xy is None:
-        return 1
-    else:
-        x = xy['x'](t)
-        y = xy['y'](t)
-        return F + dFdx*x + dFdy*y + d2Fdxdy*x*y + d2Fdx2*x**2 + d2Fdy2*y**2
-
-def _transit_func(t, T_0, P, D, W, S, f_c, f_s, h_1, h_2, 
-        F, dFdx, dFdy, d2Fdxdy, d2Fdx2, d2Fdy2, xy=None):
-    # Note: x, y is included in the list of keyword arguments to avoid
-    # UserWarning when called from lmfit, it is not used in this model.
-    # 
-    from pycheops.funcs import t2z
-    from pycheops.models import qpower2
-
-    k = np.sqrt(D)
-    r_star = 0.5*np.pi*np.sqrt(W**2*(1-S**2)/k)
-    sini = np.sqrt(1 - ((1-k)**2 - S**2*(1+k)**2)/(1-S**2)*r_star**2)
-    c2 = 1 - h_1 + h_2
-    a2 = np.log2(c2/h_2)
-    z = t2z(t, T_0, P, sini, r_star, signFlag = True)
-    # Set z values where planet is behind star to a large nominal value
-    z[z < 0]  = 9999
-    pdsv = _pdsv_func(t, F, dFdx, dFdy, d2Fdxdy, d2Fdx2, d2Fdy2, xy=xy)
-    return qpower2(z, k, c2, a2)*pdsv
 
 class TransitModel(Model):
     r"""Light curve model for the transit of a spherical star by an opaque
@@ -182,27 +157,26 @@ class TransitModel(Model):
 
     Limb-darkening is described by the power-2 law:
     .. math::
-        I(\mu; c, \alpha) = 1 - c (1 - mu^\alpha)
+        I(\mu; c, \alpha) = 1 - c (1 - \mu^\alpha)
 
     The light curve depth, width and shape are parameterised by D, W, and S as
     defined below in terms of the star and planet radii, R_s and R_p,
     respectively, the semi-major axis, a, and the orbital inclination, i. The
-    following parameters are used for convenience - k = R_p/R_s,
-    b=a.cos(i)/R_s. The shape parameter is approximately (t_F/t_T)^2 where
+    following parameters are used for convenience - k = R_p/R_s, aR = a/R_s,
+    b=aR.cos(i). The shape parameter is approximately (t_F/t_T)^2 where
     t_T=W*P is the duration of the transit (1st to 4th contact points) and t_F
     is the duration of the "flat" part of the transit between the 2nd and 3rd
-    contact points. The eccentricity and longitude of periastron for the
-    planet's orbit are ecc and omega, respectively. These parameters are all
-    available as constraints within the model.
-
-    The model includes a position-dependent sensitivity variation model
-    F + dFdx*x + dFdy*y + d2Fdxdy*x*y + d2Fdx2*x**2 + d2Fdy2*y**2
+    contact points. These parameters are all available as constraints within
+    the model. Also available is the mean stellar density in solar units,
+    rho=0.013418*aR**3/(P/days)**2. N.B. this value of rho assumes that
+    M_planet << M_star. The eccentricity and longitude of periastron for the
+    planet's orbit are ecc and omega, respectively.
 
     :param t:    - independent variable (time)
     :param T_0:  - time of mid-transit
     :param P:    - orbital period
     :param D:    - (R_p/R_s)^2 = k^2
-    :param W:    - (R_*/a)*sqrt((1+k)^2 - b^2)/pi
+    :param W:    - (R_s/a)*sqrt((1+k)^2 - b^2)/pi
     :param S:    - ((1-k)^2-b^2)/((1+k)^2 - b^2)
     :param f_c:  - sqrt(ecc).cos(omega)
     :param f_s:  - sqrt(ecc).sin(omega)
@@ -218,6 +192,20 @@ class TransitModel(Model):
                  **kwargs):
         kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
                        'independent_vars': independent_vars})
+
+        def _transit_func(t, T_0, P, D, W, S, f_c, f_s, h_1, h_2):
+            b = np.sqrt( ((1-k)**2 - S*(1+k)**2) / (1-S) )
+            r_star = np.pi * W / np.sqrt((1+k)**2-b*b)
+            sini = np.sqrt(1 - (b*r_star)**2)
+            c2 = 1 - h_1 + h_2
+            a2 = np.log2(c2/h_2)
+            ecc = f_c**2 + f_s**2
+            om = np.arctan2(f_c, f_s)*180/np.pi
+            z,m = t2z(t, T_0, P, sini, r_star, ecc, om, returnMask = True)
+            # Set z values where planet is behind star to a large nominal value
+            z[m]  = 9999
+            return qpower2(z, k, c2, a2)
+
         super(TransitModel, self).__init__(_transit_func, **kwargs)
         self._set_paramhints_prefix()
 
@@ -230,18 +218,248 @@ class TransitModel(Model):
         self.set_param_hint('f_s', value=0, min=-1, max=1)
         self.set_param_hint('h_1', min=0, max=1)
         self.set_param_hint('h_2', min=0, max=1)
+        expr = "sqrt({p:s}D)".format(p=self.prefix)
+        self.set_param_hint('k'.format(p=self.prefix), 
+                expr=expr, min=0, max=1)
+        self.set_param_hint('aR',min=1, expr=
+                "2/(pi*{p:s}W*sqrt((1-{p:s}S)/{p:s}k))".format(p=self.prefix) )
+        self.set_param_hint('rho', min=0, expr = 
+                "0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix) )
+        self.set_param_hint('b', max=1.3, 
+                expr = "sqrt(((1-{p:s}k)**2-{p:s}S*(1+{p:s}k)**2)/(1-{p:s}S))"
+                .format(p=self.prefix) )
+
+class EclipseModel(Model):
+    r"""Light curve model for the eclipse by a spherical star of a spherical
+    body (planet) with no limb darkening.
+
+     The geometry of the system is defined using the parameters D, W and S, as
+    defined below in terms of the star and planet radii, R_s and R_p,
+    respectively, the semi-major axis, a, and the orbital inclination, i.
+    These are the same parameters used in TransitModel. The flux level outside
+    of eclipse is 1 and inside eclipse is 0. The apparent time of mid-eclipse
+    includes the correction a_c for the light travel time across the orbit,
+    i.e., for a circular orbit the time of mid-eclipse is (T_0 + 0.5*P) + a_c.
+    N.B. a_c has the same units as P.
+
+     The following parameters are used for convenience - k = R_p/R_s, aR =
+    a/R_s, b=aR.cos(i). These parameters are all available as constraints
+    within the model. Also available is the mean stellar density in solar
+    units, rho=0.013418*aR**3/(P/days)**2.
+    N.B. this value of rho assumes that M_planet << M_star.
+
+     The eccentricity and longitude of periastron for the planet's orbit are
+    ecc and omega, respectively. 
+
+    :param t:   - independent variable (time)
+    :param T_0: - time of mid-transit
+    :param P:   - orbital period
+    :param D:   - (R_p/R_s)^2 = k^2
+    :param W:   - (R_s/a)*sqrt((1+k)^2 - b^2)/pi
+    :param S:   - ((1-k)^2-b^2)/((1+k)^2 - b^2)
+    :param f_c: - sqrt(ecc).cos(omega)
+    :param f_s: - sqrt(ecc).sin(omega)
+    :param a_c: - correction for light travel time across the orbit
+
+    """
+
+    def __init__(self, independent_vars=['t'], prefix='', nan_policy='raise',
+                 **kwargs):
+        kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
+                       'independent_vars': independent_vars})
+
+        def _eclipse_func(t, T_0, P, D, W, S, f_c, f_s, a_c):
+            k = np.sqrt(D)
+            r_star = 0.5*np.pi*W*np.sqrt((1-S**2)/k)
+            sini = np.sqrt(1 - r_star**2*((1-k)**2 - S*(1+k)**2)/(1-S))
+            ecc = f_c**2 + f_s**2
+            om = np.arctan2(f_c, f_s)*180/np.pi
+            z,m = t2z(t-a_c, T_0, P, sini, r_star, ecc, om, returnMask=True)
+            z[~m]  = 9999
+            return ueclipse(z, k)
+
+        super(EclipseModel, self).__init__(_eclipse_func, **kwargs)
+        self._set_paramhints_prefix()
+
+    def _set_paramhints_prefix(self):
+        self.set_param_hint('P', min=1e-15)
+        self.set_param_hint('D', min=0, max=1)
+        self.set_param_hint('W', min=0, max=0.3)
+        self.set_param_hint('S', min=0, max=1)
+        self.set_param_hint('f_c', value=0, min=-1, max=1, vary=False)
+        self.set_param_hint('f_s', value=0, min=-1, max=1, vary=False)
+        self.set_param_hint('a_c', value=0, min=0, vary=False)
         expr = "sqrt({prefix:s}D)".format(prefix=self.prefix)
         self.set_param_hint('k', expr=expr, min=0, max=1)
-        self.set_param_hint('R_s',min=0,max=1, expr=
-          "0.5*pi*{p:s}W*sqrt((1-{p:s}S)/k)".format(p=self.prefix) )
-        self.set_param_hint('bsq', min=0,  expr = 
-          "((1-k)**2-{p:s}S*(1+k)**2)/(1-{p:s}S)".format(p=self.prefix) )
-        self.set_param_hint('b', max=1.3, expr = 
-          "sqrt(bsq)".format(p=self.prefix) )
-        self.set_param_hint('F', min=0, value=1)
-        self.set_param_hint('dFdx', value=0, vary=False)
-        self.set_param_hint('dFdy', value=0, vary=False)
-        self.set_param_hint('d2Fdxdy', value=0, vary=False)
-        self.set_param_hint('d2Fdx2', value=0, vary=False)
-        self.set_param_hint('d2Fdy2', value=0, vary=False)
+        self.set_param_hint('aR', min=1, 
+                expr="2/(pi*{p:s}W*sqrt((1-{p:s}S)/{p:s}k))"
+                .format(p=self.prefix) )
+        self.set_param_hint('rho', min=0, expr = 
+                "0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix) )
+        self.set_param_hint('b', max=1.3,
+                expr = "sqrt(((1-{p:s}k)**2-{p:s}S*(1+{p:s}k)**2)/(1-{p:s}S))"
+                .format(p=self.prefix) )
+
+class FactorModel(Model):
+    """Constant factor model, with a single Parameter: ``c``.
+    Note that this is 'constant' in the sense of having no dependence on
+    the independent variable ``t``, not in the sense of being non-varying.
+    To be clear, ``c`` will be a Parameter that will be varied
+    in the fit (by default, of course).
+    """
+
+    def __init__(self, independent_vars=['t'], prefix='', nan_policy='raise',
+                 **kwargs):
+        kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
+                       'independent_vars': independent_vars})
+
+        def factor(t, c=1.0):
+            return c
+        super(FactorModel, self).__init__(factor, **kwargs)
+        self._set_paramhints_prefix()
+
+    def guess(self, data, **kwargs):
+        """Estimate initial model parameter values from data."""
+        pars = self.make_params()
+
+        pars['%sc' % self.prefix].set(value=data.median())
+        return update_param_vals(pars, self.prefix, **kwargs)
+
+    __init__.__doc__ = COMMON_INIT_DOC
+    guess.__doc__ = COMMON_GUESS_DOC
+
+class ThermalPhaseModel(Model):
+    """Thermal phase model for a tidally-locked planet
+         a_th*(1-cos(phi))/2 + b_th*(1+sin(phi))/2 + c_th,
+    where phi = 2*pi*(t-T_0)/P
+
+    :param t:    - independent variable (time)
+    :param T_0:  - time of inferior conjunction (mid-transit)
+    :param P:    - orbital period
+    :param a_th: - coefficient of cosine-like term
+    :param b_th: - coefficient of sine-like term
+    :param c_th: - constant term (minimum flux)
+
+    The following parameters are defined for convenience.
+
+    A = sqrt(a_th**2 + b_th**2), peak-to-trough amplitude of the phase curve
+    F = c_th + (a_th + b_th + A)/2, flux at the maximum of the phase curve
+    ph_max = arctan2(b_th,-a_th)/(2*pi) = phase at maximum flux
+
+    """
+
+    def __init__(self, independent_vars=['t'], prefix='', nan_policy='raise',
+                 **kwargs):
+        kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
+                       'independent_vars': independent_vars})
+
+        def _thermal_phase(t, T_0, P, a_th, b_th, c_th):
+            phi = 2*np.pi*(t-T_0)/P
+            return a_th*(1-np.cos(phi))/2 + b_th*(1+np.sin(phi))/2 + c_th
+
+        super(ThermalPhaseModel, self).__init__(_thermal_phase, **kwargs)
+        self._set_paramhints_prefix()
+
+    def _set_paramhints_prefix(self):
+        self.set_param_hint('P', min=1e-15)
+        self.set_param_hint('a_th', value=0)
+        self.set_param_hint('b_th', value=0)
+        self.set_param_hint('c_th', value=0, min=0)
+        expr = "hypot({p:s}a_th,{p:s}b_th)".format(p=self.prefix)
+        self.set_param_hint('A', expr=expr)
+        expr = "{p:s}c_th+({p:s}a_th+{p:s}b_th+{p:s}A)/2".format(p=self.prefix)
+        self.set_param_hint('Fmax', expr=expr, min=0)
+        expr = "{p:s}Fmax - {p:s}A".format(p=self.prefix)
+        self.set_param_hint('Fmin', expr=expr, min=0)
+        expr = "arctan2({p:s}b_th,-{p:s}a_th)/(2*pi)".format(p=self.prefix)
+        self.set_param_hint('ph_max', expr=expr)
+
+    __init__.__doc__ = COMMON_INIT_DOC
+
+
+class ReflectionModel(Model):
+    """Reflected stellar light from a planet with a Lambertian phase function.
+
+     The fraction of the stellar flux reflected from the planet of radius R_p 
+    at a distance r from the star and viewed at phase angle beta is
+      A_g*(R_p/r)**2 * [sin(beta) + (pi-beta)*cos(beta) ]/pi
+ 
+     The eccentricity and longitude of periastron for the planet's orbit are
+    ecc and omega, respectively.
+
+    :param t:    - independent variable (time)
+    :param T_0:  - time of inferior conjunction (mid-transit)
+    :param P:    - orbital period
+    :param A_g:  - geometric albedo
+    :param r_p:  - R_p/a, where a is the semi-major axis.
+    :param f_c:  - sqrt(ecc).cos(omega)
+    :param f_s:  - sqrt(ecc).sin(omega)
+    :param sini: - sin(inclination)
+
+    """
+
+    def __init__(self, independent_vars=['t'], prefix='', nan_policy='raise',
+                 **kwargs):
+        kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
+                       'independent_vars': independent_vars})
+
+        def _reflection(t, T_0, P, A_g, r_p, f_c, f_s, sini):
+            ecc = f_c**2 + f_s**2
+            om = np.arctan2(f_c, f_s)*180/np.pi
+            x,y,z = xyz_planet(t, T_0, P, sini, ecc, om)
+            r = np.sqrt(x**2+y**2+z**2)
+            beta = np.arccos(-z/r)
+            Phi_L = (np.sin(beta) + (np.pi-beta)*np.cos(beta) )/np.pi
+            return A_g*(r_p/r)**2*Phi_L
+
+        super(ReflectionModel, self).__init__(_reflection, **kwargs)
+        self._set_paramhints_prefix()
+
+    def _set_paramhints_prefix(self):
+        self.set_param_hint('P', min=1e-15)
+        self.set_param_hint('A_g', value=0.5, min=0, max=1)
+        self.set_param_hint('r_p', min=0, max=1)
+        self.set_param_hint('f_c', value=0, vary=False, min=-1, max=1)
+        self.set_param_hint('f_s', value=0, vary=False, min=-1, max=1)
+        self.set_param_hint('sini', value=1, vary=False, min=0, max=1)
+
+    __init__.__doc__ = COMMON_INIT_DOC
+
+class RVModel(Model):
+    """Radial velocity in a Keplerian orbit
+
+    :param t:    - independent variable (time)
+    :param T_0:  - time of inferior conjunction for the companion (mid-transit)
+    :param P:    - orbital period
+    :param K:    - semi-amplitude of spectroscopic orbit
+    :param f_c:  - sqrt(ecc).cos(omega)
+    :param f_s:  - sqrt(ecc).sin(omega)
+
+    """
+
+    def __init__(self, independent_vars=['t'], prefix='', nan_policy='raise',
+                 **kwargs):
+        kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
+                       'independent_vars': independent_vars})
+
+        def _rv(t, T_0, P, K, f_c, f_s, sini):
+            ecc = f_c**2 + f_s**2
+            om = np.arctan2(f_c, f_s)*180/np.pi
+            return vrad(t, T_0, P, K, ecc, om, sini)
+
+        super(RVModel, self).__init__(_rv, **kwargs)
+        self._set_paramhints_prefix()
+
+    def _set_paramhints_prefix(self):
+        self.set_param_hint('P', min=1e-15)
+        self.set_param_hint('K', min=1e-15)
+        self.set_param_hint('f_c', value=0, vary=False, min=-1, max=1)
+        self.set_param_hint('f_s', value=0, vary=False, min=-1, max=1)
+        self.set_param_hint('sini', value=1, vary=False, min=0, max=1)
+
+    __init__.__doc__ = COMMON_INIT_DOC
+
+
+
+
 

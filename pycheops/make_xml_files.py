@@ -467,7 +467,7 @@ def _GaiaDR2Match(row, fC, match_radius=1,  gaia_mag_tolerance=0.5,
             frame='icrs',
             distance=Distance(parallax=DR2Table['parallax'].quantity),
             pm_ra_cosdec=DR2Table['pmra'], pm_dec=DR2Table['pmdec'],
-            obstime=Time(2015.0, format='decimalyear')
+            obstime=Time(2015.5, format='decimalyear')
            ).apply_space_motion(new_obstime=Time('2000-01-01 00:00:00.0'))
     idx, d2d, _ = coo.match_to_catalog_sky(cat)
     if d2d > match_radius*u.arcsec:
@@ -489,10 +489,9 @@ def _GaiaDR2Match(row, fC, match_radius=1,  gaia_mag_tolerance=0.5,
                     DR2Table['source_id'][idx] ))
         raise ValueError('Nearest Gaia source does not match estimated G mag')
 
-    if id_check and (row['Old_Gaia_DR2'] != DR2Table['source_id'][idx]):
-        raise ValueError('Nearest Gaia DR2 source does not match input ID')
-
-    if row['Old_Gaia_DR2'] != DR2Table['source_id'][idx]:
+    if (str(row['Old_Gaia_DR2']) != str(DR2Table['source_id'][idx])):
+        if id_check:
+            raise ValueError('Nearest Gaia DR2 source does not match input ID')
         flags += 32768
 
     gmag = np.array(DR2Table['phot_g_mean_mag'])
