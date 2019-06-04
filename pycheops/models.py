@@ -35,7 +35,7 @@ from warnings import warn
 
 __all__ = ['qpower2', 'ueclipse', 'TransitModel', 'EclipseModel', 
            'FactorModel', 'ThermalPhaseModel', 'ReflectionModel',
-           'RVModel']
+           'RVModel', 'RVCompanion']
 
 @jit()
 def qpower2(z,k,c,a):
@@ -371,7 +371,7 @@ class ThermalPhaseModel(Model):
         self.set_param_hint('Fmax', expr=expr, min=0)
         expr = "{p:s}Fmax - {p:s}A".format(p=self.prefix)
         self.set_param_hint('Fmin', expr=expr, min=0)
-        expr = "arctan2({p:s}b_th,-{p:s}a_th)/(2*pi)".format(p=self.prefix)
+        expr = "atan2({p:s}b_th,-{p:s}a_th)/(2*pi)".format(p=self.prefix)
         self.set_param_hint('ph_max', expr=expr)
 
     __init__.__doc__ = COMMON_INIT_DOC
@@ -431,9 +431,11 @@ class RVModel(Model):
     :param t:    - independent variable (time)
     :param T_0:  - time of inferior conjunction for the companion (mid-transit)
     :param P:    - orbital period
+    :param V_0:  - radial velocity of the centre-of-mass
     :param K:    - semi-amplitude of spectroscopic orbit
     :param f_c:  - sqrt(ecc).cos(omega)
     :param f_s:  - sqrt(ecc).sin(omega)
+    :param sini: - sine of the orbital inclination
 
     """
 
@@ -442,10 +444,10 @@ class RVModel(Model):
         kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
                        'independent_vars': independent_vars})
 
-        def _rv(t, T_0, P, K, f_c, f_s, sini):
+        def _rv(t, T_0, P, V_0, K, f_c, f_s, sini):
             ecc = f_c**2 + f_s**2
-            om = np.arctan2(f_c, f_s)*180/np.pi
-            return vrad(t, T_0, P, K, ecc, om, sini)
+            om = np.arctan2(f_s, f_c)*180/np.pi
+            return V_0 + vrad(t, T_0, P, K, ecc, om, sini, primary=True)
 
         super(RVModel, self).__init__(_rv, **kwargs)
         self._set_paramhints_prefix()
@@ -456,10 +458,54 @@ class RVModel(Model):
         self.set_param_hint('f_c', value=0, vary=False, min=-1, max=1)
         self.set_param_hint('f_s', value=0, vary=False, min=-1, max=1)
         self.set_param_hint('sini', value=1, vary=False, min=0, max=1)
+        expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
+        self.set_param_hint('{p:s}e'.format(p=self.prefix), expr=expr, 
+                min=0, max=1)
+        expr = "180*atan2({p:s}f_s, {p:s}f_c)/pi".format(p=self.prefix)
+        self.set_param_hint('{p:s}omega'.format(p=self.prefix), expr=expr) 
 
     __init__.__doc__ = COMMON_INIT_DOC
 
 
+class RVCompanion(Model):
+    """Radial velocity in a Keplerian orbit for the companion
 
 
+    :param t:    - independent variable (time)
+    :param T_0:  - time of inferior conjunction for the companion (mid-transit)
+    :param P:    - orbital period
+    :param V_0:  - radial velocity of the centre-of-mass
+    :param K:    - semi-amplitude of spectroscopic orbit
+    :param f_c:  - sqrt(ecc).cos(omega)
+    :param f_s:  - sqrt(ecc).sin(omega)
+    :param sini: - sine of the orbital inclination
+
+    """
+
+    def __init__(self, independent_vars=['t'], prefix='', nan_policy='raise',
+                 **kwargs):
+        kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
+                       'independent_vars': independent_vars})
+
+        def _rv(t, T_0, P, V_0, K, f_c, f_s, sini):
+            ecc = f_c**2 + f_s**2
+            om = np.arctan2(f_s, f_c)*180/np.pi
+            return V_0 + vrad(t, T_0, P, K, ecc, om, sini, primary=False)
+
+        super(RVCompanion, self).__init__(_rv, **kwargs)
+        self._set_paramhints_prefix()
+
+    def _set_paramhints_prefix(self):
+        self.set_param_hint('P', min=1e-15)
+        self.set_param_hint('K', min=1e-15)
+        self.set_param_hint('f_c', value=0, vary=False, min=-1, max=1)
+        self.set_param_hint('f_s', value=0, vary=False, min=-1, max=1)
+        self.set_param_hint('sini', value=1, vary=False, min=0, max=1)
+        expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
+        self.set_param_hint('{p:s}e'.format(p=self.prefix), expr=expr, 
+                min=0, max=1)
+        expr = "180*atan2({p:s}f_s, {p:s}f_c)/pi".format(p=self.prefix)
+        self.set_param_hint('{p:s}omega'.format(p=self.prefix), expr=expr)
+
+    __init__.__doc__ = COMMON_INIT_DOC
 

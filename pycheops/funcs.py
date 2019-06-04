@@ -359,6 +359,7 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg):
     :returns: time of periastron prior to tzero
 
     :Example:
+     >>> from pycheops.funcs import tzero2tperi
      >>> tzero = 54321.6789
      >>> P = 1.23456
      >>> sini = 0.987
@@ -369,17 +370,14 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg):
 
     """
     def _delta(th, sin2i, omrad, ecc):
-        # Separation of centres of mass in units of a - equation (8) from
-        # Lacy, 1992. 
-        # theta = nu + om - pi/2 (7)
+        # Equation (4.9) from Hilditch
         return (1-ecc**2)*sqrt(1-sin2i*sin(th+omrad)**2)/(1+ecc*cos(th))
 
     omrad = omdeg*pi/180
-    if (1-sini**2) < finfo(0.).eps :
-        theta = 0.5*pi-omrad
-    else:
+    theta = 0.5*pi-omrad
+    if (1-sini**2) > finfo(0.).eps :
         theta = brent(_delta, args = (sini**2, omrad, ecc),
-                brack = (-omrad,0.5*pi-omrad,pi-omrad))
+                brack = (theta-0.25*pi,theta,theta+0.25*pi))
     if theta == pi:
         E = pi 
     else:
@@ -388,7 +386,7 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg):
 
 #---------------
 
-def vrad(t,tzero,P,K,ecc=0,omdeg=90,sini=1):
+def vrad(t,tzero,P,K,ecc=0,omdeg=90,sini=1, primary=True):
     """
     Calculate radial velocity, V_r, for body in a Keplerian orbit
 
@@ -398,7 +396,8 @@ def vrad(t,tzero,P,K,ecc=0,omdeg=90,sini=1):
     :param K: radial velocity semi-amplitude 
     :param ecc: eccentricity (optional, default=0)
     :param omdeg: longitude of periastron in degrees (optional, default=90)
-    :param sini: sine of orbital inclination
+    :param sini: sine of orbital inclination (to convert tzero to t_peri)
+    :param primary: if false calculate V_r for companion
 
     :returns: V_r in same units as K relative to the barycentre of the binary
 
@@ -407,7 +406,9 @@ def vrad(t,tzero,P,K,ecc=0,omdeg=90,sini=1):
     M = 2*pi*(t-tp)/P
     E = esolve(M,ecc)
     nu = 2*arctan(sqrt((1+ecc)/(1-ecc))*tan(E/2))
-    omrad = omdeg*pi/180
+    omrad = pi*omdeg/180
+    if not primary:
+        omrad = omrad + pi
     return K*(cos(nu+omrad)+ecc*cos(omrad))
 
 #---------------
