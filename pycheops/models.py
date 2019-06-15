@@ -194,6 +194,7 @@ class TransitModel(Model):
                        'independent_vars': independent_vars})
 
         def _transit_func(t, T_0, P, D, W, S, f_c, f_s, h_1, h_2):
+            k = np.sqrt(D)
             b = np.sqrt( ((1-k)**2 - S*(1+k)**2) / (1-S) )
             r_star = np.pi * W / np.sqrt((1+k)**2-b*b)
             sini = np.sqrt(1 - (b*r_star)**2)
@@ -225,7 +226,7 @@ class TransitModel(Model):
                 "2/(pi*{p:s}W*sqrt((1-{p:s}S)/{p:s}k))".format(p=self.prefix) )
         self.set_param_hint('rho', min=0, expr = 
                 "0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix) )
-        self.set_param_hint('b', max=1.3, 
+        self.set_param_hint('b', min=0, max=1.3, 
                 expr = "sqrt(((1-{p:s}k)**2-{p:s}S*(1+{p:s}k)**2)/(1-{p:s}S))"
                 .format(p=self.prefix) )
 
@@ -371,7 +372,7 @@ class ThermalPhaseModel(Model):
         self.set_param_hint('Fmax', expr=expr, min=0)
         expr = "{p:s}Fmax - {p:s}A".format(p=self.prefix)
         self.set_param_hint('Fmin', expr=expr, min=0)
-        expr = "atan2({p:s}b_th,-{p:s}a_th)/(2*pi)".format(p=self.prefix)
+        expr = "arctan2({p:s}b_th,-{p:s}a_th)/(2*pi)".format(p=self.prefix)
         self.set_param_hint('ph_max', expr=expr)
 
     __init__.__doc__ = COMMON_INIT_DOC
