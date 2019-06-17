@@ -1046,7 +1046,7 @@ def main():
     ObsReqNameHeader = ObsReqNameFormat.format('ObsReqName')
     TerminalOutputFormat = (
         '{}'.format(ObsReqNameFormat)+
-        '{:20d} {:5.2f} {:8.4f} {:+8.4f}  {:5.2f}  {:2d} {:4.1f} {:5d}')
+        '{:20d} {:5.2f} {:8.4f} {:+8.4f}  {:6.3f}  {:2d} {:4.1f} {:5d}')
     print('#')
     if not args.id_check:
         print('#')
@@ -1055,7 +1055,7 @@ def main():
         print('#')
 
     print('#{}'.format(ObsReqNameHeader) +
-    'Gaia_DR2_ID         Gmag  _RAJ2000 _DEJ2000 Contam Vis Texp Flags'
+    'Gaia_DR2_ID         Gmag  _RAJ2000 _DEJ2000  Contam Vis Texp Flags'
            .format(ObsReqNameHeader))
 
     # String of coordinates, Vmag and SpTy to enable re-use of DR2 data

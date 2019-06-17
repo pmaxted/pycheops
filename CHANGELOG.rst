@@ -103,3 +103,7 @@
 ~~~~~~~~~~~~~~~~~~
  Use string comparison for Gaia ID check (issue #39)
  Gaia epoch change 2015.0 -> 2015.5 (issue #40)
+
+0.1.6 (2019-06-17)
+~~~~~~~~~~~~~~~~~~
+ Print contamination value to 3 d.p. (up from 2).

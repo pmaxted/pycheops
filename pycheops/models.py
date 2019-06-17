@@ -195,7 +195,10 @@ class TransitModel(Model):
 
         def _transit_func(t, T_0, P, D, W, S, f_c, f_s, h_1, h_2):
             k = np.sqrt(D)
-            b = np.sqrt( ((1-k)**2 - S*(1+k)**2) / (1-S) )
+            bsq = ((1-k)**2 - S*(1+k)**2) / (1-S) 
+            if bsq < 0:
+                return np.zeros_like(t)
+            b = np.sqrt(bsq)
             r_star = np.pi * W / np.sqrt((1+k)**2-b*b)
             sini = np.sqrt(1 - (b*r_star)**2)
             c2 = 1 - h_1 + h_2
