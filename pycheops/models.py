@@ -35,7 +35,7 @@ from warnings import warn
 
 __all__ = ['qpower2', 'ueclipse', 'TransitModel', 'EclipseModel', 
            'FactorModel', 'ThermalPhaseModel', 'ReflectionModel',
-           'RVModel', 'RVCompanion']
+           'RVModel', 'RVCompanion', 'scaled_transit_fit']
 
 @jit()
 def qpower2(z,k,c,a):
@@ -125,6 +125,44 @@ def qpower2(z,k,c,a):
             K2 = (1/3)*c*a*sb**(g+0.5)*(1-d)
             f[i] = 1 - I_0*(J1 - J2 + K1 - K2)
     return f
+
+@jit
+def scaled_transit_fit(flux, sigma, model):
+    """
+    Optimum scaled transit depth for data with scaled errors
+
+    Find the value of the scaling factor s that provides the best fit of the
+    model m = 1 + s*(model-1) to the normalised input fluxes. It is assumed
+    that the true standard errors on the flux measurements are a factor f
+    times the nominal standard error(s) provided in sigma. Also returns
+    standard error estimates for s and f, sigma_s and sigma_f, respectively.
+
+     :param flux: Array of normalised flux measurements
+
+     :param sigma: Standard error estimate(s) for flux - array of scalar
+
+     :returns: s, b, sigma_s, sigma_b
+
+    """
+    N = len(flux)
+    if N < 3:
+        return np.nan, np.nan, np.nan, np.nan
+
+    w = 1/sigma**2
+    _m = np.sum(w*(model-1)**2)
+    if _m == 0:
+        return np.nan, np.nan, np.nan, np.nan
+    s = np.sum(w*(model-1)*(flux-1))/_m
+    chisq = np.sum(w*((flux-1)-s*(model-1))**2)
+    b = np.sqrt(chisq/N)
+    sigma_s = b/np.sqrt(_m)
+    _t = 3*chisq/b**4 - N/b**2 
+    if _t > 0:
+        sigma_b = 1/np.sqrt(_t)
+    else:
+        return np.nan, np.nan, np.nan, np.nan
+    return s, b, sigma_s, sigma_b
+
 
 @jit()
 def ueclipse(z,k):
