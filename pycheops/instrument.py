@@ -151,7 +151,7 @@ def transit_noise(time, flux, flux_err, T_0=None, width=3,
     P = 10*(max(time)-min(time))
     j = (np.abs(time-T_0) < (width/48)).nonzero()[0]
     if len(j) < 3:
-        return np.nan, np.nan, np.nan
+        return np.nan, np.nan
 
     e_depth = np.median(flux_err[j])/np.sqrt(len(j))
     W = width/24/P   # Transit Width in phase units
@@ -174,12 +174,12 @@ def transit_noise(time, flux, flux_err, T_0=None, width=3,
         model = tm.eval(params=pars, t=time)
         s, f, sigma_s, sigma_f = scaled_transit_fit(flux,flux_err,model)
         if sigma_s is np.nan:
-            return np.nan, np.nan, np.nan
+            return np.nan, np.nan
         e_depth = sigma_s*depth_in
         i = i + 1
         if i > ITMAX:
             warnings.warn ('Algorithm failed to converge.')
             break
 
-    return 1e6*depth_in, f, len(j)
+    return 1e6*depth_in, f
 

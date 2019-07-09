@@ -108,6 +108,10 @@
 ~~~~~~~~~~~~~~~~~~
  Print contamination value to 3 d.p. (up from 2).
 
-0.1.7 (2019-06-19)
+0.1.7 (2019-06-18)
 ~~~~~~~~~~~~~~~~~~
  Added models.scaled_transit_fit and instrument.transit_noise
+
+0.1.8 (2019-06-19)
+~~~~~~~~~~~~~~~~~~
+ Remove debug output from instrument.transit_noise
