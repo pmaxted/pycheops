@@ -115,3 +115,8 @@
 0.1.8 (2019-06-19)
 ~~~~~~~~~~~~~~~~~~
  Remove debug output from instrument.transit_noise
+
+0.1.9 (2019-07-09)
+~~~~~~~~~~~~~~~~~~
+ Added method='minerr' option to instrument.transit_noise and new function 
+ models.minerr_transit_fit

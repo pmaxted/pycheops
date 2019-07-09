@@ -30,7 +30,7 @@ Functions
 from __future__ import (absolute_import, division, print_function,
                                 unicode_literals)
 import numpy as np
-from .models import TransitModel, scaled_transit_fit
+from .models import TransitModel, scaled_transit_fit, minerr_transit_fit
 import warnings 
 
 
@@ -106,15 +106,25 @@ def exposure_time(G):
 
 
 def transit_noise(time, flux, flux_err, T_0=None, width=3,
-                  h_1=0.7224, h_2=0.6713, tol=0.1):
+                  h_1=0.7224, h_2=0.6713, tol=0.1, 
+                  method='scaled'):
     """
     Transit noise estimate
 
-    The noise is calculated in a window of duration width in hours centered at
-    time T_0 by finding the depth of a transit that gives S/N = 1. The error
-    on the transit depth is calculated assuming that the true standard errors
-    on the flux measurements are a factor f times the nominal standard
-    error(s) provided in flux_err.
+    The noise is calculated in a window of duration 'width' in hours centered 
+    at time T_0 by finding the depth of a transit that gives S/N = 1.
+    
+    Two methods are available to estimate the transit depth and its standard
+    error - 'scaled' or 'minerr'.
+
+    If method='scaled', the transit depth and its standard error are
+    calculated assuming that the true standard errors on the flux measurements
+    are a factor f times the nominal standard error(s) provided in flux_err.
+
+    If method='minerr', the transit depth and its standard error are
+    calculated assuming that standard error(s) provided in flux_err are a
+    lower bound to the true standard errors. This tends to be more
+    conservative than using method='scaled'.
 
     The transit is calculated from an impact parameter b=0 using power-2 limb
     darkening parameters h_1 and h_2. Default values for h_1 and h_2 are solar
@@ -141,9 +151,14 @@ def transit_noise(time, flux, flux_err, T_0=None, width=3,
 
      :param tol: Tolerance criterion for convergence (ppm)
 
-     :returns: noise (in ppm), and noise scaling factor, f
+     :param method: 'scaled' or 'minerr'
+
+     :returns: noise in ppm and, if method is 'scaled', noise scaling factor, f
 
     """
+
+    assert (method in ('scaled', 'minerr')), "Invalid method value"
+
     if T_0 is None:
         T_0 = np.median(time)
 
@@ -151,7 +166,10 @@ def transit_noise(time, flux, flux_err, T_0=None, width=3,
     P = 10*(max(time)-min(time))
     j = (np.abs(time-T_0) < (width/48)).nonzero()[0]
     if len(j) < 3:
-        return np.nan, np.nan
+        if method == 'scaled':
+            return np.nan, np.nan
+        else:
+            return np.nan
 
     e_depth = np.median(flux_err[j])/np.sqrt(len(j))
     W = width/24/P   # Transit Width in phase units
@@ -172,14 +190,25 @@ def transit_noise(time, flux, flux_err, T_0=None, width=3,
         pars = tm.make_params(T_0=T_0, P=P, D=depth_in, W=W, S=S,
                 h_1=h_1, h_2=h_2)
         model = tm.eval(params=pars, t=time)
-        s, f, sigma_s, sigma_f = scaled_transit_fit(flux,flux_err,model)
+        if method == 'scaled':
+            s, f, sigma_s, sigma_f = scaled_transit_fit(flux,flux_err,model)
+        else:
+            s, sigma_s = minerr_transit_fit(flux,flux_err,model)
+
         if sigma_s is np.nan:
-            return np.nan, np.nan
+            if method == 'scaled':
+                return np.nan, np.nan
+            else:
+                return np.nan
+
         e_depth = sigma_s*depth_in
         i = i + 1
         if i > ITMAX:
             warnings.warn ('Algorithm failed to converge.')
             break
 
-    return 1e6*depth_in, f
+    if method == 'scaled':
+        return 1e6*depth_in, f
+    else:
+        return 1e6*depth_in
 
