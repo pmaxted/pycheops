@@ -120,3 +120,7 @@
 ~~~~~~~~~~~~~~~~~~
  Added method='minerr' option to instrument.transit_noise and new function 
  models.minerr_transit_fit
+
+0.2.0 (2019-07-15)
+~~~~~~~~~~~~~~~~~~
+  Added pycheops.dataset
