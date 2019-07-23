@@ -124,3 +124,7 @@
 0.2.0 (2019-07-15)
 ~~~~~~~~~~~~~~~~~~
   Added pycheops.dataset
+
+0.2.1 (2019-07-15)
+~~~~~~~~~~~~~~~~~~
+  Fix dataset list output for python < 3.6

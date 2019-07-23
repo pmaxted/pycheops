@@ -73,7 +73,7 @@ class dataset:
             tar = tarfile.open(self.tgzfile)
             self.list = tar.getnames()
             tar.close()
-            with open(lisPath, 'w') as fh:  
+            with open(str(lisPath), 'w') as fh:  
                 fh.writelines("%s\n" % l for l in self.list)
 
     def get_imagettes(self, verbose=True):
