@@ -29,6 +29,6 @@
 try:
           from .version import __version__
 except:
-          __version__ = '0.2.1'
+          __version__ = '0.2.2'
 
 from .dataset import dataset
