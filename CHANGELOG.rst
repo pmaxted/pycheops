@@ -133,3 +133,8 @@
 ~~~~~~~~~~~~~~~~~~
  Added q1q2 to ld.py
 
+0.2.3 (2019-06-30)
+~~~~~~~~~~~~~~~~~~
+ Added NGTS to response_functions
+ Change free parameters in ld._coefficient_optimizer to (q1, q2)
+ Improved precision of values in limb-darkening tables
