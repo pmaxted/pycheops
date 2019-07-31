@@ -30,9 +30,11 @@ The available passband names are:
 
 * 'u\_', 'g\_', 'r\_', 'i\_', 'z\_'  (SDSS)
 
+* 'NGTS'
+
 The power-2 limb-darkening law is described in Maxted (2018) [2].
-Uninformative sampling of the parameter space for the power-2 law is described
-in Short et al. (2019) [3].
+Uninformative sampling of the parameter space for the power-2 law
+is described in Short et al. (2019) [3].
 
 Examples
 --------
