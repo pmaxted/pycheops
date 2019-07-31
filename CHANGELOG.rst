@@ -115,3 +115,7 @@
 0.1.8 (2019-06-19)
 ~~~~~~~~~~~~~~~~~~
  Remove debug output from instrument.transit_noise
+
+0.1.9 (2019-06-29)
+~~~~~~~~~~~~~~~~~~
+ Added q1q2 to ld.py
