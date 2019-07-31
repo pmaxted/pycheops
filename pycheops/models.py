@@ -32,10 +32,12 @@ from lmfit.models import COMMON_INIT_DOC, COMMON_GUESS_DOC
 from numba import jit
 from .funcs import t2z, xyz_planet, vrad
 from warnings import warn
+from scipy.optimize import brent, brentq
 
 __all__ = ['qpower2', 'ueclipse', 'TransitModel', 'EclipseModel', 
            'FactorModel', 'ThermalPhaseModel', 'ReflectionModel',
-           'RVModel', 'RVCompanion', 'scaled_transit_fit']
+           'RVModel', 'RVCompanion', 
+           'scaled_transit_fit', 'minerr_transit_fit']
 
 @jit()
 def qpower2(z,k,c,a):
@@ -139,7 +141,9 @@ def scaled_transit_fit(flux, sigma, model):
 
      :param flux: Array of normalised flux measurements
 
-     :param sigma: Standard error estimate(s) for flux - array of scalar
+     :param sigma: Standard error estimate(s) for flux - array or scalar
+
+     :param model: Transit model to be scaled
 
      :returns: s, b, sigma_s, sigma_b
 
@@ -163,6 +167,59 @@ def scaled_transit_fit(flux, sigma, model):
         return np.nan, np.nan, np.nan, np.nan
     return s, b, sigma_s, sigma_b
 
+
+def minerr_transit_fit(flux, sigma, model):
+    """
+    Optimum scaled transit depth for data with lower bounds on errors
+
+    Find the value of the scaling factor s that provides the best fit of the
+    model m = 1 + s*(model-1) to the normalised input fluxes. It is assumed
+    that the nominal standard error(s) provided in sigma are lower bounds to
+    the true standard errors on the flux measurements. The probability
+    distribution for the true standard errors is assumed to be [1]
+        P(sigma_true|sigma) = sigma/sigma_true**2
+
+
+     :param flux: Array of normalised flux measurements
+
+     :param sigma: Lower bound(s) on standard error for flux - array or scalar
+
+     :param model: Transit model to be scaled
+
+     :returns: s, sigma_s
+
+  
+.. rubric References
+.. [1] Sivia, D.S. & Skilling, J., Data Analysis - A Bayesian Tutorial, 2nd
+   ed., section 8.3.1
+
+    """
+    N = len(flux)
+    if N < 2:
+        return np.nan, np.nan
+
+    def _negloglike(s, flux, sigma, model):
+        model =  1 + s*(model-1)
+        Rsq = ((model-flux)/sigma)**2
+        # In the limit Rsq -> 0, log-likelihood -> log(0.5)
+        x = np.full_like(Rsq,np.log(0.5))
+        _j = Rsq > np.finfo(0.0).eps
+        x[_j] = np.log((1-np.exp(-0.5*Rsq[_j]))/Rsq[_j])
+        return -np.sum(x)
+
+    def _loglikediff(s, loglike_0, flux, sigma, model):
+        return loglike_0 + _negloglike(s, flux, sigma, model)
+
+    s_min = (np.min(flux)-1)/(1-np.min(model))
+    s_max = (np.max(flux)-1)/(1-np.min(model))
+    s_mid = 0.5*(s_min+s_max)
+    s_opt, _f, _, _ = brent(_negloglike, args=(flux, sigma, model),
+                       brack=(s_min,s_mid,s_max), full_output=True)
+    loglike_0 = -_f -0.5
+    s_hi = brentq(_loglikediff, s_opt, s_max,
+                 args = (loglike_0, flux, sigma, model))
+    s_err = s_hi - s_opt
+    return s_opt, s_err
 
 @jit()
 def ueclipse(z,k):

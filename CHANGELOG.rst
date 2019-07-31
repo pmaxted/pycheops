@@ -116,6 +116,20 @@
 ~~~~~~~~~~~~~~~~~~
  Remove debug output from instrument.transit_noise
 
-0.1.9 (2019-06-29)
+0.1.9 (2019-07-09)
+~~~~~~~~~~~~~~~~~~
+ Added method='minerr' option to instrument.transit_noise and new function 
+ models.minerr_transit_fit
+
+0.2.0 (2019-07-15)
+~~~~~~~~~~~~~~~~~~
+  Added pycheops.dataset
+
+0.2.1 (2019-07-15)
+~~~~~~~~~~~~~~~~~~
+  Fix dataset list output for python < 3.6
+
+0.2.2 (2019-06-29)
 ~~~~~~~~~~~~~~~~~~
  Added q1q2 to ld.py
+
