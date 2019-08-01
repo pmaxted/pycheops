@@ -75,7 +75,8 @@ def response(passband='CHEOPS'):
      https://www.cosmos.esa.int/web/cheops/cheops-performances
 
      The available passband names are 'CHEOPS', 'MOST', 
-     'Kepler', 'CoRoT', 'Gaia', 'B', 'V', 'R', 'I'
+     'Kepler', 'CoRoT', 'Gaia', 'B', 'V', 'R', 'I',
+     u_','g_','r_','i_','z_', and 'NGTS'
 
      :param passband: instrument/passband names (case sensitive).
 

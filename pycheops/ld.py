@@ -30,9 +30,11 @@ The available passband names are:
 
 * 'u\_', 'g\_', 'r\_', 'i\_', 'z\_'  (SDSS)
 
+* 'NGTS'
+
 The power-2 limb-darkening law is described in Maxted (2018) [2].
-Uninformative sampling of the parameter space for the power-2 law is described
-in Short et al. (2019) [3].
+Uninformative sampling of the parameter space for the power-2 law
+is described in Short et al. (2019) [3].
 
 Examples
 --------
@@ -332,7 +334,7 @@ class _coefficient_optimizer:
         elif law in ("quad", "log", "sqrt", "exp"):
             c = np.full(2, 0.5)
         elif law in ("power-2"):
-            c = np.array([0.7,0.45])  # h1, h2
+            c = np.array([0.3,0.45])  # q1, q2
         elif law in ("sing"):
             c = np.full(3, 0.5)
         elif law in ("claret"):
@@ -341,9 +343,12 @@ class _coefficient_optimizer:
             raise Exception("Invalid limb darkening law")
 
         if law in ("power-2"):
+            smol = np.sqrt(np.finfo(float).eps)
             soln = minimize(self._f, c, args=(k, incl, law),
-                    method='L-BFGS-B',bounds=((0.01,0.99),(0.01,0.99)))
-            c2,a2 = h1h2_to_ca(soln.x[0],soln.x[1])
+                    method='L-BFGS-B',
+                    bounds=((smol, 1-smol),(smol, 1-smol)))
+            h1,h2 = q1q2_to_h1h2(soln.x[0],soln.x[1])
+            c2,a2 = h1h2_to_ca(h1,h2)
             c = np.array([c2, a2])
         else:
             soln = minimize(self._f, c, args=(k, incl, law))
@@ -358,7 +363,8 @@ class _coefficient_optimizer:
 
     def _f(self, c, k, incl, law):
         if law in ("power-2"):
-           c2,a2 = h1h2_to_ca(c[0],c[1]) 
+           h1,h2 = q1q2_to_h1h2(c[0],c[1]) 
+           c2,a2 = h1h2_to_ca(h1,h2)
            ldc_1 = [c2, a2]
         else:
            ldc_1 = c
