@@ -31,6 +31,8 @@ The available passband names are:
 * 'u\_', 'g\_', 'r\_', 'i\_', 'z\_'  (SDSS)
 
 The power-2 limb-darkening law is described in Maxted (2018) [2].
+Uninformative sampling of the parameter space for the power-2 law is described
+in Short et al. (2019) [3].
 
 Examples
 --------
@@ -62,6 +64,7 @@ Examples
 
 .. rubric:: References
 .. [2] Maxted, P.F.L., 2018, A&A, submitted 
+.. [3] Short, D.R., et al., 2019, RNAAS, ..., ...
 
 """
 
@@ -77,7 +80,7 @@ from .funcs import transit_width
 
 __all__ = ['ld_power2', 'ld_claret', 'stagger_power2_interpolator',
         'stagger_mugrid_interpolator', 'stagger_claret_interpolator',
-        'ca_to_h1h2', 'h1h2_to_ca' ]
+        'ca_to_h1h2', 'h1h2_to_ca' , 'q1q2_to_h1h2', 'h1h2_to_q1q2' ]
 
 data_path = join(dirname(abspath(__file__)),'data','limbdarkening')
 
@@ -123,6 +126,36 @@ def h1h2_to_ca(h1, h2):
 
     """
     return 1 - h1 + h2, np.log2((1 - h1 + h2)/h2)
+
+def h1h2_to_q1q2(h1, h2):
+    """
+    Transform h1, h2 to uninformative paramaters q1, q2
+
+    q1 = (1 - h2)**2
+    q2 = (h1 - h2)/(1-h2)
+
+    :param h1: 1 - c*(1-0.5**alpha)
+    :param h2: c*0.5**alpha
+
+    returns: q1, q2
+
+    """
+    return (1 - h2)**2, (h1 - h2)/(1-h2)
+
+def q1q2_to_h1h2(q1, q2):
+    """
+    Inverse transform to h1, h2 from uninformative paramaters q1, q2
+
+    h1 = 1 - sqrt(q1) + q2*sqrt(q1)
+    h2 = 1 - sqrt(q1)
+
+    :param q1: (1 - h2)**2
+    :param q2: (h1 - h2)/(1-h2)
+
+    returns: q1, q2
+
+    """
+    return 1 - np.sqrt(q1) + q2*np.sqrt(q1), 1 - np.sqrt(q1)
 
 
 def ld_claret(mu, a):
