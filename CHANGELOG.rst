@@ -128,3 +128,22 @@
 0.2.1 (2019-07-15)
 ~~~~~~~~~~~~~~~~~~
   Fix dataset list output for python < 3.6
+
+0.2.2 (2019-07-29)
+~~~~~~~~~~~~~~~~~~
+ Added q1q2 to ld.py
+
+0.2.3 (2019-07-30)
+~~~~~~~~~~~~~~~~~~
+ Added NGTS to response_functions
+ Change free parameters in ld._coefficient_optimizer to (q1, q2)
+ Improved precision of values in limb-darkening tables
+
+0.2.4 (2019-07-30)
+~~~~~~~~~~~~~~~~~~
+ Added NGTS to ld inline documentation.
+
+0.2.5 (2019-08-01)
+~~~~~~~~~~~~~~~~~~
+ Added ftp download to dataset - temporarily using obsftp.unige.ch
+ 

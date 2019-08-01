@@ -35,6 +35,7 @@ from astropy.io import fits
 from astropy.table import Table, MaskedColumn
 import matplotlib.pyplot as plt
 from .instrument import transit_noise
+from ftplib import FTP
 
 _dataset_re = re.compile(r'PR(\d{2})(\d{4})_TG(\d{4})(\d{2})')
 
@@ -63,7 +64,13 @@ class dataset:
         if tgzPath.is_file():
             if verbose: print('Found archive tgzfile',self.tgzfile)
         else:
-            raise NotImplemented('FTP file download not done yet' )
+            ftp=FTP('obsftp.unige.ch')
+            _ = ftp.login()
+            ftp.cwd('pub/cheops/data/take_the_red_pill/ioc/ioc-c/repository/visit')
+            if verbose: print('Downloading dataset from obsftp.unige.ch')
+            cmd = 'RETR {}.tgz'.format(dataset_id)
+            ftp.retrbinary(cmd, open(self.tgzfile, 'wb').write)
+            ftp.quit()
 
         lisPath = Path(_cache_path,dataset_id).with_suffix('.lis')
         if lisPath.is_file():
