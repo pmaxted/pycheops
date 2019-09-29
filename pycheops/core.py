@@ -47,7 +47,7 @@ def load_config(configFile=None):
         configFile = os.path.expanduser(os.path.join('~','pycheops.cfg'))
 
     if not os.path.isfile(configFile):
-        raise ValueError('Configuration file not found - run setup_config')
+        raise ValueError('Configuration file not found - run core.setup_config')
 
     c = ConfigParser()
     c.read(configFile)
@@ -97,6 +97,11 @@ def setup_config(configFile=None, overwrite=False, mode=0o600):
     c['DEFAULT'] = {'data_cache_path': data_cache_path,
             'archive_username': username,
             'archive_password': password}
+
+    # SweetCat location and update interval in seconds
+    url = 'https://www.astro.up.pt/resources/sweet-cat/download.php' 
+    c['SWEET-Cat'] = {'update_interval': 86400, 'download_url': url}
+
     with open(os.open(configFile, os.O_CREAT | os.O_WRONLY, mode), 'w') as cf:
         c.write(cf)
 

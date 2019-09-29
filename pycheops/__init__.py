@@ -29,6 +29,7 @@
 try:
           from .version import __version__
 except:
-          __version__ = '0.2.5'
+          __version__ = '0.3.0'
 
-from .dataset import dataset
+from .dataset import Dataset
+from .starproperties import StarProperties

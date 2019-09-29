@@ -33,13 +33,15 @@ from numba import jit
 from .funcs import t2z, xyz_planet, vrad
 from warnings import warn
 from scipy.optimize import brent, brentq
+from collections import OrderedDict
+from asteval import Interpreter, get_ast_names, valid_symbol_name
 
 __all__ = ['qpower2', 'ueclipse', 'TransitModel', 'EclipseModel', 
            'FactorModel', 'ThermalPhaseModel', 'ReflectionModel',
            'RVModel', 'RVCompanion', 
            'scaled_transit_fit', 'minerr_transit_fit']
 
-@jit()
+@jit(nopython=True)
 def qpower2(z,k,c,a):
     r"""
     Fast and accurate transit light curves for the power-2 limb-darkening law
@@ -81,13 +83,6 @@ def qpower2(z,k,c,a):
     >>> plt.show()
 
     """
-
-    if (k > 1):
-        raise ValueError("qpower2 requires k < 1")
-
-    if (k > 0.2):
-        warn ("qpower2 is untested/inaccurate for values of k > 0.2")
-
     f = np.ones_like(z)
     I_0 = (a+2)/(np.pi*(a-c*a+2))
     g = 0.5*a
@@ -128,7 +123,7 @@ def qpower2(z,k,c,a):
             f[i] = 1 - I_0*(J1 - J2 + K1 - K2)
     return f
 
-@jit
+@jit(nopython=True)
 def scaled_transit_fit(flux, sigma, model):
     """
     Optimum scaled transit depth for data with scaled errors
@@ -210,9 +205,15 @@ def minerr_transit_fit(flux, sigma, model):
     def _loglikediff(s, loglike_0, flux, sigma, model):
         return loglike_0 + _negloglike(s, flux, sigma, model)
 
-    s_min = (np.min(flux)-1)/(1-np.min(model))
+    s_min = max(np.finfo(0.0).eps, (np.min(flux)-1)/(1-np.min(model)))
     s_max = (np.max(flux)-1)/(1-np.min(model))
     s_mid = 0.5*(s_min+s_max)
+    fa = _negloglike(s_min, flux, sigma, model)
+    fb = _negloglike(s_mid, flux, sigma, model)
+    fc = _negloglike(s_max, flux, sigma, model)
+    if not ((fb < fa) and (fb < fc)):
+        return 0, 0
+
     s_opt, _f, _, _ = brent(_negloglike, args=(flux, sigma, model),
                        brack=(s_min,s_mid,s_max), full_output=True)
     loglike_0 = -_f -0.5
@@ -221,7 +222,7 @@ def minerr_transit_fit(flux, sigma, model):
     s_err = s_hi - s_opt
     return s_opt, s_err
 
-@jit()
+@jit(nopython=True)
 def ueclipse(z,k):
     """
     Eclipse light curve for a planet with uniform surface brightness by a star
@@ -263,7 +264,7 @@ class TransitModel(Model):
     is the duration of the "flat" part of the transit between the 2nd and 3rd
     contact points. These parameters are all available as constraints within
     the model. Also available is the mean stellar density in solar units,
-    rho=0.013418*aR**3/(P/days)**2. N.B. this value of rho assumes that
+    rho=0.013418*aR^3/(P/days)^2. N.B. this value of rho assumes that
     M_planet << M_star. The eccentricity and longitude of periastron for the
     planet's orbit are ecc and omega, respectively.
 
@@ -275,11 +276,14 @@ class TransitModel(Model):
     :param S:    - ((1-k)^2-b^2)/((1+k)^2 - b^2)
     :param f_c:  - sqrt(ecc).cos(omega)
     :param f_s:  - sqrt(ecc).sin(omega)
-    :param h_1:  - I(0.5) = 1 - c*(1-0.5**alpha)
-    :param h_2:  - I(0.5) - I(0) = c*0.5**alpha
+    :param h_1:  - I(0.5) = 1 - c*(1-0.5^alpha)
+    :param h_2:  - I(0.5) - I(0) = c*0.5^alpha
 
     The flux value outside of transit is 1. The light curve is calculated using
     the qpower2 algorithm, which is fast but only accurate for k < ~0.3.
+
+    If the input parameters are invalid or k>0.5 the model is returned as an
+    array of value 1 everywhere.
 
     """
 
@@ -289,13 +293,27 @@ class TransitModel(Model):
                        'independent_vars': independent_vars})
 
         def _transit_func(t, T_0, P, D, W, S, f_c, f_s, h_1, h_2):
+            if D <= 0:
+                return np.ones_like(t)
             k = np.sqrt(D)
+            if k > 0.5:
+                return np.ones_like(t)
+            if (1-S) <= 0:
+                return np.ones_like(t)
             bsq = ((1-k)**2 - S*(1+k)**2) / (1-S) 
             if bsq < 0:
-                return np.zeros_like(t)
+                return np.ones_like(t)
             b = np.sqrt(bsq)
-            r_star = np.pi * W / np.sqrt((1+k)**2-b*b)
-            sini = np.sqrt(1 - (b*r_star)**2)
+            q = (1+k)**2-bsq
+            if q <= 0:
+                return np.ones_like(t)
+            r_star = np.pi * W / np.sqrt(q)
+            q = 1 - (b*r_star)**2
+            if q <= 0:
+                return np.ones_like(t)
+            sini = np.sqrt(q)
+            if (h_1 <= 0) or (h_2 <= 0) or (h_2 > h_1) or (h_1 >= 1):
+                return np.ones_like(t)
             c2 = 1 - h_1 + h_2
             a2 = np.log2(c2/h_2)
             ecc = f_c**2 + f_s**2
@@ -320,13 +338,13 @@ class TransitModel(Model):
         expr = "sqrt({p:s}D)".format(p=self.prefix)
         self.set_param_hint('k'.format(p=self.prefix), 
                 expr=expr, min=0, max=1)
-        self.set_param_hint('aR',min=1, expr=
-                "2/(pi*{p:s}W*sqrt((1-{p:s}S)/{p:s}k))".format(p=self.prefix) )
-        self.set_param_hint('rho', min=0, expr = 
-                "0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix) )
-        self.set_param_hint('b', min=0, max=1.3, 
-                expr = "sqrt(((1-{p:s}k)**2-{p:s}S*(1+{p:s}k)**2)/(1-{p:s}S))"
-                .format(p=self.prefix) )
+        expr = ("sqrt(((1-{p:s}k)**2-{p:s}S*(1+{p:s}k)**2)/(1-{p:s}S))".
+                format(p=self.prefix))
+        self.set_param_hint('b', min=0, max=1.3, expr=expr)
+        expr ="sqrt((1+{p:s}k)**2-{p:s}b**2)/{p:s}W/pi".format(p=self.prefix)
+        self.set_param_hint('aR',min=1, expr=expr)
+        expr = "0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix)
+        self.set_param_hint('rho', min=0, expr = expr)
 
 class EclipseModel(Model):
     r"""Light curve model for the eclipse by a spherical star of a spherical
@@ -400,28 +418,64 @@ class EclipseModel(Model):
                 .format(p=self.prefix) )
 
 class FactorModel(Model):
-    """Constant factor model, with a single Parameter: ``c``.
-    Note that this is 'constant' in the sense of having no dependence on
-    the independent variable ``t``, not in the sense of being non-varying.
-    To be clear, ``c`` will be a Parameter that will be varied
-    in the fit (by default, of course).
+    """Flux scaling and trend factor model
+
+    f = c*(1 + dfdx*dx(t) + dfdy*dy(t) + d2fdx2*dx(t)**2 + d2f2y2*dy(t)**2 +
+        d2fdxdy*x(t)*dy(t) + dfdsinphi*sin(phi(t)) + dfdcosphi*cos(phi(t)) +
+        dfdt*dt + d2fdt2*dt**2)
+
+    The detrending coefficients dfdx, etc. are 0 and fixed by default. If
+    any of the coefficients dfdx, d2fdxdy or d2f2x2 is not 0, a function to
+    calculate the x-position offset as a function of time, dx(t), must be
+    passed as a keyword argument, and similarly for the y-position offset,
+    dy(t). For detrending against the spacecraft roll angle, phi(t), the
+    functions to be provided as keywords arguments are sinphi(t) and/or
+    cosphi(t). The time trend decribed by dfdt and d2fdt2 is calculated using
+    the variable dt = t - median(t).
+
     """
 
     def __init__(self, independent_vars=['t'], prefix='', nan_policy='raise',
-                 **kwargs):
+                dx=None, dy=None, sinphi=None, cosphi=None, **kwargs):
         kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
                        'independent_vars': independent_vars})
 
-        def factor(t, c=1.0):
-            return c
+        def factor(t, d2fdt2=0, dfdt=0, dfdcosphi=0, dfdsinphi=0,
+                d2fdy2=0, d2fdxdy=0,  d2fdx2=0, dfdy=0, dfdx=0, c=1.0):
+
+            dt = t - np.median(t)
+            trend = 1 + dfdt*dt + d2fdt2*dt**2
+            if dfdx != 0 or d2fdx2 != 0:
+                trend += dfdx*self.dx(t) + d2fdx2*self.dx(t)**2
+            if dfdy != 0 or d2fdy2 != 0:
+                trend += dfdy*self.dy(t) + d2fdy2*self.dy(t)**2
+            if d2fdxdy != 0 :
+                trend += d2fdxdy*self.dx(t)*self.dy(t)
+            if dfdsinphi != 0 :
+                trend += dfdsinphi*self.sinphi(t)
+            if dfdcosphi != 0 :
+                trend += dfdcosphi*self.cosphi(t)
+            return c*trend
+
         super(FactorModel, self).__init__(factor, **kwargs)
-        self._set_paramhints_prefix()
+
+        self.dx = dx
+        self.dy = dy
+        self.sinphi = sinphi
+        self.cosphi = cosphi
+        self.set_param_hint('c', min=0)
+        for p in ['dfdx', 'dfdy', 'd2fdx2', 'd2fdxdx',  'd2fdy2', 
+                  'dfdsinphi', 'dfdcosphi' 'dfdt', 'd2fdt2']:
+            self.set_param_hint(p, value=0, vary=False)
 
     def guess(self, data, **kwargs):
         """Estimate initial model parameter values from data."""
         pars = self.make_params()
 
         pars['%sc' % self.prefix].set(value=data.median())
+        for p in ['dfdx', 'dfdy', 'd2fdx2', 'd2fdy2', 
+                'dfdsinphi', 'dfdcosphi' 'dfdt', 'd2fdt2']:
+            pars['{}{}'.format(self.prefix, p)].set(value = 0.0, vary=False)
         return update_param_vals(pars, self.prefix, **kwargs)
 
     __init__.__doc__ = COMMON_INIT_DOC
@@ -607,4 +661,69 @@ class RVCompanion(Model):
         self.set_param_hint('{p:s}omega'.format(p=self.prefix), expr=expr)
 
     __init__.__doc__ = COMMON_INIT_DOC
+
+class Priors(OrderedDict):
+    """An ordered dictionary of all the Prior objects required to evaluate the
+    log-value of the prior for Bayesian model fitting. 
+
+    All values of a Priors() instance must be Prior objects.
+
+    A Priors() instance includes an asteval interpreter used for
+    evaluation of constrained Parameters.
+
+    ToDo: copying, pickling and serialization
+
+    """
+
+    def __init__(self, usersyms=None):
+        """
+        Arguments
+        ---------
+        usersyms : dictionary of symbols to add to the
+            :class:`asteval.Interpreter`.
+
+        """
+
+        super(Parameters, self).__init__(self)
+        self._asteval = Interpreter(usersyms=usersyms)
+
+
+
+class Prior(object):
+    """A Prior is an object that can be used in the calculation of the
+    log-likelihood function for Bayeisan model fitting methods.
+
+    A Prior has a `name` attribute that corresponds to the name of one of the
+    parameters in the model, i.e., there must be a corresponding Parameter
+    object in the model with the same name. The log-value of the prior for a
+    given parameter value is evaluated using the mathemetical expression
+    provided in `expr`, e.g., for a Gaussian with mean mu and standard
+    deviation sigma, the contribution to the total log-likelihood for a
+    parameter with value x is -0.5*(mu-x)**2/sigma**2. The constants mu and
+    sigma are hyper-parameters, i.e., parameters of the prior model, not of
+    the data model.
+
+    """
+
+    def __init__(self, name=None, expr=None, hyper=None):
+        """
+        Parameters
+        ----------
+
+        name : str
+            Name of the Parameter to which the Prior is applied.
+        expr : str
+            Mathematical expression used to evaluate the prior log-value
+        hyper : dict
+            A dictionary of hyper-parameters.
+
+        """
+
+        self.name = name
+        self.expr = expr
+        self.hyper = hyper
+
+    def __repr__(self):
+        """Return printable representation of a Parameter object."""
+        return "<Prior {}> : {}".format(self.name, self.expr)
 
