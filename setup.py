@@ -17,11 +17,7 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
 
-# VERSION
-try:
-    from pycheops import __version__
-except:
-    raise RuntimeError("Unable to find version string.")
+from pycheops import __version__
 
 setup(
     name='pycheops',

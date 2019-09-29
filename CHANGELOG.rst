@@ -146,3 +146,7 @@
 0.2.5 (2019-08-01)
 ~~~~~~~~~~~~~~~~~~
  Added ftp download to dataset - temporarily using obsftp.unige.ch
+
+0.3.0 (2019-09-29)
+~~~~~~~~~~~~~~~~~~
+ Dataset transit fitting methods added
