@@ -50,7 +50,6 @@ from celerite import terms, GP
 from sys import stdout 
 from astropy.coordinates import SkyCoord
 from lmfit.printfuncs import gformat
-import os
 
 _dataset_re = re.compile(r'PR(\d{2})(\d{4})_TG(\d{4})(\d{2})')
 
@@ -70,6 +69,94 @@ def _kwarg_to_Parameter(name, kwarg, min=min, max=max):
     raise ValueError('Unrecognised type for keyword argument {}'.
         format(name))
 
+# Target functions for emcee
+def _log_posterior_jitter(pos, model, time, flux, flux_err,  params, vn,
+        return_fit):
+
+
+    # Check for pos[i] within valid range has to be done here
+    # because it gets set to the limiting value if out of range by the
+    # assignment to a parameter with min/max defined.
+    parcopy = params.copy()
+    for i, p in enumerate(vn):
+        v = pos[i]
+        if (v < parcopy[p].min) or (v > parcopy[p].max):
+            return -np.inf
+        parcopy[p].value = v
+    fit = model.eval(parcopy, t=time)
+    if return_fit:
+        return fit
+
+    if False in np.isfinite(fit):
+        return -np.inf
+
+    # Also check parameter range here so we catch "derived" parameters
+    # that are out of range.
+    lnprior = 0
+    for p in parcopy:
+        v = parcopy[p].value
+        if (v < parcopy[p].min) or (v > parcopy[p].max):
+            return -np.inf
+        if np.isnan(v):
+            return -np.inf
+        u = parcopy[p].user_data
+        if isinstance(u, UFloat):
+            lnprior += -0.5*((u.n - v)/u.s)**2
+    if not np.isfinite(lnprior):
+        return -np.inf
+
+    jitter = np.exp(parcopy['log_sigma'].value)
+    s2 =flux_err**2 + jitter**2
+    lnlike = -0.5*(np.sum((flux-fit)**2/s2 + np.log(2*np.pi*s2)))
+    return lnlike + lnprior
+
+#----
+
+def _log_posterior_SHOTerm(pos, model, time, flux, flux_err,  params, vn, gp, 
+        return_fit):
+
+    # Check for pos[i] within valid range has to be done here
+    # because it gets set to the limiting value if out of range by the
+    # assignment to a parameter with min/max defined.
+    parcopy = params.copy()
+    for i, p in enumerate(vn):
+        v = pos[i]
+        if (v < parcopy[p].min) or (v > parcopy[p].max):
+            return -np.inf
+        parcopy[p].value = v
+    fit = model.eval(parcopy, t=time)
+    if return_fit:
+        return fit
+
+    if False in np.isfinite(fit):
+        return -np.inf
+    
+    # Also check parameter range here so we catch "derived" parameters
+    # that are out of range.
+    lnprior = 0
+    for p in parcopy:
+        v = parcopy[p].value
+        if (v < parcopy[p].min) or (v > parcopy[p].max):
+            return -np.inf
+        if np.isnan(v):
+            return -np.inf
+        u = parcopy[p].user_data
+        if isinstance(u, UFloat):
+            lnprior += -0.5*((u.n - v)/u.s)**2
+    if not np.isfinite(lnprior):
+        return -np.inf
+
+    resid = flux-fit
+    gp.set_parameter('kernel:terms[0]:log_S0',
+            parcopy['log_S0'].value)
+    gp.set_parameter('kernel:terms[0]:log_Q',
+            parcopy['log_Q'].value)
+    gp.set_parameter('kernel:terms[0]:log_omega0',
+            parcopy['log_omega0'].value)
+    gp.set_parameter('kernel:terms[1]:log_sigma',
+            parcopy['log_sigma'].value)
+    return gp.log_likelihood(resid) + lnprior
+    
 #---------------
 
 class Dataset(object):
@@ -474,95 +561,8 @@ class Dataset(object):
     # ----------------------------------------------------------------
 
     def emcee_transit(self, params=None,
-            steps=64, nwalkers=64, burn=64, thin=4, pool=None, 
+            steps=64, nwalkers=64, burn=64, thin=4, 
             add_shoterm=False, init_scale=1e-3, progress=True):
-
-        def _log_posterior_jitter(pos, *args):
-
-
-            # Check for pos[i] within valid range has to be done here
-            # because it gets set to the limiting value if out of range by the
-            # assignment to a parameter with min/max defined.
-            parcopy = params.copy()
-            for i, p in enumerate(vn):
-                v = pos[i]
-                if (v < parcopy[p].min) or (v > parcopy[p].max):
-                    return -np.inf
-                parcopy[p].value = v
-            fit = model.eval(parcopy, t=time)
-            if return_fit:
-                return fit
-
-            if False in np.isfinite(fit):
-                return -np.inf
-
-            # Also check parameter range here so we catch "derived" parameters
-            # that are out of range.
-            lnprior = 0
-            for p in parcopy:
-                v = parcopy[p].value
-                if (v < parcopy[p].min) or (v > parcopy[p].max):
-                    return -np.inf
-                if np.isnan(v):
-                    return -np.inf
-                u = parcopy[p].user_data
-                if isinstance(u, UFloat):
-                    lnprior += -0.5*((u.n - v)/u.s)**2
-            if not np.isfinite(lnprior):
-                return -np.inf
-
-            jitter = np.exp(parcopy['log_sigma'].value)
-            s2 =flux_err**2 + jitter**2
-            lnlike = -0.5*(np.sum((flux-fit)**2/s2 + np.log(2*np.pi*s2)))
-            return lnlike + lnprior
-
-        #----
-
-        def _log_posterior_SHOTerm(pos, *args):
-
-            # Check for pos[i] within valid range has to be done here
-            # because it gets set to the limiting value if out of range by the
-            # assignment to a parameter with min/max defined.
-            parcopy = params.copy()
-            for i, p in enumerate(vn):
-                v = pos[i]
-                if (v < parcopy[p].min) or (v > parcopy[p].max):
-                    return -np.inf
-                parcopy[p].value = v
-            fit = model.eval(parcopy, t=time)
-            if return_fit:
-                return fit
-
-            if False in np.isfinite(fit):
-                return -np.inf
-            
-            # Also check parameter range here so we catch "derived" parameters
-            # that are out of range.
-            lnprior = 0
-            for p in parcopy:
-                v = parcopy[p].value
-                if (v < parcopy[p].min) or (v > parcopy[p].max):
-                    return -np.inf
-                if np.isnan(v):
-                    return -np.inf
-                u = parcopy[p].user_data
-                if isinstance(u, UFloat):
-                    lnprior += -0.5*((u.n - v)/u.s)**2
-            if not np.isfinite(lnprior):
-                return -np.inf
-
-            resid = flux-fit
-            gp.set_parameter('kernel:terms[0]:log_S0',
-                    parcopy['log_S0'].value)
-            gp.set_parameter('kernel:terms[0]:log_Q',
-                    parcopy['log_Q'].value)
-            gp.set_parameter('kernel:terms[0]:log_omega0',
-                    parcopy['log_omega0'].value)
-            gp.set_parameter('kernel:terms[1]:log_sigma',
-                    parcopy['log_sigma'].value)
-            return gp.log_likelihood(resid) + lnprior
-            
-        # -----
 
         try:
             time = np.array(self.lc['time'])
@@ -651,13 +651,12 @@ class Dataset(object):
             lnlike_i = -np.inf
             while lnlike_i == -np.inf:
                 pos_i = vv + vs*np.random.randn(n_varys)*init_scale
-                lnlike_i = _log_posterior_jitter(pos_i, *args)
+                lnlike_i = log_posterior_func(pos_i, *args)
 
             pos.append(pos_i)
 
         sampler = EnsembleSampler(nwalkers, n_varys, log_posterior_func,
-                args=args, pool=pool)
-
+                args=args)
         if progress:
             print('Running burn-in ..')
             stdout.flush()
@@ -673,7 +672,13 @@ class Dataset(object):
         flatchain = sampler.get_chain(flat=True).reshape((-1, len(vn)))
         pos_i = flatchain[np.argmax(sampler.get_log_prob()),:]
         return_fit = True
-        fit = log_posterior_func(pos_i, *args)
+        if gp is None:
+            fit = _log_posterior_jitter(pos_i, model, time, flux, flux_err,
+                    params, vn, return_fit)
+        else:
+            fit = _log_posterior_SHOTerm(pos_i, model, time, flux, flux_err,
+                    params, vn, gp, return_fit)
+
         result.bestfit = fit
         result.chain = flatchain
         parbest = params.copy()
