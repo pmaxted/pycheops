@@ -155,3 +155,7 @@
 ~~~~~~~~~~~~~~~~~~
  Added dataset_fit_transit_from_simulation.ipynb to examples/Notebooks
 
+0.3.2. (2019-10-02)
+~~~~~~~~~~~~~~~~~~
+ store=False bug fix.
+
