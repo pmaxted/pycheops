@@ -660,7 +660,7 @@ class Dataset(object):
         if progress:
             print('Running burn-in ..')
             stdout.flush()
-        pos, _, _ = sampler.run_mcmc(pos, burn, store=False,
+        pos, _, _ = sampler.run_mcmc(pos, burn, store=False, 
                 skip_initial_state_check=True, progress=progress)
         sampler.reset()
         if progress:
