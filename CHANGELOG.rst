@@ -150,3 +150,8 @@
 0.3.0 (2019-09-29)
 ~~~~~~~~~~~~~~~~~~
  Dataset transit fitting methods added
+
+0.3.1. (2019-10-02)
+~~~~~~~~~~~~~~~~~~
+ Added dataset_fit_transit_from_simulation.ipynb to examples/Notebooks
+
