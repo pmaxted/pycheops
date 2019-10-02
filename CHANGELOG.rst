@@ -157,5 +157,5 @@
 
 0.3.2. (2019-10-02)
 ~~~~~~~~~~~~~~~~~~
- store=False bug fix.
+ Update requirements in setup.py
 

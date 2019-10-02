@@ -1,0 +1,22 @@
+Install Anaconda 2019.07 Python 3.7 version, including
+  ⁃ astropy 3.2.1
+
+Install lmfit version 0.9.14
+ https://lmfit.github.io/lmfit-py/installation.html#installation
+e.g.,
+ conda install -c conda-forge lmfit
+
+Install/upgrade to emcee version 3.0.0
+ https://emcee.readthedocs.io/en/latest/user/install/
+e.g.,
+ pip install emcee --upgrade
+
+Install corner, version 2.0.1 e.g.,
+ pip install corner
+
+Install celerite-0.3.1
+
+Install ellc-1.8.5
+
+Upgrade numpy to version numpy-1.17.2, e.g.,
+ pip install numpy --upgrade
