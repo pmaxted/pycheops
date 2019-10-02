@@ -74,16 +74,16 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=[
-            'numpy>1.17.2',
+            'numpy>=1.17.2',
             'scipy',
             'astropy',
-            'emcee>3.0.0',
+            'emcee>=3.0.0',
             'astroquery',
             'numba',
-            'lmfit>0.9.14', 
+            'lmfit>=0.9.14', 
             'corner', 
-            'celerite>0.3.1', 
-            'ellc>1.8.5'],
+            'celerite>=0.3.1', 
+            'ellc>=1.8.5'],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,

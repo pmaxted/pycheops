@@ -14,9 +14,12 @@ e.g.,
 Install corner, version 2.0.1 e.g.,
  pip install corner
 
-Install celerite-0.3.1
+Install celerite-0.3.1, e.g., 
+ conda install -c conda-forge celerite
 
 Install ellc-1.8.5
 
 Upgrade numpy to version numpy-1.17.2, e.g.,
  pip install numpy --upgrade
+
+

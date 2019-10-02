@@ -151,11 +151,14 @@
 ~~~~~~~~~~~~~~~~~~
  Dataset transit fitting methods added
 
-0.3.1. (2019-10-02)
+0.3.1 (2019-10-02)
 ~~~~~~~~~~~~~~~~~~
  Added dataset_fit_transit_from_simulation.ipynb to examples/Notebooks
 
-0.3.2. (2019-10-02)
+0.3.2 (2019-10-02)
 ~~~~~~~~~~~~~~~~~~
  Update requirements in setup.py
 
+0.3.3 (2019-10-02)
+~~~~~~~~~~~~~~~~~~
+Fix version requirements problem in setup.py
