@@ -175,6 +175,14 @@ Previous upload failed
 ~~~~~~~~~~~~~~~~~~
 config bug fix 
 
-0.3.7 (2019-10-04)
+0.3.7 (2019-10-03)
 ~~~~~~~~~~~~~~~~~~
 Remove ellc from requirements
+
+0.3.8 (2019-10-03)
+~~~~~~~~~~~~~~~~~~
+Move "from ellc import ld" to avoid import if not needed in ld.py
+
+0.3.9 (2019-10-03)
+~~~~~~~~~~~~~~~~~~
+Second attempt to avoid ellc import (try/except)
