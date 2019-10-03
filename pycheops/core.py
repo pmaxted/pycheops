@@ -86,18 +86,18 @@ def setup_config(configFile=None, overwrite=False, mode=0o600):
     if not os.path.isdir(data_cache_path):
         os.mkdir(data_cache_path)
 
-    default_username = getpass.getuser()
-    prompt = "Enter CHEOPS archive username [{}] > ".format(default_username)
-    username = input(prompt)
-    if username is '':
-        username = default_username
+    #default_username = getpass.getuser()
+    #prompt = "Enter CHEOPS archive username [{}] > ".format(default_username)
+    #username = input(prompt)
+    #if username is '':
+        #username = default_username
 
-    password = getpass.getpass("Enter CHEOPS archive password > ")
+    #password = getpass.getpass("Enter CHEOPS archive password > ")
+
     c = ConfigParser()
-    c['DEFAULT'] = {'data_cache_path': data_cache_path,
-            'archive_username': username,
-            'archive_password': password}
-
+    c['DEFAULT'] = {'data_cache_path': data_cache_path}
+            #'archive_username': username,
+            #'archive_password': password}
     # SweetCat location and update interval in seconds
     url = 'https://www.astro.up.pt/resources/sweet-cat/download.php' 
     c['SWEET-Cat'] = {'update_interval': 86400, 'download_url': url}

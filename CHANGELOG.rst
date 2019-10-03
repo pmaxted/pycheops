@@ -162,3 +162,19 @@
 0.3.3 (2019-10-02)
 ~~~~~~~~~~~~~~~~~~
 Fix version requirements problem in setup.py
+
+0.3.4 (2019-10-03)
+~~~~~~~~~~~~~~~~~~
+Remove username and password from config
+
+0.3.5 (2019-10-03)
+~~~~~~~~~~~~~~~~~~
+Previous upload failed
+
+0.3.6 (2019-10-03)
+~~~~~~~~~~~~~~~~~~
+config bug fix 
+
+0.3.7 (2019-10-04)
+~~~~~~~~~~~~~~~~~~
+Remove ellc from requirements
