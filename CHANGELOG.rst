@@ -162,3 +162,7 @@
 0.3.3 (2019-10-02)
 ~~~~~~~~~~~~~~~~~~
 Fix version requirements problem in setup.py
+
+0.3.4 (2019-10-03)
+~~~~~~~~~~~~~~~~~~
+Remove username and password from config
