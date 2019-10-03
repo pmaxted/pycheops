@@ -77,8 +77,11 @@ from os.path import join,abspath,dirname
 import pickle
 from scipy.interpolate import pchip_interpolate
 from scipy.optimize import minimize
-from ellc import lc
 from .funcs import transit_width
+try:
+    from ellc import lc
+except:
+    pass
 
 __all__ = ['ld_power2', 'ld_claret', 'stagger_power2_interpolator',
         'stagger_mugrid_interpolator', 'stagger_claret_interpolator',
