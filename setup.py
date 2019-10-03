@@ -82,7 +82,7 @@ setup(
             'numba',
             'lmfit>=0.9.14', 
             'corner', 
-            'celerite>=0.3.1'] 
+            'celerite>=0.3.1'],
             # 'ellc>=1.8.5'],
 
     # List additional groups of dependencies here (e.g. development
