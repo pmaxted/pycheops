@@ -166,7 +166,7 @@ def transit_noise(time, flux, flux_err, T_0=None, width=3,
     # Use orbital period = 10* data duration so there is certainly 1 transit
     P = 10*(max(time)-min(time))
     j = (np.abs(time-T_0) < (width/48)).nonzero()[0]
-    if len(j) < 3:
+    if len(j) < 4:
         if method == 'scaled':
             return np.nan, np.nan
         else:

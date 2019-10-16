@@ -60,6 +60,7 @@ Related constants
 * mean_solar_day  - 86,400.002 seconds [2] 
 * au              - IAU 2009 value for astronomical constant in metres. [3]
 * pc              - 1 parsec = 3600*au*180/pi
+* c               - speed of light = 299,792,458 m / s
 
 Example
 -------
@@ -93,7 +94,7 @@ __all__ = [ 'G_2014',
         'R_SunN','S_SunN','L_SunN','Teff_SunN','GM_SunN','M_SunN','V_SunN',
         'R_eEarthN','R_pEarthN','GM_EarthN','M_EarthN','V_EarthN','R_EarthN',
         'R_eJupN','R_pJupN','GM_JupN','M_JupN','V_JupN','R_JupN',
-        'mean_solar_day','au','pc']
+        'mean_solar_day','au','pc','c']
 
 from math import pi
 
@@ -124,4 +125,5 @@ mean_solar_day = 86400.002    # seconds
 
 au =  1.49597870700E11        # m, IAU 2009 Astronomical unit
 pc =  3600*au*180/pi          # m, parsec
+c  = 299792458                # m.s-1, speed of light
 

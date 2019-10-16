@@ -251,6 +251,79 @@ class Dataset(object):
             print(' Coordinates : {} {}'.format(self.ra, self.dec))
 
     @classmethod
+    def from_test_data(self, subdir,  target=None, configFile=None, 
+            verbose=True):
+        ftp=FTP('obsftp.unige.ch')
+        _ = ftp.login()
+        wd = "pub/cheops/test_data/{}".format(subdir)
+        ftp.cwd(wd)
+        filelist = [fl[0] for fl in ftp.mlsd()]
+        _re = re.compile(r'CH_(PR\d{6}_TG\d{6}).zip')
+        zipfiles = list(filter(_re.match, filelist))
+        if len(zipfiles) > 1:
+            raise ValueError('More than one dataset in ftp directory')
+        if len(zipfiles) == 0:
+            raise ValueError('No zip files for datasets in ftp directory')
+        zipfile = zipfiles[0]
+        config = load_config(configFile)
+        _cache_path = config['DEFAULT']['data_cache_path']
+        zipPath = Path(_cache_path,zipfile)
+        if zipPath.is_file():
+            if verbose: print('{} already downloaded'.format(str(zipPath)))
+        else:
+            cmd = 'RETR {}'.format(zipfile)
+            if verbose: print('Downloading {} ...',format(zipfile))
+            ftp.retrbinary(cmd, open(str(zipPath), 'wb').write)
+            ftp.quit()
+        
+        dataset_id = zipfile[3:-4]
+        m = _dataset_re.search(dataset_id)
+        l = [int(i) for i in m.groups()]
+
+        tgzPath = Path(_cache_path,dataset_id).with_suffix('.tgz')
+        tgzfile = str(tgzPath)
+
+        zpf = ZipFile(str(zipPath), mode='r')
+        ziplist = zpf.namelist()
+
+        _re = re.compile('(CH_.*SCI_RAW_Imagette_.*.fits)')
+        imgfiles = list(filter(_re.match, ziplist))
+        if len(imgfiles) > 1:
+            raise ValueError('More than one imagette file in zip file')
+        if len(imgfiles) == 0:
+            raise ValueError('No imagette file in zip file')
+        imgfile = imgfiles[0]
+
+        _re = re.compile('(CH_.*_SCI_COR_Lightcurve-.*fits)')
+        with tarfile.open(tgzfile, mode='w:gz') as tgz:
+            tarPath = Path('visit')/Path(dataset_id)/Path(imgfile).name 
+            tarinfo = tarfile.TarInfo(name=str(tarPath))
+            zipinfo = zpf.getinfo(imgfile)
+            tarinfo.size = zipinfo.file_size
+            zf = zpf.open(imgfile)
+            if verbose: print("Writing Imagette data to .tgz file...")
+            tgz.addfile(tarinfo=tarinfo, fileobj=zf)
+            zf.close()
+            if verbose: print("Writing Lightcurve data to .tgz file...")
+            for lcfile in list(filter(_re.match, ziplist)):
+                tarPath = Path('visit')/Path(dataset_id)/Path(lcfile).name
+                tarinfo = tarfile.TarInfo(name=str(tarPath))
+                zipinfo = zpf.getinfo(lcfile)
+                tarinfo.size = zipinfo.file_size
+                zf = zpf.open(lcfile)
+                tgz.addfile(tarinfo=tarinfo, fileobj=zf)
+                zf.close()
+                if verbose: print ('.. {} - done'.format(Path(lcfile).name))
+        zpf.close()
+
+        if target is not None:
+            targetPath = Path(_cache_path,dataset_id).with_suffix('.target')
+            with open(str(targetPath), 'w') as fh:  
+                fh.writelines("{}\n".format(target))
+
+        return self(dataset_id=dataset_id, target=target, verbose=verbose)
+        
+    @classmethod
     def from_simulation(self, job,  target=None, configFile=None, 
             verbose=True):
         ftp=FTP('obsftp.unige.ch')
