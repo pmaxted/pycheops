@@ -206,22 +206,43 @@ def minerr_transit_fit(flux, sigma, model):
         return loglike_0 + _negloglike(s, flux, sigma, model)
 
     if np.min(model) == 1:
-        return 0, 0
-    s_min = max(np.finfo(0.0).eps, (np.min(flux)-1)/(1-np.min(model)))
-    s_max = (np.max(flux)-1)/(1-np.min(model))
-    s_mid = 0.5*(s_min+s_max)
+        return 0,0
+    # Bracket the minimum of _negloglike
+    s_min = 0
     fa = _negloglike(s_min, flux, sigma, model)
+    s_mid = 1
     fb = _negloglike(s_mid, flux, sigma, model)
-    fc = _negloglike(s_max, flux, sigma, model)
-    if not ((fb < fa) and (fb < fc)):
-        return 0, 0
+    #print('s_min, fa, s_mid, fb',s_min, fa, s_mid, fb)
+    if fb < fa:
+        s_max = 2
+        fc = _negloglike(s_max, flux, sigma, model)
+        while fc < fb:
+            s_max = 2*s_max
+            fc = _negloglike(s_max, flux, sigma, model)
+    else:
+        s_max = s_mid
+        fc = fb
+        s_mid = 0.5
+        fb = _negloglike(s_mid, flux, sigma, model)
+        while fb > fa:
+            if s_mid < 2**-16:
+                return 0,0
+            s_mid = 0.5*s_mid
+            fb = _negloglike(s_mid, flux, sigma, model)
 
+    #print('s_min, fa, s_mid, fb, s_max, fc',s_min, fa, s_mid, fb, s_max, fc)
     s_opt, _f, _, _ = brent(_negloglike, args=(flux, sigma, model),
                        brack=(s_min,s_mid,s_max), full_output=True)
     loglike_0 = -_f -0.5
-    s_hi = brentq(_loglikediff, s_opt, s_max,
+    s_hi = s_max
+    f_hi = _loglikediff(s_hi, loglike_0, flux, sigma, model)
+    while f_hi < 0:
+        s_hi = 2*s_hi
+        f_hi = _loglikediff(s_hi, loglike_0, flux, sigma, model)
+    s_hi = brentq(_loglikediff, s_opt, s_hi,
                  args = (loglike_0, flux, sigma, model))
     s_err = s_hi - s_opt
+    #print('s_opt,  s_err',s_opt, s_err)
     return s_opt, s_err
 
 @jit(nopython=True)
