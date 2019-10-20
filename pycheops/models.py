@@ -190,7 +190,7 @@ def minerr_transit_fit(flux, sigma, model):
 
     """
     N = len(flux)
-    if N < 2:
+    if N < 3:
         return np.nan, np.nan
 
     def _negloglike(s, flux, sigma, model):
@@ -205,21 +205,44 @@ def minerr_transit_fit(flux, sigma, model):
     def _loglikediff(s, loglike_0, flux, sigma, model):
         return loglike_0 + _negloglike(s, flux, sigma, model)
 
-    s_min = max(np.finfo(0.0).eps, (np.min(flux)-1)/(1-np.min(model)))
-    s_max = (np.max(flux)-1)/(1-np.min(model))
-    s_mid = 0.5*(s_min+s_max)
+    if np.min(model) == 1:
+        return 0,0
+    # Bracket the minimum of _negloglike
+    s_min = 0
     fa = _negloglike(s_min, flux, sigma, model)
+    s_mid = 1
     fb = _negloglike(s_mid, flux, sigma, model)
-    fc = _negloglike(s_max, flux, sigma, model)
-    if not ((fb < fa) and (fb < fc)):
-        return 0, 0
+    #print('s_min, fa, s_mid, fb',s_min, fa, s_mid, fb)
+    if fb < fa:
+        s_max = 2
+        fc = _negloglike(s_max, flux, sigma, model)
+        while fc < fb:
+            s_max = 2*s_max
+            fc = _negloglike(s_max, flux, sigma, model)
+    else:
+        s_max = s_mid
+        fc = fb
+        s_mid = 0.5
+        fb = _negloglike(s_mid, flux, sigma, model)
+        while fb > fa:
+            if s_mid < 2**-16:
+                return 0,0
+            s_mid = 0.5*s_mid
+            fb = _negloglike(s_mid, flux, sigma, model)
 
+    #print('s_min, fa, s_mid, fb, s_max, fc',s_min, fa, s_mid, fb, s_max, fc)
     s_opt, _f, _, _ = brent(_negloglike, args=(flux, sigma, model),
                        brack=(s_min,s_mid,s_max), full_output=True)
     loglike_0 = -_f -0.5
-    s_hi = brentq(_loglikediff, s_opt, s_max,
+    s_hi = s_max
+    f_hi = _loglikediff(s_hi, loglike_0, flux, sigma, model)
+    while f_hi < 0:
+        s_hi = 2*s_hi
+        f_hi = _loglikediff(s_hi, loglike_0, flux, sigma, model)
+    s_hi = brentq(_loglikediff, s_opt, s_hi,
                  args = (loglike_0, flux, sigma, model))
     s_err = s_hi - s_opt
+    #print('s_opt,  s_err',s_opt, s_err)
     return s_opt, s_err
 
 @jit(nopython=True)
@@ -317,7 +340,7 @@ class TransitModel(Model):
             c2 = 1 - h_1 + h_2
             a2 = np.log2(c2/h_2)
             ecc = f_c**2 + f_s**2
-            om = np.arctan2(f_c, f_s)*180/np.pi
+            om = np.arctan2(f_s, f_c)*180/np.pi
             z,m = t2z(t, T_0, P, sini, r_star, ecc, om, returnMask = True)
             # Set z values where planet is behind star to a large nominal value
             z[m]  = 9999
@@ -354,16 +377,16 @@ class EclipseModel(Model):
     defined below in terms of the star and planet radii, R_s and R_p,
     respectively, the semi-major axis, a, and the orbital inclination, i.
     These are the same parameters used in TransitModel. The flux level outside
-    of eclipse is 1 and inside eclipse is 0. The apparent time of mid-eclipse
-    includes the correction a_c for the light travel time across the orbit,
-    i.e., for a circular orbit the time of mid-eclipse is (T_0 + 0.5*P) + a_c.
-    N.B. a_c has the same units as P.
+    of eclipse is 1 and inside eclipse is (1-L). The apparent time of
+    mid-eclipse includes the correction a_c for the light travel time across
+    the orbit, i.e., for a circular orbit the time of mid-eclipse is (T_0 +
+    0.5*P) + a_c. N.B. a_c has the same units as P.
 
      The following parameters are used for convenience - k = R_p/R_s, aR =
-    a/R_s, b=aR.cos(i). These parameters are all available as constraints
-    within the model. Also available is the mean stellar density in solar
-    units, rho=0.013418*aR**3/(P/days)**2.
-    N.B. this value of rho assumes that M_planet << M_star.
+    a/R_s, b=aR.cos(i), J = L/D. These parameters are all available as
+    constraints within the model. Also available is the mean stellar density
+    in solar units, rho=0.013418*aR**3/(P/days)**2. N.B. this value of rho
+    assumes that M_planet << M_star.
 
      The eccentricity and longitude of periastron for the planet's orbit are
     ecc and omega, respectively. 
@@ -374,6 +397,7 @@ class EclipseModel(Model):
     :param D:   - (R_p/R_s)^2 = k^2
     :param W:   - (R_s/a)*sqrt((1+k)^2 - b^2)/pi
     :param S:   - ((1-k)^2-b^2)/((1+k)^2 - b^2)
+    :param L:   - Depth of eclipse
     :param f_c: - sqrt(ecc).cos(omega)
     :param f_s: - sqrt(ecc).sin(omega)
     :param a_c: - correction for light travel time across the orbit
@@ -385,15 +409,31 @@ class EclipseModel(Model):
         kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
                        'independent_vars': independent_vars})
 
-        def _eclipse_func(t, T_0, P, D, W, S, f_c, f_s, a_c):
+        def _eclipse_func(t, T_0, P, D, W, S, L, f_c, f_s, a_c):
+            if D <= 0:
+                return np.ones_like(t)
             k = np.sqrt(D)
-            r_star = 0.5*np.pi*W*np.sqrt((1-S**2)/k)
-            sini = np.sqrt(1 - r_star**2*((1-k)**2 - S*(1+k)**2)/(1-S))
+            if k > 0.5:
+                return np.ones_like(t)
+            if (1-S) <= 0:
+                return np.ones_like(t)
+            bsq = ((1-k)**2 - S*(1+k)**2) / (1-S) 
+            if bsq < 0:
+                return np.ones_like(t)
+            b = np.sqrt(bsq)
+            q = (1+k)**2-bsq
+            if q <= 0:
+                return np.ones_like(t)
+            r_star = np.pi * W / np.sqrt(q)
+            q = 1 - (b*r_star)**2
+            if q <= 0:
+                return np.ones_like(t)
+            sini = np.sqrt(q)
             ecc = f_c**2 + f_s**2
-            om = np.arctan2(f_c, f_s)*180/np.pi
+            om = np.arctan2(f_s, f_c)*180/np.pi
             z,m = t2z(t-a_c, T_0, P, sini, r_star, ecc, om, returnMask=True)
             z[~m]  = 9999
-            return ueclipse(z, k)
+            return 1 + L*(ueclipse(z, k)-1)
 
         super(EclipseModel, self).__init__(_eclipse_func, **kwargs)
         self._set_paramhints_prefix()
@@ -403,11 +443,14 @@ class EclipseModel(Model):
         self.set_param_hint('D', min=0, max=1)
         self.set_param_hint('W', min=0, max=0.3)
         self.set_param_hint('S', min=0, max=1)
+        self.set_param_hint('L', min=0, max=1)
         self.set_param_hint('f_c', value=0, min=-1, max=1, vary=False)
         self.set_param_hint('f_s', value=0, min=-1, max=1, vary=False)
         self.set_param_hint('a_c', value=0, min=0, vary=False)
         expr = "sqrt({prefix:s}D)".format(prefix=self.prefix)
         self.set_param_hint('k', expr=expr, min=0, max=1)
+        expr = "D/L".format(prefix=self.prefix)
+        self.set_param_hint('J', expr=expr, min=0)
         self.set_param_hint('aR', min=1, 
                 expr="2/(pi*{p:s}W*sqrt((1-{p:s}S)/{p:s}k))"
                 .format(p=self.prefix) )
@@ -464,8 +507,8 @@ class FactorModel(Model):
         self.sinphi = sinphi
         self.cosphi = cosphi
         self.set_param_hint('c', min=0)
-        for p in ['dfdx', 'dfdy', 'd2fdx2', 'd2fdxdx',  'd2fdy2', 
-                  'dfdsinphi', 'dfdcosphi' 'dfdt', 'd2fdt2']:
+        for p in ['dfdx', 'dfdy', 'd2fdx2', 'd2fdxdy',  'd2fdy2', 
+                  'dfdsinphi', 'dfdcosphi', 'dfdt', 'd2fdt2']:
             self.set_param_hint(p, value=0, vary=False)
 
     def guess(self, data, **kwargs):
@@ -474,7 +517,7 @@ class FactorModel(Model):
 
         pars['%sc' % self.prefix].set(value=data.median())
         for p in ['dfdx', 'dfdy', 'd2fdx2', 'd2fdy2', 
-                'dfdsinphi', 'dfdcosphi' 'dfdt', 'd2fdt2']:
+                'dfdsinphi', 'dfdcosphi', 'dfdt', 'd2fdt2']:
             pars['{}{}'.format(self.prefix, p)].set(value = 0.0, vary=False)
         return update_param_vals(pars, self.prefix, **kwargs)
 
@@ -558,7 +601,7 @@ class ReflectionModel(Model):
 
         def _reflection(t, T_0, P, A_g, r_p, f_c, f_s, sini):
             ecc = f_c**2 + f_s**2
-            om = np.arctan2(f_c, f_s)*180/np.pi
+            om = np.arctan2(f_s, f_c)*180/np.pi
             x,y,z = xyz_planet(t, T_0, P, sini, ecc, om)
             r = np.sqrt(x**2+y**2+z**2)
             beta = np.arccos(-z/r)

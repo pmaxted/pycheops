@@ -186,3 +186,17 @@ Move "from ellc import ld" to avoid import if not needed in ld.py
 0.3.9 (2019-10-03)
 ~~~~~~~~~~~~~~~~~~
 Second attempt to avoid ellc import (try/except)
+
+0.4.0(2019-10-20)
+~~~~~~~~~~~~~~~~~
+ Subversion change - previous version presented at CST meeting.
+ Bug fix in calculation of e,om from f_c, f_s in pychepos/models.py
+ Dataset() now downloads from DACE
+ Changed dataset_id to file_key in Dataset for consistency with DACE
+ Changed transit_noise to subtract of best-fit transit depth before
+ calculation. 
+ Made minerr_transit_fit more robust
+ Fixed calculation of transit parameters in EclipseModel
+
+ 
+

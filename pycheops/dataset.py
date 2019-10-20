@@ -50,8 +50,9 @@ from celerite import terms, GP
 from sys import stdout 
 from astropy.coordinates import SkyCoord
 from lmfit.printfuncs import gformat
+from dace.cheops import Cheops
 
-_dataset_re = re.compile(r'PR(\d{2})(\d{4})_TG(\d{4})(\d{2})')
+_file_key_re = re.compile(r'CH_PR(\d{2})(\d{4})_TG(\d{4})(\d{2})_V(\d{4})')
 
 # Utility function for model fitting
 def _kwarg_to_Parameter(name, kwarg, min=min, max=max):
@@ -163,41 +164,45 @@ class Dataset(object):
     """
     CHEOPS Dataset object
 
+    :param file_key:
+    :param force_download:
+    :param download_all: If False, download light curves only
+    :param configFile:
+    :param target:
+    :param verbose:
+
     """
 
-    def __init__(self, dataset_id=None, force_download=False, 
+    def __init__(self, file_key, force_download=False, download_all=True,
             configFile=None, target=None, verbose=True):
 
-        if dataset_id is None:
-            return None
-        self.dataset_id = dataset_id
-
-        m = _dataset_re.search(dataset_id)
+        self.file_key = file_key
+        m = _file_key_re.search(file_key)
         if m is None:
-            raise ValueError('Invalid dataset_id')
+            raise ValueError('Invalid file_key {}'.format(file_key))
         l = [int(i) for i in m.groups()]
-        self.progtype, self.prog_id, self.req_id, self.visitctr = l
+        self.progtype,self.prog_id,self.req_id,self.visitctr,self.ver = l
 
         config = load_config(configFile)
         _cache_path = config['DEFAULT']['data_cache_path']
-        tgzPath = Path(_cache_path,dataset_id).with_suffix('.tgz')
+        tgzPath = Path(_cache_path,file_key).with_suffix('.tgz')
         self.tgzfile = str(tgzPath)
 
-        if tgzPath.is_file():
+        if tgzPath.is_file() and not force_download:
             if verbose: print('Found archive tgzfile',self.tgzfile)
         else:
-            ftp=FTP(config['DEFAULT']['archive_url'])
-            _ = ftp.login(user=config['DEFAULT']['archive_username'],
-                    passwd=config['DEFAULT']['archive_password'])
-            ftp.cwd(wd)
-            if verbose: print('Downloading dataset from',
-                    config['DEFAULT']['archive_url'])
-            cmd = 'RETR {}.tgz'.format(dataset_id)
-            ftp.retrbinary(cmd, open(self.tgzfile, 'wb').write)
-            ftp.quit()
+            if download_all:
+                file_type='all'
+            else:
+                file_type='lightcurves'
+            Cheops.download(file_type, 
+                filters={'file_key':{'contains':file_key}},
+                output_full_file_path=str(tgzPath)
+                )
 
-        lisPath = Path(_cache_path,dataset_id).with_suffix('.lis')
-        if lisPath.is_file():
+        lisPath = Path(_cache_path,file_key).with_suffix('.lis')
+        # The file list can be out-of-date is force_download is used
+        if lisPath.is_file() and not force_download:
             self.list = [line.rstrip('\n') for line in open(lisPath)]
         else:
             if verbose: print('Creating dataset file list')
@@ -210,7 +215,7 @@ class Dataset(object):
         # Extract OPTIMAL light curve data file from .tgz file so we can
         # access the FITS file header information
         aperture='OPTIMAL'
-        lcFile = "{}-{}.fits".format(self.dataset_id,aperture)
+        lcFile = "{}-{}.fits".format(self.file_key,aperture)
         lcPath = Path(self.tgzfile).parent / lcFile
         if lcPath.is_file():
             with fits.open(lcPath) as hdul:
@@ -232,12 +237,7 @@ class Dataset(object):
         self.pi_name = hdr['PI_NAME']
         self.obsid = hdr['OBSID']
         if target is None:
-            targetPath = Path(_cache_path,dataset_id).with_suffix('.target')
-            if targetPath.is_file():
-                with open(str(targetPath), 'r') as fh:
-                    self.target = fh.readline().rstrip('\n')
-            else:
-               self.target = hdr['TARGNAME']
+            self.target = hdr['TARGNAME']
         else:
             self.target = target
         coords = SkyCoord(hdr['RA_TARG'],hdr['DEC_TARG'],unit='degree,degree')
@@ -249,6 +249,77 @@ class Dataset(object):
             print(' OBS ID      : {}'.format(self.obsid))
             print(' Target      : {}'.format(self.target))
             print(' Coordinates : {} {}'.format(self.ra, self.dec))
+#----
+
+    @classmethod
+    def from_test_data(self, subdir,  target=None, configFile=None, 
+            verbose=True):
+        ftp=FTP('obsftp.unige.ch')
+        _ = ftp.login()
+        wd = "pub/cheops/test_data/{}".format(subdir)
+        ftp.cwd(wd)
+        filelist = [fl[0] for fl in ftp.mlsd()]
+        _re = re.compile(r'CH_(PR\d{6}_TG\d{6}).zip')
+        zipfiles = list(filter(_re.match, filelist))
+        if len(zipfiles) > 1:
+            raise ValueError('More than one dataset in ftp directory')
+        if len(zipfiles) == 0:
+            raise ValueError('No zip files for datasets in ftp directory')
+        zipfile = zipfiles[0]
+        config = load_config(configFile)
+        _cache_path = config['DEFAULT']['data_cache_path']
+        zipPath = Path(_cache_path,zipfile)
+        if zipPath.is_file():
+            if verbose: print('{} already downloaded'.format(str(zipPath)))
+        else:
+            cmd = 'RETR {}'.format(zipfile)
+            if verbose: print('Downloading {} ...',format(zipfile))
+            ftp.retrbinary(cmd, open(str(zipPath), 'wb').write)
+            ftp.quit()
+        
+        file_key = zipfile[3:-4]
+        m = _dataset_re.search(file_key)
+        l = [int(i) for i in m.groups()]
+
+        tgzPath = Path(_cache_path,file_key).with_suffix('.tgz')
+        tgzfile = str(tgzPath)
+
+        zpf = ZipFile(str(zipPath), mode='r')
+        ziplist = zpf.namelist()
+
+        _re = re.compile('(CH_.*SCI_RAW_Imagette_.*.fits)')
+        imgfiles = list(filter(_re.match, ziplist))
+        if len(imgfiles) > 1:
+            raise ValueError('More than one imagette file in zip file')
+        if len(imgfiles) == 0:
+            raise ValueError('No imagette file in zip file')
+        imgfile = imgfiles[0]
+
+        _re = re.compile('(CH_.*_SCI_COR_Lightcurve-.*fits)')
+        with tarfile.open(tgzfile, mode='w:gz') as tgz:
+            tarPath = Path('visit')/Path(file_key)/Path(imgfile).name 
+            tarinfo = tarfile.TarInfo(name=str(tarPath))
+            zipinfo = zpf.getinfo(imgfile)
+            tarinfo.size = zipinfo.file_size
+            zf = zpf.open(imgfile)
+            if verbose: print("Writing Imagette data to .tgz file...")
+            tgz.addfile(tarinfo=tarinfo, fileobj=zf)
+            zf.close()
+            if verbose: print("Writing Lightcurve data to .tgz file...")
+            for lcfile in list(filter(_re.match, ziplist)):
+                tarPath = Path('visit')/Path(file_key)/Path(lcfile).name
+                tarinfo = tarfile.TarInfo(name=str(tarPath))
+                zipinfo = zpf.getinfo(lcfile)
+                tarinfo.size = zipinfo.file_size
+                zf = zpf.open(lcfile)
+                tgz.addfile(tarinfo=tarinfo, fileobj=zf)
+                zf.close()
+                if verbose: print ('.. {} - done'.format(Path(lcfile).name))
+        zpf.close()
+
+        return self(file_key=file_key, target=target, verbose=verbose)
+        
+#----
 
     @classmethod
     def from_simulation(self, job,  target=None, configFile=None, 
@@ -276,11 +347,11 @@ class Dataset(object):
             ftp.retrbinary(cmd, open(str(zipPath), 'wb').write)
             ftp.quit()
         
-        dataset_id = zipfile[3:-4]
-        m = _dataset_re.search(dataset_id)
+        file_key = zipfile[3:-4]
+        m = _dataset_re.search(file_key)
         l = [int(i) for i in m.groups()]
 
-        tgzPath = Path(_cache_path,dataset_id).with_suffix('.tgz')
+        tgzPath = Path(_cache_path,file_key).with_suffix('.tgz')
         tgzfile = str(tgzPath)
 
         zpf = ZipFile(str(zipPath), mode='r')
@@ -296,7 +367,7 @@ class Dataset(object):
 
         _re = re.compile('(CH_.*_SCI_COR_Lightcurve-.*fits)')
         with tarfile.open(tgzfile, mode='w:gz') as tgz:
-            tarPath = Path('visit')/Path(dataset_id)/Path(imgfile).name 
+            tarPath = Path('visit')/Path(file_key)/Path(imgfile).name 
             tarinfo = tarfile.TarInfo(name=str(tarPath))
             zipinfo = zpf.getinfo(imgfile)
             tarinfo.size = zipinfo.file_size
@@ -306,7 +377,7 @@ class Dataset(object):
             zf.close()
             if verbose: print("Writing Lightcurve data to .tgz file...")
             for lcfile in list(filter(_re.match, ziplist)):
-                tarPath = Path('visit')/Path(dataset_id)/Path(lcfile).name
+                tarPath = Path('visit')/Path(file_key)/Path(lcfile).name
                 tarinfo = tarfile.TarInfo(name=str(tarPath))
                 zipinfo = zpf.getinfo(lcfile)
                 tarinfo.size = zipinfo.file_size
@@ -316,15 +387,12 @@ class Dataset(object):
                 if verbose: print ('.. {} - done'.format(Path(lcfile).name))
         zpf.close()
 
-        if target is not None:
-            targetPath = Path(_cache_path,dataset_id).with_suffix('.target')
-            with open(str(targetPath), 'w') as fh:  
-                fh.writelines("{}\n".format(target))
+        return self(file_key=file_key, target=target, verbose=verbose)
 
-        return self(dataset_id=dataset_id, target=target, verbose=verbose)
+#----
         
     def get_imagettes(self, verbose=True):
-        imFile = "{}-Imagette.fits".format(self.dataset_id)
+        imFile = "{}-Imagette.fits".format(self.file_key)
         imPath = Path(self.tgzfile).parent / imFile
         if imPath.is_file():
             with fits.open(imPath) as hdul:
@@ -361,7 +429,7 @@ class Dataset(object):
         if aperture not in ('OPTIMAL','RSUP','RINF','DEFAULT'):
             raise ValueError('Invalid/missing aperture name')
 
-        lcFile = "{}-{}.fits".format(self.dataset_id,aperture)
+        lcFile = "{}-{}.fits".format(self.file_key,aperture)
         lcPath = Path(self.tgzfile).parent / lcFile
         if lcPath.is_file(): 
             with fits.open(lcPath) as hdul:

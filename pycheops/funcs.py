@@ -33,7 +33,7 @@ Functions are defined in terms of the following parameters. [1]
 * P          - orbital period in mean solar days
 * Mass       - total system mass in solar masses, Mass = m_1 + m_2
 * ecc        - orbital eccentricity
-* omdeg      - longitude of periastron, omega, in _degrees_
+* omdeg      - longitude of periastron of star's orbit, omega, in _degrees_
 * sini       - sine of the orbital inclination 
 * K          - 2.pi.a.sini/(P.sqrt(1-e^2)) = K_1 + K_2
 * K_1, K_2   - orbital semi-amplitudes in km/s
@@ -306,6 +306,7 @@ def t2z(t, tzero, P, sini, rstar, ecc=0, omdeg=90, returnMask=False):
     :param ecc: eccentricity (optional, default=0)
     :param omdeg: longitude of periastron in degrees (optional, default=90)
     :param returnFlag: return a flag to distinguish transits from eclipses.
+    N.B. omdeg is the longitude of periastron for the star's orbit
 
     :returns: z [, mask]
 
@@ -336,6 +337,7 @@ def t2z(t, tzero, P, sini, rstar, ecc=0, omdeg=90, returnMask=False):
         E = esolve(M,ecc)
         nu = 2*arctan(sqrt((1+ecc)/(1-ecc))*tan(E/2))
         omrad = pi*omdeg/180
+        # Equation (5.63) from Hilditch
         z = ((1-ecc**2)/(1+ecc*cos(nu))*sqrt(1-sin(omrad+nu)**2*sini**2))/rstar
     if returnMask:
         return z, sin(nu + omrad)*sini < 0
@@ -346,11 +348,11 @@ def t2z(t, tzero, P, sini, rstar, ecc=0, omdeg=90, returnMask=False):
 
 def tzero2tperi(tzero,P,sini,ecc,omdeg):
     """
-    Calculate time of periastron from time of mid-eclipse
+    Calculate time of periastron from time of mid-transit
 
     Uses the method by Lacy, 1992AJ....104.2213L
 
-    :param tzero: times of mid-eclipse
+    :param tzero: times of mid-transit
     :param P: orbital period
     :param sini: sine of orbital inclination 
     :param ecc: eccentricity 
@@ -426,6 +428,7 @@ def xyz_planet(t, tzero, P, sini, ecc=0, omdeg=90):
     :param sini: sine of orbital inclination
     :param ecc: eccentricity (optional, default=0)
     :param omdeg: longitude of periastron in degrees (optional, default=90)
+
     N.B. omdeg is the longitude of periastron for the star's orbit
 
     :returns: (x, y, z)
@@ -439,7 +442,7 @@ def xyz_planet(t, tzero, P, sini, ecc=0, omdeg=90):
     >>> sini = 0.9
     >>> ecc = 0.1
     >>> omdeg = 90
-    >>> x, y, z = xyz_planet(t,0,1,sini,ecc,omdeg)
+    >>> x, y, z = xyz_planet(t, 0, 1, sini, ecc, omdeg)
     >>> plt.plot(x, y)
     >>> plt.plot(x, z)
     >>> plt.show()

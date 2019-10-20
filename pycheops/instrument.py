@@ -113,7 +113,9 @@ def transit_noise(time, flux, flux_err, T_0=None, width=3,
     Transit noise estimate
 
     The noise is calculated in a window of duration 'width' in hours centered 
-    at time T_0 by finding the depth of a transit that gives S/N = 1.
+    at time T_0 by first dividing out the best-fitting transit (even if this
+    has a negative depth), and then finding the depth of an injected transit
+    that gives S/N = 1.
     
     Two methods are available to estimate the transit depth and its standard
     error - 'scaled' or 'minerr'.
@@ -160,51 +162,68 @@ def transit_noise(time, flux, flux_err, T_0=None, width=3,
 
     assert (method in ('scaled', 'minerr')), "Invalid method value"
 
+    mad =  np.median(np.abs(flux-np.median(flux)))
+    if np.abs(np.median(flux)-1) > mad:
+        warnings.warn ("Input flux values are not normalised")
+
     if T_0 is None:
         T_0 = np.median(time)
 
     # Use orbital period = 10* data duration so there is certainly 1 transit
     P = 10*(max(time)-min(time))
+
     j = (np.abs(time-T_0) < (width/48)).nonzero()[0]
-    if len(j) < 3:
+    if len(j) < 4:
         if method == 'scaled':
             return np.nan, np.nan
         else:
             return np.nan
 
+    ITMAX = 10
+    it = 1
     e_depth = np.median(flux_err[j])/np.sqrt(len(j))
+    depth_in = 0
     W = width/24/P   # Transit Width in phase units
     tm = TransitModel()
     depth_tol = tol*1e-6
-    depth_in = 0
-
-    mad =  np.median(np.abs(flux-np.median(flux)))
-    if np.abs(np.median(flux)-1) > mad:
-        warnings.warn ("Input flux values are not normalised")
-
-    ITMAX = 100
-    i = 1
     while abs(e_depth-depth_in) > depth_tol:
         depth_in = e_depth
         k = np.clip(np.sqrt(depth_in),1e-6,0.2)
-        S = ((1-k)**2)/((1+k)**2)
+        # b=0 causes numerical problems so set b^2 to a small nominal value
+        bsq = 16*np.finfo(0.0).eps
+        S = ((1-k)**2-bsq)/((1+k)**2-bsq)
         pars = tm.make_params(T_0=T_0, P=P, D=depth_in, W=W, S=S,
                 h_1=h_1, h_2=h_2)
         model = tm.eval(params=pars, t=time)
+
+        # Calculate best-fit transit depth
         if method == 'scaled':
-            s, f, sigma_s, sigma_f = scaled_transit_fit(flux,flux_err,model)
+            s0, _, _, _ = scaled_transit_fit(flux,flux_err,model)
+            if s0 == 0:
+                s0, _, _, _ = scaled_transit_fit(2-flux,flux_err,model)
+                s0 = -s0
         else:
-            s, sigma_s = minerr_transit_fit(flux,flux_err,model)
+            s0, _ = minerr_transit_fit(flux,flux_err,model)
+            if s0 == 0:
+                s0, _ = minerr_transit_fit(2-flux,flux_err,model)
+                s0 = -s0
 
-        if sigma_s is np.nan:
-            if method == 'scaled':
-                return np.nan, np.nan
-            else:
-                return np.nan
+        # Subtract off best-fit transit depth and inject model transit
+        _f = flux  - (s0-1)*(model-1) 
 
-        e_depth = sigma_s*depth_in
-        i = i + 1
-        if i > ITMAX:
+        if method == 'scaled':
+            s, f, sigma_s, sigma_f = scaled_transit_fit(_f,flux_err,model)
+        else:
+            s, sigma_s = minerr_transit_fit(_f,flux_err,model)
+
+        # If the input depth is too small then error can be 0, so ..
+        if sigma_s > 0:
+            e_depth = sigma_s*depth_in
+        else:
+            e_depth = depth_in*2
+        #print(it,s0,s, sigma_s, depth_in, e_depth)
+        it = it + 1
+        if it > ITMAX:
             warnings.warn ('Algorithm failed to converge.')
             break
 
