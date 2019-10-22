@@ -465,6 +465,7 @@ class FactorModel(Model):
 
     f = c*(1 + dfdx*dx(t) + dfdy*dy(t) + d2fdx2*dx(t)**2 + d2f2y2*dy(t)**2 +
         d2fdxdy*x(t)*dy(t) + dfdsinphi*sin(phi(t)) + dfdcosphi*cos(phi(t)) +
+        dfdsin2phi*sin(2.phi(t)) + dfdcos2phi*cos(2.phi(t)) + 
         dfdt*dt + d2fdt2*dt**2)
 
     The detrending coefficients dfdx, etc. are 0 and fixed by default. If
@@ -472,7 +473,7 @@ class FactorModel(Model):
     calculate the x-position offset as a function of time, dx(t), must be
     passed as a keyword argument, and similarly for the y-position offset,
     dy(t). For detrending against the spacecraft roll angle, phi(t), the
-    functions to be provided as keywords arguments are sinphi(t) and/or
+    functions to be provided as keywords arguments are sinphi(t) and
     cosphi(t). The time trend decribed by dfdt and d2fdt2 is calculated using
     the variable dt = t - median(t).
 
@@ -484,7 +485,8 @@ class FactorModel(Model):
                        'independent_vars': independent_vars})
 
         def factor(t, d2fdt2=0, dfdt=0, dfdcosphi=0, dfdsinphi=0,
-                d2fdy2=0, d2fdxdy=0,  d2fdx2=0, dfdy=0, dfdx=0, c=1.0):
+                dfdcos2phi=0, dfdsin2phi=0, d2fdy2=0, d2fdxdy=0, d2fdx2=0,
+                dfdy=0, dfdx=0, c=1.0):
 
             dt = t - np.median(t)
             trend = 1 + dfdt*dt + d2fdt2*dt**2
@@ -498,6 +500,12 @@ class FactorModel(Model):
                 trend += dfdsinphi*self.sinphi(t)
             if dfdcosphi != 0 :
                 trend += dfdcosphi*self.cosphi(t)
+            if dfdsin2phi != 0 :
+                sin2phi = 2*self.sinphi(t)*self.cosphi(t)
+                trend += dfdsin2phi*sin2phi
+            if dfdcos2phi != 0 :
+                cos2phi = self.sinphi(t)**2 - self.cosphi(t)**2
+                trend += dfdcos2phi*cos2phi
             return c*trend
 
         super(FactorModel, self).__init__(factor, **kwargs)

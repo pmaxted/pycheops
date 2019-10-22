@@ -502,7 +502,8 @@ class Dataset(object):
             T_0=None, P=None, D=None, W=None, S=None, f_c=None, f_s=None,
             h_1=None, h_2=None,
             c=None, dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
-            dfdsinphi=None, dfdcosphi=None, dfdt=None, d2fdt2=None, 
+            dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
+            dfdt=None, d2fdt2=None, 
             logrhoprior=None):
 
         def _chisq_prior(params, *args):
@@ -585,6 +586,10 @@ class Dataset(object):
             params['dfdsinphi'] = _kwarg_to_Parameter('dfdsinphi', dfdsinphi)
         if dfdcosphi is not None:
             params['dfdcosphi'] = _kwarg_to_Parameter('dfdcosphi', dfdcosphi)
+        if dfdsin2phi is not None:
+            params['dfdsin2phi'] = _kwarg_to_Parameter('dfdsin2phi', dfdsin2phi)
+        if dfdcos2phi is not None:
+            params['dfdcos2phi'] = _kwarg_to_Parameter('dfdcos2phi', dfdcos2phi)
 
 
         params.add('k',expr='sqrt(D)',min=0,max=1)
@@ -840,6 +845,10 @@ class Dataset(object):
                     labels.append(r'$df/d\sin\phi$')
                 elif key == 'dfdcosphi':
                     labels.append(r'$df/d\cos\phi$')
+                elif key == 'dfdsin2phi':
+                    labels.append(r'$df/d\sin(2\phi)$')
+                elif key == 'dfdcos2phi':
+                    labels.append(r'$df/d\cos(2\phi)$')
                 elif key == 'log_sigma':
                     labels.append(r'$\log\sigma$')
                 elif key == 'log_omega0':
