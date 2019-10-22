@@ -1052,7 +1052,8 @@ class Dataset(object):
 
  # Eclipse and transit fitting
     def transit_noise_plot(self, width=3, steps=500,
-            fname=None, figsize=(6,4), fontsize=11, verbose=True):
+            fname=None, figsize=(6,4), fontsize=11,
+            requirement=None, verbose=True):
 
         try:
             time = np.array(self.lc['time'])
@@ -1115,6 +1116,10 @@ class Dataset(object):
         ax[1].plot(Tmn,Nmn,'g.',ms=1)
         ax[1].set_ylabel("Transit noise [ppm] ")
         ax[1].set_xlabel("Time");
+        if requirement is not None:
+            xr = [np.min(time),np.max(time)]
+            yr = [requirement, requirement]
+            ax[1].plot(xr, yr, color='darkcyan',ls=':')
         fig.tight_layout()
         if fname is None:
             plt.show()
