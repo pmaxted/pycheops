@@ -202,4 +202,5 @@ Second attempt to avoid ellc import (try/except)
 ~~~~~~~~~~~~~~~~~~
  Make elements of lc['xoff'], lc['yoff'] and lc['roll_angle'] consistent with
  lc['time'], lc['flux'], etc. following high point rejection. 
+ Added detrending coeffs dfdsin2phi and dfdcos2phi
 
