@@ -198,5 +198,8 @@ Second attempt to avoid ellc import (try/except)
  Made minerr_transit_fit more robust
  Fixed calculation of transit parameters in EclipseModel
 
- 
+0.4.1 (2019-10-22)
+~~~~~~~~~~~~~~~~~~
+ Make elements of lc['xoff'], lc['yoff'] and lc['roll_angle'] consistent with
+ lc['time'], lc['flux'], etc. following high point rejection. 
 
