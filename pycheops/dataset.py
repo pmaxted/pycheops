@@ -468,6 +468,9 @@ class Dataset(object):
             time = time[ok]
             flux = flux[ok]
             flux_err = flux_err[ok]
+            xoff = xoff[ok]
+            yoff = yoff[ok]
+            roll_angle = roll_angle[ok]
             N_cut = len(bjd) - len(time)
         if verbose:
             if reject_highpoints:
