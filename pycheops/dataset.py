@@ -463,7 +463,7 @@ class Dataset(object):
         yoff = np.array(table['CENTROID_Y'][ok]- table['LOCATION_Y'][ok])
         roll_angle = np.array(table['ROLL_ANGLE'][ok])
         if reject_highpoints:
-            C_cut = (2*np.nanmedian(flux)-np.min(flux))
+            C_cut = (2*np.nanmedian(flux)-np.nanmin(flux))
             ok  = (flux < C_cut).nonzero()
             time = time[ok]
             flux = flux[ok]
@@ -476,10 +476,10 @@ class Dataset(object):
             if reject_highpoints:
                 print('C_cut = {:0.0f}'.format(C_cut))
                 print('N(C > C_cut) = {}'.format(N_cut))
-            print('Mean counts = {:0.1f}'.format(flux.mean()))
+            print('Mean counts = {:0.1f}'.format(flux.nanmean()))
             print('Median counts = {:0.1f}'.format(fluxmed))
-            print('RMS counts = {:0.1f} [{:0.0f} ppm]'.format(np.std(flux), 
-                1e6*np.std(flux)/fluxmed))
+            print('RMS counts = {:0.1f} [{:0.0f} ppm]'.format(np.nanstd(flux), 
+                1e6*np.nanstd(flux)/fluxmed))
             print('Median standard error = {:0.1f} [{:0.0f} ppm]'.format(
                 fluxmed, 1e6*np.nanmedian(flux_err)/fluxmed))
 
