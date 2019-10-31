@@ -46,7 +46,7 @@ def qpower2(z,k,c,a):
     r"""
     Fast and accurate transit light curves for the power-2 limb-darkening law
 
-    The power-2 limb-darkening law is I(\mu) = 1 - c (1 - \mu^\alpha)
+    The power-2 limb-darkening law is I(\mu) = 1 - c (1 - \mu**\alpha)
 
     Light curves are calculated using the qpower2 approximation [1]. The
     approximation is accurate to better than 100ppm for radius ratio k < 0.1.
@@ -276,31 +276,31 @@ class TransitModel(Model):
 
     Limb-darkening is described by the power-2 law:
     .. math::
-        I(\mu; c, \alpha) = 1 - c (1 - \mu^\alpha)
+        I(\mu; c, \alpha) = 1 - c (1 - \mu**\alpha)
 
-    The light curve depth, width and shape are parameterised by D, W, and S as
-    defined below in terms of the star and planet radii, R_s and R_p,
-    respectively, the semi-major axis, a, and the orbital inclination, i. The
-    following parameters are used for convenience - k = R_p/R_s, aR = a/R_s,
-    b=aR.cos(i). The shape parameter is approximately (t_F/t_T)^2 where
-    t_T=W*P is the duration of the transit (1st to 4th contact points) and t_F
-    is the duration of the "flat" part of the transit between the 2nd and 3rd
-    contact points. These parameters are all available as constraints within
-    the model. Also available is the mean stellar density in solar units,
-    rho=0.013418*aR^3/(P/days)^2. N.B. this value of rho assumes that
-    M_planet << M_star. The eccentricity and longitude of periastron for the
-    planet's orbit are ecc and omega, respectively.
+    The light curve depth, width shape are parameterised by D, W and b. These
+    parameters are defined below in terms of the radius of the star and
+    planet, R_s and R_p, respectively, the semi-major axis, a, and the orbital
+    inclination, i. The eccentricy and longitude of periastron for the star's
+    orbit are e and omega, respectively.
+
+    The following parameters are defined for convenience:
+    - k = R_p/R_s; 
+    - aR = a/R_s; 
+    - rho = 0.013418*aR**3/(P/d)**2.
+    N.B., the mean stellar density in solar units is rho, but only if the mass
+    ratio q = M_planet/M_star is q << 1. 
 
     :param t:    - independent variable (time)
     :param T_0:  - time of mid-transit
     :param P:    - orbital period
-    :param D:    - (R_p/R_s)^2 = k^2
-    :param W:    - (R_s/a)*sqrt((1+k)^2 - b^2)/pi
-    :param S:    - ((1-k)^2-b^2)/((1+k)^2 - b^2)
-    :param f_c:  - sqrt(ecc).cos(omega)
-    :param f_s:  - sqrt(ecc).sin(omega)
-    :param h_1:  - I(0.5) = 1 - c*(1-0.5^alpha)
-    :param h_2:  - I(0.5) - I(0) = c*0.5^alpha
+    :param D:    - (R_p/R_s)**2 = k**2
+    :param W:    - (R_s/a)*sqrt((1+k)**2 - b**2)/pi
+    :param b:    - a*cos(i)/R_s
+    :param f_c:  - sqrt(ecc)*cos(omega)
+    :param f_s:  - sqrt(ecc)*sin(omega)
+    :param h_1:  - I(0.5) = 1 - c*(1-0.5**alpha)
+    :param h_2:  - I(0.5) - I(0) = c*0.5**alpha
 
     The flux value outside of transit is 1. The light curve is calculated using
     the qpower2 algorithm, which is fast but only accurate for k < ~0.3.
@@ -315,35 +315,26 @@ class TransitModel(Model):
         kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
                        'independent_vars': independent_vars})
 
-        def _transit_func(t, T_0, P, D, W, S, f_c, f_s, h_1, h_2):
-            if D <= 0:
+        def _transit_func(t, T_0, P, D, W, b, f_c, f_s, h_1, h_2):
+
+            if (D <= 0) or (D > 0.25) or (W <= 0) or (b < 0):
                 return np.ones_like(t)
+            if ((1-abs(f_c)) <= 0) or ((1-abs(f_s)) <= 0):
+                return np.ones_like(t)
+            q1 = (1-h_2)**2
+            if (q1 <= 0) or (q1 >=1): return np.ones_like(t)
+            q2 = (h_1-h_2)/(1-h_2)
+            if (q2 <= 0) or (q2 >=1): return np.ones_like(t)
             k = np.sqrt(D)
-            if k > 0.5:
-                return np.ones_like(t)
-            if (1-S) <= 0:
-                return np.ones_like(t)
-            bsq = ((1-k)**2 - S*(1+k)**2) / (1-S) 
-            if bsq < 0:
-                return np.ones_like(t)
-            b = np.sqrt(bsq)
-            q = (1+k)**2-bsq
-            if q <= 0:
-                return np.ones_like(t)
-            r_star = np.pi * W / np.sqrt(q)
-            q = 1 - (b*r_star)**2
-            if q <= 0:
-                return np.ones_like(t)
-            sini = np.sqrt(q)
-            if (h_1 <= 0) or (h_2 <= 0) or (h_2 > h_1) or (h_1 >= 1):
-                return np.ones_like(t)
-            c2 = 1 - h_1 + h_2
-            a2 = np.log2(c2/h_2)
+            r_star = np.pi*W/np.sqrt((1+k)**2 - b**2)
+            sini = np.sqrt(1-b**2*r_star**2)
             ecc = f_c**2 + f_s**2
             om = np.arctan2(f_s, f_c)*180/np.pi
+            c2 = 1 - h_1 + h_2
+            a2 = np.log2(c2/h_2)
             z,m = t2z(t, T_0, P, sini, r_star, ecc, om, returnMask = True)
             # Set z values where planet is behind star to a large nominal value
-            z[m]  = 9999
+            z[m]  = 100
             return qpower2(z, k, c2, a2)
 
         super(TransitModel, self).__init__(_transit_func, **kwargs)
@@ -353,17 +344,14 @@ class TransitModel(Model):
         self.set_param_hint('P', min=1e-15)
         self.set_param_hint('D', min=0, max=1)
         self.set_param_hint('W', min=0, max=0.3)
-        self.set_param_hint('S', min=0, max=1)
+        self.set_param_hint('b', min=0, max=1.5)
         self.set_param_hint('f_c', value=0, min=-1, max=1)
         self.set_param_hint('f_s', value=0, min=-1, max=1)
         self.set_param_hint('h_1', min=0, max=1)
         self.set_param_hint('h_2', min=0, max=1)
         expr = "sqrt({p:s}D)".format(p=self.prefix)
         self.set_param_hint('k'.format(p=self.prefix), 
-                expr=expr, min=0, max=1)
-        expr = ("sqrt(((1-{p:s}k)**2-{p:s}S*(1+{p:s}k)**2)/(1-{p:s}S))".
-                format(p=self.prefix))
-        self.set_param_hint('b', min=0, max=1.3, expr=expr)
+                expr=expr, min=0, max=0.5)
         expr ="sqrt((1+{p:s}k)**2-{p:s}b**2)/{p:s}W/pi".format(p=self.prefix)
         self.set_param_hint('aR',min=1, expr=expr)
         expr = "0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix)
@@ -373,30 +361,31 @@ class EclipseModel(Model):
     r"""Light curve model for the eclipse by a spherical star of a spherical
     body (planet) with no limb darkening.
 
-     The geometry of the system is defined using the parameters D, W and S, as
-    defined below in terms of the star and planet radii, R_s and R_p,
-    respectively, the semi-major axis, a, and the orbital inclination, i.
-    These are the same parameters used in TransitModel. The flux level outside
-    of eclipse is 1 and inside eclipse is (1-L). The apparent time of
-    mid-eclipse includes the correction a_c for the light travel time across
-    the orbit, i.e., for a circular orbit the time of mid-eclipse is (T_0 +
-    0.5*P) + a_c. N.B. a_c has the same units as P.
 
-     The following parameters are used for convenience - k = R_p/R_s, aR =
-    a/R_s, b=aR.cos(i), J = L/D. These parameters are all available as
-    constraints within the model. Also available is the mean stellar density
-    in solar units, rho=0.013418*aR**3/(P/days)**2. N.B. this value of rho
-    assumes that M_planet << M_star.
+    The light curve depth, width shape are parameterised by D, W and b. These
+    parameters are defined below in terms of the radius of the star and
+    planet, R_s and R_p, respectively, the semi-major axis, a, and the orbital
+    inclination, i. The eccentricy and longitude of periastron for the star's
+    orbit are e and omega, respectively. These are the same parameters used in
+    TransitModel. The flux level outside of eclipse is 1 and inside eclipse is
+    (1-L). The apparent time of mid-eclipse includes the correction a_c for
+    the light travel time across the orbit, i.e., for a circular orbit the
+    time of mid-eclipse is (T_0 + 0.5*P) + a_c. N.B. a_c must have the same
+    units as P.
 
-     The eccentricity and longitude of periastron for the planet's orbit are
-    ecc and omega, respectively. 
+    The following parameters are defined for convenience:
+    - k = R_p/R_s; 
+    - aR = a/R_s; 
+    - rho = 0.013418*aR**3/(P/d)**2.
+    N.B., the mean stellar density in solar units is rho, but only if the mass
+    ratio q = M_planet/M_star is q << 1. 
 
     :param t:   - independent variable (time)
     :param T_0: - time of mid-transit
     :param P:   - orbital period
-    :param D:   - (R_p/R_s)^2 = k^2
-    :param W:   - (R_s/a)*sqrt((1+k)^2 - b^2)/pi
-    :param S:   - ((1-k)^2-b^2)/((1+k)^2 - b^2)
+    :param D:   - (R_p/R_s)**2 = k**2
+    :param W:   - (R_s/a)*sqrt((1+k)**2 - b**2)/pi
+    :param b:    - a*cos(i)/R_s
     :param L:   - Depth of eclipse
     :param f_c: - sqrt(ecc).cos(omega)
     :param f_s: - sqrt(ecc).sin(omega)
@@ -409,30 +398,21 @@ class EclipseModel(Model):
         kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
                        'independent_vars': independent_vars})
 
-        def _eclipse_func(t, T_0, P, D, W, S, L, f_c, f_s, a_c):
-            if D <= 0:
+        def _eclipse_func(t, T_0, P, D, W, b, L, f_c, f_s, a_c):
+            if (D <= 0) or (D > 0.25) or (W <= 0) or (b < 0):
+                return np.ones_like(t)
+            if (L <= 0) or (L >= 1): 
+                return np.ones_like(t)
+            if ((1-abs(f_c)) <= 0) or ((1-abs(f_s)) <= 0):
                 return np.ones_like(t)
             k = np.sqrt(D)
-            if k > 0.5:
-                return np.ones_like(t)
-            if (1-S) <= 0:
-                return np.ones_like(t)
-            bsq = ((1-k)**2 - S*(1+k)**2) / (1-S) 
-            if bsq < 0:
-                return np.ones_like(t)
-            b = np.sqrt(bsq)
-            q = (1+k)**2-bsq
-            if q <= 0:
-                return np.ones_like(t)
-            r_star = np.pi * W / np.sqrt(q)
-            q = 1 - (b*r_star)**2
-            if q <= 0:
-                return np.ones_like(t)
-            sini = np.sqrt(q)
+            r_star = np.pi*W/np.sqrt((1+k)**2 - b**2)
+            sini = np.sqrt(1-b**2*r_star**2)
             ecc = f_c**2 + f_s**2
             om = np.arctan2(f_s, f_c)*180/np.pi
             z,m = t2z(t-a_c, T_0, P, sini, r_star, ecc, om, returnMask=True)
-            z[~m]  = 9999
+            # Set z values where star is behind planet to a large nominal value
+            z[~m]  = 100
             return 1 + L*(ueclipse(z, k)-1)
 
         super(EclipseModel, self).__init__(_eclipse_func, **kwargs)
@@ -442,7 +422,7 @@ class EclipseModel(Model):
         self.set_param_hint('P', min=1e-15)
         self.set_param_hint('D', min=0, max=1)
         self.set_param_hint('W', min=0, max=0.3)
-        self.set_param_hint('S', min=0, max=1)
+        self.set_param_hint('b', min=0, max=1.5)
         self.set_param_hint('L', min=0, max=1)
         self.set_param_hint('f_c', value=0, min=-1, max=1, vary=False)
         self.set_param_hint('f_s', value=0, min=-1, max=1, vary=False)
@@ -451,14 +431,10 @@ class EclipseModel(Model):
         self.set_param_hint('k', expr=expr, min=0, max=1)
         expr = "D/L".format(prefix=self.prefix)
         self.set_param_hint('J', expr=expr, min=0)
-        self.set_param_hint('aR', min=1, 
-                expr="2/(pi*{p:s}W*sqrt((1-{p:s}S)/{p:s}k))"
-                .format(p=self.prefix) )
+        expr ="sqrt((1+{p:s}k)**2-{p:s}b**2)/{p:s}W/pi".format(p=self.prefix)
+        self.set_param_hint('aR',min=1, expr=expr)
         self.set_param_hint('rho', min=0, expr = 
                 "0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix) )
-        self.set_param_hint('b', max=1.3,
-                expr = "sqrt(((1-{p:s}k)**2-{p:s}S*(1+{p:s}k)**2)/(1-{p:s}S))"
-                .format(p=self.prefix) )
 
 class FactorModel(Model):
     """Flux scaling and trend factor model
@@ -516,7 +492,8 @@ class FactorModel(Model):
         self.cosphi = cosphi
         self.set_param_hint('c', min=0)
         for p in ['dfdx', 'dfdy', 'd2fdx2', 'd2fdxdy',  'd2fdy2', 
-                  'dfdsinphi', 'dfdcosphi', 'dfdt', 'd2fdt2']:
+                  'dfdsinphi', 'dfdcosphi', 'dfdcos2phi', 'dfdsin2phi',
+                  'dfdt', 'd2fdt2']:
             self.set_param_hint(p, value=0, vary=False)
 
     def guess(self, data, **kwargs):
@@ -525,7 +502,8 @@ class FactorModel(Model):
 
         pars['%sc' % self.prefix].set(value=data.median())
         for p in ['dfdx', 'dfdy', 'd2fdx2', 'd2fdy2', 
-                'dfdsinphi', 'dfdcosphi', 'dfdt', 'd2fdt2']:
+                'dfdsinphi', 'dfdcosphi', 'dfdcos2phi', 'dfdsin2phi',
+                'dfdt', 'd2fdt2']:
             pars['{}{}'.format(self.prefix, p)].set(value = 0.0, vary=False)
         return update_param_vals(pars, self.prefix, **kwargs)
 

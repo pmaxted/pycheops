@@ -277,9 +277,10 @@ class Dataset(object):
             ftp.retrbinary(cmd, open(str(zipPath), 'wb').write)
             ftp.quit()
         
-        file_key = zipfile[3:-4]
-        m = _dataset_re.search(file_key)
+        file_key = zipfile[:-4]+'_V0000'
+        m = _file_key_re.search(file_key)
         l = [int(i) for i in m.groups()]
+        self.progtype,self.prog_id,self.req_id,self.visitctr,self.ver = l
 
         tgzPath = Path(_cache_path,file_key).with_suffix('.tgz')
         tgzfile = str(tgzPath)
@@ -462,6 +463,9 @@ class Dataset(object):
         xoff = np.array(table['CENTROID_X'][ok]- table['LOCATION_X'][ok])
         yoff = np.array(table['CENTROID_Y'][ok]- table['LOCATION_Y'][ok])
         roll_angle = np.array(table['ROLL_ANGLE'][ok])
+        ap_rad = hdr['AP_RADI']
+        print('Aperture radius used = {:0.0f} arcsec'.format(ap_rad))
+
         if reject_highpoints:
             C_cut = (2*np.nanmedian(flux)-np.min(flux))
             ok  = (flux < C_cut).nonzero()
@@ -487,8 +491,10 @@ class Dataset(object):
         flux_err = flux_err/fluxmed
         self.lc = {'time':time, 'flux':flux, 'flux_err':flux_err,
                 'bjd_ref':bjd_ref, 'table':table, 'header':hdr,
-                'xoff':xoff, 'yoff':yoff, 'roll_angle':roll_angle, 
-                'aperture':aperture}
+                'xoff':xoff, 'yoff':yoff,
+                'centroid_x':np.array(table['CENTROID_X'][ok]),
+                'centroid_y':np.array(table['CENTROID_Y'][ok]),
+                'roll_angle':roll_angle, 'aperture':aperture}
 
         if returnTable:
             return table
@@ -499,7 +505,7 @@ class Dataset(object):
  # Eclipse and transit fitting
 
     def lmfit_transit(self, 
-            T_0=None, P=None, D=None, W=None, S=None, f_c=None, f_s=None,
+            T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
             h_1=None, h_2=None,
             c=None, dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
@@ -545,11 +551,10 @@ class Dataset(object):
                     min=np.ptp(time)/len(time)/_P, max=np.ptp(time)/_P) 
         else:
             params['W'] = _kwarg_to_Parameter('W', W)
-        if S is None:
-            params.add(name='S', value=((1-k)**2-0.25)/((1+k)**2-0.25),
-                    min=0, max=1)
+        if b is None:
+            params.add(name='b', value=0.5, min=0, max=1)
         else:
-            params['S'] = _kwarg_to_Parameter('S', S)
+            params['b'] = _kwarg_to_Parameter('b', b)
         if f_c is None:
             params.add(name='f_c', value=0, vary=False)
         else:
@@ -591,20 +596,125 @@ class Dataset(object):
         if dfdcos2phi is not None:
             params['dfdcos2phi'] = _kwarg_to_Parameter('dfdcos2phi', dfdcos2phi)
 
-
         params.add('k',expr='sqrt(D)',min=0,max=1)
-        params.add('bsq', expr='((1-k)**2-S*(1+k)**2)/(1-S)', min=0, max=1)
-        params.add('b', expr='sqrt(((1-k)**2-S*(1+k)**2)/(1-S))', min=0, max=1)
         params.add('aR',expr='sqrt((1+k)**2-b**2)/W/pi',min=1)
         # Avoid use of aR in this expr for logrho - breaks error propogation.
         expr = 'log10(4.3275e-4*((1+k)**2-b**2)**1.5/W**3/P**2)'
-        params.add('logrho',expr=expr,min=-6,max=3)
+        params.add('logrho',expr=expr,min=-9,max=6)
         params['logrho'].user_data=logrhoprior
         params.add('e',min=0,max=1,expr='f_c**2 + f_s**2')
         params.add('q_1',min=0,max=1,expr='(1-h_2)**2')
         params.add('q_2',min=0,max=1,expr='(h_1-h_2)/(1-h_2)')
 
         model = TransitModel()*FactorModel(
+            dx = InterpolatedUnivariateSpline(time, xoff),
+            dy = InterpolatedUnivariateSpline(time, yoff),
+            sinphi = InterpolatedUnivariateSpline(time,np.sin(phi)),
+            cosphi = InterpolatedUnivariateSpline(time,np.cos(phi)) )
+
+        result = minimize(_chisq_prior, params,nan_policy='propagate',
+                args=(model, time, flux, flux_err))
+        self.model = model
+        self.lmfit = result
+        return result
+
+    # ----------------------------------------------------------------
+    def lmfit_eclipse(self, 
+            T_0=None, P=None, D=None, W=None, b=None, L=None, 
+            f_c=None, f_s=None, 
+            c=None, dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
+            dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
+            dfdt=None, d2fdt2=None, logrhoprior=None):
+
+        def _chisq_prior(params, *args):
+            r =  (flux - model.eval(params, t=time))/flux_err
+            for p in params:
+                u = params[p].user_data
+                if isinstance(u, UFloat):
+                    r = np.append(r, (u.n - params[p].value)/u.s)
+            return r
+
+        try:
+            time = self.lc['time']
+            flux = self.lc['flux']
+            flux_err = self.lc['flux_err']
+            xoff = self.lc['xoff']
+            yoff = self.lc['xoff']
+            phi = self.lc['roll_angle']*np.pi/180
+        except AttributeError:
+            raise AttributeError("Use get_lightcurve() to load data first.")
+
+        params = Parameters()
+        if T_0 is None:
+            params.add(name='T_0', value=np.nanmedian(time),
+                    min=min(time),max=max(time))
+        else:
+            params['T_0'] = _kwarg_to_Parameter('T_0', T_0)
+        if P is None:
+            params.add(name='P', value=1, vary=False)
+        else:
+            params['P'] = _kwarg_to_Parameter('P', P)
+        _P = params['P'].value
+        if D is None:
+            params.add(name='D', value=1-min(flux), min=0,max=0.5)
+        else:
+            params['D'] = _kwarg_to_Parameter('D', D)
+        k = np.sqrt(params['D'].value)
+        if W is None:
+            params.add(name='W', value=np.ptp(time)/2/_P,
+                    min=np.ptp(time)/len(time)/_P, max=np.ptp(time)/_P) 
+        else:
+            params['W'] = _kwarg_to_Parameter('W', W)
+        if b is None:
+            params.add(name='b', value=0.5, min=0, max=1)
+        else:
+            params['b'] = _kwarg_to_Parameter('b', b)
+        if L is None:
+            params.add(name='L', value=0.001, min=0, max=1)
+        else:
+            params['L'] = _kwarg_to_Parameter('L', L)
+        if f_c is None:
+            params.add(name='f_c', value=0, vary=False)
+        else:
+            params['f_c'] = _kwarg_to_Parameter('f_c', f_c)
+        if f_s is None:
+            params.add(name='f_s', value=0, vary=False)
+        else:
+            params['f_s'] = _kwarg_to_Parameter('f_s', f_s)
+        if c is None:
+            params.add(name='c', value=1, min=min(flux)/2,max=2*max(flux))
+        else:
+            params['c'] = _kwarg_to_Parameter('c', c)
+        if dfdx is not None:
+            params['dfdx'] = _kwarg_to_Parameter('dfdx', dfdx)
+        if dfdy is not None:
+            params['dfdy'] = _kwarg_to_Parameter('dfdy', dfdy)
+        if d2fdx2 is not None:
+            params['d2fdx2'] = _kwarg_to_Parameter('d2fdx2', dfdx)
+        if d2fdy2 is not None:
+            params['d2fdy2'] = _kwarg_to_Parameter('d2fdy2', dfdy)
+        if dfdt is not None:
+            params['dfdt'] = _kwarg_to_Parameter('dfdt', dfdt)
+        if d2fdt2 is not None:
+            params['d2fdt2'] = _kwarg_to_Parameter('d2fdt2', dfdt)
+        if dfdsinphi is not None:
+            params['dfdsinphi'] = _kwarg_to_Parameter('dfdsinphi', dfdsinphi)
+        if dfdcosphi is not None:
+            params['dfdcosphi'] = _kwarg_to_Parameter('dfdcosphi', dfdcosphi)
+        if dfdsin2phi is not None:
+            params['dfdsin2phi'] = _kwarg_to_Parameter('dfdsin2phi', dfdsin2phi)
+        if dfdcos2phi is not None:
+            params['dfdcos2phi'] = _kwarg_to_Parameter('dfdcos2phi', dfdcos2phi)
+
+        params.add('k',expr='sqrt(D)',min=0,max=1)
+        params.add('aR',expr='sqrt((1+k)**2-b**2)/W/pi',min=1)
+        # Avoid use of aR in this expr for logrho - breaks error propogation.
+        expr = 'log10(4.3275e-4*((1+k)**2-b**2)**1.5/W**3/P**2)'
+        params.add('logrho',expr=expr,min=-9,max=6)
+        params['logrho'].user_data=logrhoprior
+        params.add('e',min=0,max=1,expr='f_c**2 + f_s**2')
+
+        model = EclipseModel()*FactorModel(
             dx = InterpolatedUnivariateSpline(time, xoff),
             dy = InterpolatedUnivariateSpline(time, yoff),
             sinphi = InterpolatedUnivariateSpline(time,np.sin(phi)),
@@ -811,7 +921,7 @@ class Dataset(object):
 
     # ----------------------------------------------------------------
 
-    def corner_plot(self, plotkeys=['T_0', 'D', 'W', 'S'], 
+    def corner_plot(self, plotkeys=['T_0', 'D', 'W', 'b'], 
             show_priors=True):
 
         params = self.emcee.params
@@ -873,16 +983,10 @@ class Dataset(object):
                 xs.append(k)
                 labels.append(r'k')
 
-            if 'S' in varkeys:
-                S = chain[:,varkeys.index('S')]
+            if 'b' in varkeys:
+                b = chain[:,varkeys.index('b')]
             else:
-                S = params['S'].value
-
-            b = np.sqrt(((1-k)**2-S*(1+k)**2)/(1-S))
-
-            if key == 'b':
-                xs.append(b)
-                labels.append(r'b')
+                b = params['b'].value
 
             if 'W' in varkeys:
                 W = chain[:,varkeys.index('W')]
@@ -1050,7 +1154,6 @@ class Dataset(object):
  #----------------------------------------------------------------------------
  # Data display and diagnostics
 
- # Eclipse and transit fitting
     def transit_noise_plot(self, width=3, steps=500,
             fname=None, figsize=(6,4), fontsize=11,
             requirement=None, verbose=True):
@@ -1127,8 +1230,10 @@ class Dataset(object):
             plt.savefig(fname)
         
 
+    #------
+
     def diagnostic_plot(self, fname=None,
-            figsize=(8,8), fontsize=10):
+            figsize=(8,8), fontsize=10, compare=None):
         try:
             D = Table(self.lc['table'], masked=True)
         except AttributeError:
@@ -1156,48 +1261,70 @@ class Dataset(object):
         yloc = D['LOCATION_Y']
         xcen = D['CENTROID_X']
         ycen = D['CENTROID_Y']
-
+        
+        if compare:
+            time_detrend = np.array(self.lc['time'])+self.lc['bjd_ref']
+            flux_detrend = np.array(self.lc['flux'])*np.nanmean(flux)
+            flux_err_detrend = np.array(self.lc['flux_err'])*np.nanmean(flux)
+            rollangle_detrend = np.array(self.lc['roll_angle'])
+            xcen_detrend = np.array(self.lc['centroid_x'])
+            ycen_detrend = np.array(self.lc['centroid_y'])
+        
         plt.rc('font', size=fontsize)    
         fig, ax = plt.subplots(4,2,figsize=figsize)
         cgood = 'c'
         cbad = 'r'
+        cdetrend = 'b'
         
+        ylim_min, ylim_max = 0.995*np.nanmean(flux), 1.005*np.nanmean(flux)
         ax[0,0].scatter(tjdb,flux,s=2,c=cgood)
-        ax[0,0].scatter(tjdb,flux_bad,s=2,c=cbad)
+        #ax[0,0].scatter(tjdb,flux_bad,s=2,c=cbad)
+        if compare:
+            ax[0,0].scatter(time_detrend,flux_detrend,s=2,c=cdetrend)   
+            ax[0,0].set_ylim(ylim_min,ylim_max)
         ax[0,0].set_xlabel('BJD')
         ax[0,0].set_ylabel('Flux in ADU')
         
         ax[0,1].scatter(rollangle,flux,s=2,c=cgood)
-        ax[0,1].scatter(rollangle,flux_bad,s=2,c=cbad)
+        #ax[0,1].scatter(rollangle,flux_bad,s=2,c=cbad)
+        if compare:
+            ax[0,1].scatter(rollangle_detrend,flux_detrend,s=2,c=cdetrend)
+            ax[0,1].set_ylim(ylim_min,ylim_max)
         ax[0,1].set_xlabel('Roll angle in degrees')
         ax[0,1].set_ylabel('Flux in ADU')
         
         ax[1,0].scatter(tjdb,back,s=2,c=cgood)
-        ax[1,0].scatter(tjdb,back_bad,s=2,c=cbad)
+        #ax[1,0].scatter(tjdb,back_bad,s=2,c=cbad)
         ax[1,0].set_xlabel('BJD')
         ax[1,0].set_ylabel('Background in ADU')
         ax[1,0].set_ylim(0.9*np.quantile(back,0.005),
                          1.1*np.quantile(back,0.995))
         
         ax[1,1].scatter(rollangle,back,s=2,c=cgood)
-        ax[1,1].scatter(rollangle,back_bad,s=2,c=cbad)
+        #ax[1,1].scatter(rollangle,back_bad,s=2,c=cbad)
         ax[1,1].set_xlabel('Roll angle in degrees')
         ax[1,1].set_ylabel('Background in ADU')
         ax[1,1].set_ylim(0.9*np.quantile(back,0.005),
                          1.1*np.quantile(back,0.995))
+        
         ax[2,0].scatter(xcen,flux,s=2,c=cgood)
-        ax[2,0].scatter(xcen,flux_bad,s=2,c=cbad)
+        #ax[2,0].scatter(xcen,flux_bad,s=2,c=cbad)
+        if compare:
+            ax[2,0].scatter(xcen_detrend,flux_detrend,s=2,c=cdetrend)
+            ax[2,0].set_ylim(ylim_min,ylim_max)
         ax[2,0].set_xlabel('Centroid x')
         ax[2,0].set_ylabel('Flux in ADU')
         
         ax[2,1].scatter(ycen,flux,s=2,c=cgood)
-        ax[2,1].scatter(ycen,flux_bad,s=2,c=cbad)
+        #ax[2,1].scatter(ycen,flux_bad,s=2,c=cbad)
+        if compare:
+            ax[2,1].scatter(ycen_detrend,flux_detrend,s=2,c=cdetrend)
+            ax[2,1].set_ylim(ylim_min,ylim_max)
         ax[2,1].set_xlabel('Centroid y')
         ax[2,1].set_ylabel('Flux in ADU')
         
         ax[3,0].scatter(contam,flux,s=2,c=cgood)
-        ax[3,0].scatter(contam,flux_bad,s=2,c=cbad)
-        
+        #ax[3,0].scatter(contam,flux_bad,s=2,c=cbad)
         ax[3,0].set_xlabel('Contamination estimate')
         ax[3,0].set_ylabel('Flux in ADU')
         ax[3,0].set_xlim(np.min(contam),np.max(contam))
@@ -1212,4 +1339,158 @@ class Dataset(object):
             plt.show()
         else:
             plt.savefig(fname)
+
+    #------
+
+    def decorr(self, dfdt=False, d2fdt2=False, dfdx=False, d2fdx2=False, 
+                dfdy=False, d2fdy2=False, d2fdxdy=False, dfdsinphi=False, 
+                dfdcosphi=False, dfdsin2phi=False, dfdcos2phi=False):
+
+        time = np.array(self.lc['time'])
+        flux = np.array(self.lc['flux'])
+        flux_err = np.array(self.lc['flux_err'])
+        phi = self.lc['roll_angle']*np.pi/180
+        sinphi = InterpolatedUnivariateSpline(time,np.sin(phi))
+        cosphi = InterpolatedUnivariateSpline(time,np.cos(phi))
+
+        dx = InterpolatedUnivariateSpline(time,self.lc['xoff'])
+        dy = InterpolatedUnivariateSpline(time,self.lc['yoff'])
+
+        model = FactorModel(sinphi=sinphi, cosphi=cosphi, dx=dx, dy=dy)
+        params = model.make_params()
+        params.add('dfdt', value=0, vary=dfdt)
+        params.add('d2fdt2', value=0, vary=d2fdt2)
+        params.add('dfdx', value=0, vary=dfdx)
+        params.add('d2fdx2', value=0, vary=d2fdx2)
+        params.add('dfdy', value=0, vary=dfdy)
+        params.add('d2fdy2', value=0, vary=d2fdy2)
+        params.add('d2fdxdy', value=0, vary=d2fdxdy)
+        params.add('dfdsinphi', value=0, vary=dfdsinphi)
+        params.add('dfdcosphi', value=0, vary=dfdcosphi)
+        params.add('dfdsin2phi', value=0, vary=dfdsin2phi)
+        params.add('dfdcos2phi', value=0, vary=dfdcos2phi)
+
+        result = model.fit(flux, params, t=time)
+        print("Fit Report")
+        print(result.fit_report())
+        result.plot()
+
+        print("\nCompare the lightcurve RMS before and after decorrelation")
+        print('RMS before = {:0.1f} ppm'.format(1e6*self.lc['flux'].std()))
+        self.lc['flux'] =  flux/result.best_fit
+        self.lc['flux_err'] =  flux_err/result.best_fit
+        print('RMS after = {:0.1f} ppm'.format(1e6*self.lc['flux'].std()))
+
+        flux = flux/result.best_fit
+        fig,ax=plt.subplots(1,2,figsize=(8,4))
+        y = 1e6*(flux-1)
+        ax[0].plot(time, y,'b.',ms=1)
+        ax[0].set_xlabel("BJD-{}".format((self.lc['bjd_ref'])),fontsize=12)
+        ax[0].set_ylabel("Flux-1 [ppm]",fontsize=12)
+        fig.suptitle('Detrended fluxes')
+        n, bins, patches = ax[1].hist(y, 50, density=True, stacked=True)
+        ax[1].set_xlabel("Flux-1 [ppm]",fontsize=12)
+        v  = np.var(y)
+        ax[1].plot(bins,np.exp(-0.5*bins**2/v)/np.sqrt(2*np.pi*v))
+        fig.tight_layout()
+        fig.subplots_adjust(top=0.88)
+        
+
+    def should_I_decorr(self,cut=20,compare=False):
+        
+        cut_val = cut
+        time = np.array(self.lc['time'])
+        flux = np.array(self.lc['flux'])
+        flux_err = np.array(self.lc['flux_err'])
+        phi = self.lc['roll_angle']*np.pi/180
+        sinphi = InterpolatedUnivariateSpline(time,np.sin(phi))
+        cosphi = InterpolatedUnivariateSpline(time,np.cos(phi))
+        dx = InterpolatedUnivariateSpline(time,self.lc['xoff'])
+        dy = InterpolatedUnivariateSpline(time,self.lc['yoff'])
+
+        dfdx_bad, dfdy_bad, dfdsinphi_bad, dfdcosphi_bad = np.array([]), np.array([]), np.array([]), np.array([])
+        for dfdx in [False, True]:
+            for dfdy in [False, True]:
+                for dfdsinphi in [False, True]:
+                    for dfdcosphi in [False, True]:
+                
+                        model = FactorModel(sinphi=sinphi, cosphi=cosphi, dx=dx, dy=dy)
+                        params = model.make_params()
+                        params.add('dfdt', value=0, vary=False)
+                        params.add('d2fdt2', value=0, vary=False)
+                        params.add('dfdx', value=0, vary=dfdx)
+                        params.add('d2fdx2', value=0, vary=False)
+                        params.add('dfdy', value=0, vary=dfdy)
+                        params.add('d2fdy2', value=0, vary=False)
+                        params.add('d2fdxdy', value=0, vary=False)
+                        params.add('dfdsinphi', value=0, vary=dfdsinphi)
+                        params.add('dfdcosphi', value=0, vary=dfdcosphi)
+                        params.add('dfdsin2phi', value=0, vary=False)
+                        params.add('dfdcos2phi', value=0, vary=False)
+
+                        result = model.fit(flux, params, t=time)        
+
+                        if result.params['dfdx'].vary == True:
+                            if abs(100*result.params['dfdx'].stderr/result.params['dfdx'].value) < cut_val:
+                                dfdx_bad = np.append(dfdx_bad, abs(100*result.params['dfdx'].stderr/result.params['dfdx'].value))
+                        if result.params['dfdy'].vary == True:
+                            if abs(100*result.params['dfdy'].stderr/result.params['dfdy'].value) < cut_val:
+                                dfdy_bad = np.append(dfdy_bad, abs(100*result.params['dfdy'].stderr/result.params['dfdy'].value))
+                        if result.params['dfdsinphi'].vary == True:
+                            if abs(100*result.params['dfdsinphi'].stderr/result.params['dfdsinphi'].value) < cut_val:
+                                dfdsinphi_bad = np.append(dfdsinphi_bad, abs(100*result.params['dfdsinphi'].stderr/result.params['dfdsinphi'].value))
+                        if result.params['dfdcosphi'].vary == True:
+                            if abs(100*result.params['dfdcosphi'].stderr/result.params['dfdcosphi'].value) < cut_val:
+                                dfdcosphi_bad = np.append(dfdcosphi_bad, abs(100*result.params['dfdcosphi'].stderr/result.params['dfdcosphi'].value))
+            
+        if len(dfdx_bad) == 0 and len(dfdy_bad) == 0 and len(dfdsinphi_bad) == 0 and len(dfdcosphi_bad) == 0:
+            print("No! You don't need to decorrelate.")
+        else:
+            if len(dfdx_bad) > 0:
+                print("Yes! Check flux against centroid x.")
+                
+            if len(dfdy_bad) > 0:
+                print("Yes! Check flux against centroid y.")
+                
+            if len(dfdsinphi_bad) > 0 or len(dfdcosphi_bad) > 0:
+                print("Yes! Check flux against roll angle.")
+            
+            self.diagnostic_plot(fontsize=9,compare=compare)
+            
+            decorr_check = input('Do you want to decorrelate? ')
+            if decorr_check.lower()[0] == "y":
+                which_decorr = input('Which to you wish to decorrelate? Please enter from the follow: centroid_x, centroid_y, and/or roll_angle. Multiple entries should be comma separated. ')
+                dfdx_arg, dfdy_arg, dfdsinphi_arg, dfdcosphi_arg = False, False, False, False
+                which_decorr = which_decorr.split(",")
+                
+                for index, i in enumerate(which_decorr):
+                    which_decorr[index] = i.lower().replace(' ', '')
+                if "centroid_x" in which_decorr:
+                    dfdx_arg = True
+                if "centroid_y" in which_decorr:
+                    dfdy_arg = True
+                if "roll_angle" in which_decorr:
+                    dfdsinphi_arg, dfdcosphi_arg = True, True
+                self.decorr(dfdx = dfdx_arg, dfdy = dfdy_arg, dfdsinphi = dfdsinphi_arg, dfdcosphi = dfdcosphi_arg)
+                
+            elif "centroid_x" in decorr_check or "centroid_y" in decorr_check or "roll_angle" in decorr_check:
+                dfdx_arg, dfdy_arg, dfdsinphi_arg, dfdcosphi_arg = False, False, False, False
+                decorr_check = decorr_check.split(",")
+                
+                for index, i in enumerate(decorr_check):
+                    decorr_check[index] = i.lower().replace(' ', '')
+                if "centroid_x" in decorr_check:
+                    dfdx_arg = True
+                if "centroid_y" in decorr_check:
+                    dfdy_arg = True
+                if "roll_angle" in decorr_check:
+                    dfdsinphi_arg, dfdcosphi_arg = True, True
+                self.decorr(dfdx = dfdx_arg, dfdy = dfdy_arg, dfdsinphi = dfdsinphi_arg, dfdcosphi = dfdcosphi_arg)
+                
+            else:
+                print("Ok then")
+        print('\n')    
+            
+            
+            
 

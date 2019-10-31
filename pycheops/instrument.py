@@ -189,10 +189,7 @@ def transit_noise(time, flux, flux_err, T_0=None, width=3,
     while abs(e_depth-depth_in) > depth_tol:
         depth_in = e_depth
         k = np.clip(np.sqrt(depth_in),1e-6,0.2)
-        # b=0 causes numerical problems so set b^2 to a small nominal value
-        bsq = 16*np.finfo(0.0).eps
-        S = ((1-k)**2-bsq)/((1+k)**2-bsq)
-        pars = tm.make_params(T_0=T_0, P=P, D=depth_in, W=W, S=S,
+        pars = tm.make_params(T_0=T_0, P=P, D=depth_in, W=W, b=0,
                 h_1=h_1, h_2=h_2)
         model = tm.eval(params=pars, t=time)
 
