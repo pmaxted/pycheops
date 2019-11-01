@@ -218,7 +218,7 @@ def m_comp(f_m, m_1, sini):
 
 def transit_width(r, k, b, P=1):
     """
-    Total transit duration.
+    Total transit duration for a circular orbit.
 
     See equation (3) from Seager and Malen-Ornelas, 2003ApJ...585.1038S.
 

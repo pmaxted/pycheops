@@ -205,3 +205,11 @@ Second attempt to avoid ellc import (try/except)
  Added detrending coeffs dfdsin2phi and dfdcos2phi
  Added requirement keyword to Dataset.transit_noise_plot()
 
+0.5.0 (2019-11-01)
+~~~~~~~~~~~~~~~~~~
+ Replace parameter S in TransitModel and EclipseModel with b.
+ Bug fix for parameters dfdcos2phi and dfdsin2phi in dataset.
+ Added dataset.lmfit_eclipse and renamed emcee_transit to emcee_sampler.
+ Added "detrend" option to dataset.plot_lmfit and dataset.plot_emcee.
+ Put dace.cheops import inside try:/except
+
