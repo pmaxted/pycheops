@@ -37,7 +37,7 @@ from astropy.table import Table, MaskedColumn
 import matplotlib.pyplot as plt
 from .instrument import transit_noise
 from ftplib import FTP
-from .models import TransitModel, FactorModel
+from .models import TransitModel, FactorModel, EclipseModel
 from uncertainties import UFloat
 from lmfit import Parameter, Parameters, minimize, Minimizer,fit_report
 from scipy.interpolate import InterpolatedUnivariateSpline
@@ -50,12 +50,17 @@ from celerite import terms, GP
 from sys import stdout 
 from astropy.coordinates import SkyCoord
 from lmfit.printfuncs import gformat
-from dace.cheops import Cheops
+import warnings
+try:
+    from dace.cheops import Cheops
+except ModuleNotFoundError: 
+    warnings.warn("Could not load DACE module - no access to Science Team data",
+            UserWarning)
 
 _file_key_re = re.compile(r'CH_PR(\d{2})(\d{4})_TG(\d{4})(\d{2})_V(\d{4})')
 
 # Utility function for model fitting
-def _kwarg_to_Parameter(name, kwarg, min=min, max=max):
+def _kw_to_Parameter(name, kwarg, min=min, max=max):
     if isinstance(kwarg, float):
         return Parameter(name=name, value=kwarg, vary=False)
     if isinstance(kwarg, int):
@@ -324,7 +329,7 @@ class Dataset(object):
 
     @classmethod
     def from_simulation(self, job,  target=None, configFile=None, 
-            verbose=True):
+            version=0, verbose=True):
         ftp=FTP('obsftp.unige.ch')
         _ = ftp.login()
         wd = "pub/cheops/simulated_data/CHEOPSim_job{}".format(job)
@@ -348,8 +353,8 @@ class Dataset(object):
             ftp.retrbinary(cmd, open(str(zipPath), 'wb').write)
             ftp.quit()
         
-        file_key = zipfile[3:-4]
-        m = _dataset_re.search(file_key)
+        file_key = "{}_V{:04d}".format(zipfile[:-4],version)
+        m = _file_key_re.search(file_key)
         l = [int(i) for i in m.groups()]
 
         tgzPath = Path(_cache_path,file_key).with_suffix('.tgz')
@@ -456,6 +461,7 @@ class Dataset(object):
         ok = (table['EVENT'] == 0) | (table['EVENT'] == 100)
         bjd = np.array(table['BJD_TIME'][ok])
         bjd_ref = np.int(bjd[0])
+        self.bjd_ref = bjd_ref
         time = bjd-bjd_ref
         flux = np.array(table['FLUX'][ok])
         flux_err = np.array(table['FLUXERR'][ok])
@@ -464,7 +470,11 @@ class Dataset(object):
         yoff = np.array(table['CENTROID_Y'][ok]- table['LOCATION_Y'][ok])
         roll_angle = np.array(table['ROLL_ANGLE'][ok])
         ap_rad = hdr['AP_RADI']
-        print('Aperture radius used = {:0.0f} arcsec'.format(ap_rad))
+        self.bjd_ref = bjd_ref
+        self.ap_rad = ap_rad
+        if verbose:
+            print('Time stored relative to BJD = {:0.0f}'.format(bjd_ref))
+            print('Aperture radius used = {:0.0f} arcsec'.format(ap_rad))
 
         if reject_highpoints:
             C_cut = (2*np.nanmedian(flux)-np.min(flux))
@@ -535,66 +545,66 @@ class Dataset(object):
             params.add(name='T_0', value=np.nanmedian(time),
                     min=min(time),max=max(time))
         else:
-            params['T_0'] = _kwarg_to_Parameter('T_0', T_0)
+            params['T_0'] = _kw_to_Parameter('T_0', T_0)
         if P is None:
             params.add(name='P', value=1, vary=False)
         else:
-            params['P'] = _kwarg_to_Parameter('P', P)
+            params['P'] = _kw_to_Parameter('P', P)
         _P = params['P'].value
         if D is None:
             params.add(name='D', value=1-min(flux), min=0,max=0.5)
         else:
-            params['D'] = _kwarg_to_Parameter('D', D)
+            params['D'] = _kw_to_Parameter('D', D)
         k = np.sqrt(params['D'].value)
         if W is None:
             params.add(name='W', value=np.ptp(time)/2/_P,
                     min=np.ptp(time)/len(time)/_P, max=np.ptp(time)/_P) 
         else:
-            params['W'] = _kwarg_to_Parameter('W', W)
+            params['W'] = _kw_to_Parameter('W', W)
         if b is None:
             params.add(name='b', value=0.5, min=0, max=1)
         else:
-            params['b'] = _kwarg_to_Parameter('b', b)
+            params['b'] = _kw_to_Parameter('b', b)
         if f_c is None:
             params.add(name='f_c', value=0, vary=False)
         else:
-            params['f_c'] = _kwarg_to_Parameter('f_c', f_c)
+            params['f_c'] = _kw_to_Parameter('f_c', f_c)
         if f_s is None:
             params.add(name='f_s', value=0, vary=False)
         else:
-            params['f_s'] = _kwarg_to_Parameter('f_s', f_s)
+            params['f_s'] = _kw_to_Parameter('f_s', f_s)
         if h_1 is None:
             params.add(name='h_1', value=0.7224, vary=False)
         else:
-            params['h_1'] = _kwarg_to_Parameter('h_1', h_1, min=0, max=1)
+            params['h_1'] = _kw_to_Parameter('h_1', h_1, min=0, max=1)
         if h_2 is None:
             params.add(name='h_2', value=0.6713, vary=False)
         else:
-            params['h_2'] = _kwarg_to_Parameter('h_2', h_2, min=0, max=1)
+            params['h_2'] = _kw_to_Parameter('h_2', h_2, min=0, max=1)
         if c is None:
             params.add(name='c', value=1, min=min(flux)/2,max=2*max(flux))
         else:
-            params['c'] = _kwarg_to_Parameter('c', c)
+            params['c'] = _kw_to_Parameter('c', c)
         if dfdx is not None:
-            params['dfdx'] = _kwarg_to_Parameter('dfdx', dfdx)
+            params['dfdx'] = _kw_to_Parameter('dfdx', dfdx)
         if dfdy is not None:
-            params['dfdy'] = _kwarg_to_Parameter('dfdy', dfdy)
+            params['dfdy'] = _kw_to_Parameter('dfdy', dfdy)
         if d2fdx2 is not None:
-            params['d2fdx2'] = _kwarg_to_Parameter('d2fdx2', dfdx)
+            params['d2fdx2'] = _kw_to_Parameter('d2fdx2', dfdx)
         if d2fdy2 is not None:
-            params['d2fdy2'] = _kwarg_to_Parameter('d2fdy2', dfdy)
+            params['d2fdy2'] = _kw_to_Parameter('d2fdy2', dfdy)
         if dfdt is not None:
-            params['dfdt'] = _kwarg_to_Parameter('dfdt', dfdt)
+            params['dfdt'] = _kw_to_Parameter('dfdt', dfdt)
         if d2fdt2 is not None:
-            params['d2fdt2'] = _kwarg_to_Parameter('d2fdt2', dfdt)
+            params['d2fdt2'] = _kw_to_Parameter('d2fdt2', dfdt)
         if dfdsinphi is not None:
-            params['dfdsinphi'] = _kwarg_to_Parameter('dfdsinphi', dfdsinphi)
+            params['dfdsinphi'] = _kw_to_Parameter('dfdsinphi', dfdsinphi)
         if dfdcosphi is not None:
-            params['dfdcosphi'] = _kwarg_to_Parameter('dfdcosphi', dfdcosphi)
+            params['dfdcosphi'] = _kw_to_Parameter('dfdcosphi', dfdcosphi)
         if dfdsin2phi is not None:
-            params['dfdsin2phi'] = _kwarg_to_Parameter('dfdsin2phi', dfdsin2phi)
+            params['dfdsin2phi'] = _kw_to_Parameter('dfdsin2phi', dfdsin2phi)
         if dfdcos2phi is not None:
-            params['dfdcos2phi'] = _kwarg_to_Parameter('dfdcos2phi', dfdcos2phi)
+            params['dfdcos2phi'] = _kw_to_Parameter('dfdcos2phi', dfdcos2phi)
 
         params.add('k',expr='sqrt(D)',min=0,max=1)
         params.add('aR',expr='sqrt((1+k)**2-b**2)/W/pi',min=1)
@@ -621,10 +631,10 @@ class Dataset(object):
     # ----------------------------------------------------------------
     def lmfit_eclipse(self, 
             T_0=None, P=None, D=None, W=None, b=None, L=None, 
-            f_c=None, f_s=None, 
+            f_c=None, f_s=None, a_c=None, 
             c=None, dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
-            dfdt=None, d2fdt2=None, logrhoprior=None):
+            dfdt=None, d2fdt2=None):
 
         def _chisq_prior(params, *args):
             r =  (flux - model.eval(params, t=time))/flux_err
@@ -649,69 +659,69 @@ class Dataset(object):
             params.add(name='T_0', value=np.nanmedian(time),
                     min=min(time),max=max(time))
         else:
-            params['T_0'] = _kwarg_to_Parameter('T_0', T_0)
+            params['T_0'] = _kw_to_Parameter('T_0', T_0)
         if P is None:
             params.add(name='P', value=1, vary=False)
         else:
-            params['P'] = _kwarg_to_Parameter('P', P)
+            params['P'] = _kw_to_Parameter('P', P)
         _P = params['P'].value
         if D is None:
             params.add(name='D', value=1-min(flux), min=0,max=0.5)
         else:
-            params['D'] = _kwarg_to_Parameter('D', D)
+            params['D'] = _kw_to_Parameter('D', D)
         k = np.sqrt(params['D'].value)
         if W is None:
             params.add(name='W', value=np.ptp(time)/2/_P,
                     min=np.ptp(time)/len(time)/_P, max=np.ptp(time)/_P) 
         else:
-            params['W'] = _kwarg_to_Parameter('W', W)
+            params['W'] = _kw_to_Parameter('W', W)
         if b is None:
             params.add(name='b', value=0.5, min=0, max=1)
         else:
-            params['b'] = _kwarg_to_Parameter('b', b)
+            params['b'] = _kw_to_Parameter('b', b)
         if L is None:
             params.add(name='L', value=0.001, min=0, max=1)
         else:
-            params['L'] = _kwarg_to_Parameter('L', L)
+            params['L'] = _kw_to_Parameter('L', L)
         if f_c is None:
             params.add(name='f_c', value=0, vary=False)
         else:
-            params['f_c'] = _kwarg_to_Parameter('f_c', f_c)
+            params['f_c'] = _kw_to_Parameter('f_c', f_c)
         if f_s is None:
             params.add(name='f_s', value=0, vary=False)
         else:
-            params['f_s'] = _kwarg_to_Parameter('f_s', f_s)
+            params['f_s'] = _kw_to_Parameter('f_s', f_s)
         if c is None:
             params.add(name='c', value=1, min=min(flux)/2,max=2*max(flux))
         else:
-            params['c'] = _kwarg_to_Parameter('c', c)
+            params['c'] = _kw_to_Parameter('c', c)
+        if a_c is None:
+            params.add(name='a_c', value=0, vary=False)
+        else:
+            params['a_c'] = _kw_to_Parameter('a_c', a_c)
         if dfdx is not None:
-            params['dfdx'] = _kwarg_to_Parameter('dfdx', dfdx)
+            params['dfdx'] = _kw_to_Parameter('dfdx', dfdx)
         if dfdy is not None:
-            params['dfdy'] = _kwarg_to_Parameter('dfdy', dfdy)
+            params['dfdy'] = _kw_to_Parameter('dfdy', dfdy)
         if d2fdx2 is not None:
-            params['d2fdx2'] = _kwarg_to_Parameter('d2fdx2', dfdx)
+            params['d2fdx2'] = _kw_to_Parameter('d2fdx2', dfdx)
         if d2fdy2 is not None:
-            params['d2fdy2'] = _kwarg_to_Parameter('d2fdy2', dfdy)
+            params['d2fdy2'] = _kw_to_Parameter('d2fdy2', dfdy)
         if dfdt is not None:
-            params['dfdt'] = _kwarg_to_Parameter('dfdt', dfdt)
+            params['dfdt'] = _kw_to_Parameter('dfdt', dfdt)
         if d2fdt2 is not None:
-            params['d2fdt2'] = _kwarg_to_Parameter('d2fdt2', dfdt)
+            params['d2fdt2'] = _kw_to_Parameter('d2fdt2', dfdt)
         if dfdsinphi is not None:
-            params['dfdsinphi'] = _kwarg_to_Parameter('dfdsinphi', dfdsinphi)
+            params['dfdsinphi'] = _kw_to_Parameter('dfdsinphi', dfdsinphi)
         if dfdcosphi is not None:
-            params['dfdcosphi'] = _kwarg_to_Parameter('dfdcosphi', dfdcosphi)
+            params['dfdcosphi'] = _kw_to_Parameter('dfdcosphi', dfdcosphi)
         if dfdsin2phi is not None:
-            params['dfdsin2phi'] = _kwarg_to_Parameter('dfdsin2phi', dfdsin2phi)
+            params['dfdsin2phi'] = _kw_to_Parameter('dfdsin2phi', dfdsin2phi)
         if dfdcos2phi is not None:
-            params['dfdcos2phi'] = _kwarg_to_Parameter('dfdcos2phi', dfdcos2phi)
+            params['dfdcos2phi'] = _kw_to_Parameter('dfdcos2phi', dfdcos2phi)
 
         params.add('k',expr='sqrt(D)',min=0,max=1)
         params.add('aR',expr='sqrt((1+k)**2-b**2)/W/pi',min=1)
-        # Avoid use of aR in this expr for logrho - breaks error propogation.
-        expr = 'log10(4.3275e-4*((1+k)**2-b**2)**1.5/W**3/P**2)'
-        params.add('logrho',expr=expr,min=-9,max=6)
-        params['logrho'].user_data=logrhoprior
         params.add('e',min=0,max=1,expr='f_c**2 + f_s**2')
 
         model = EclipseModel()*FactorModel(
@@ -746,9 +756,10 @@ class Dataset(object):
 
     # ----------------------------------------------------------------
 
-    def emcee_transit(self, params=None,
-            steps=64, nwalkers=64, burn=64, thin=4, 
-            add_shoterm=False, init_scale=1e-3, progress=True):
+    def emcee_sampler(self, params=None,
+            steps=128, nwalkers=64, burn=256, thin=4, log_sigma=None, 
+            add_shoterm=False, log_omega0=None, log_S0=None, log_Q=None,
+            init_scale=1e-3, progress=True):
 
         try:
             time = np.array(self.lc['time'])
@@ -760,7 +771,8 @@ class Dataset(object):
         try:
             model = self.model
         except AttributeError:
-            raise AttributeError("Use lmfit_transit() to get model first.")
+            raise AttributeError(
+                    "Use lmfit_transit() or lmfit_eclipse() first.")
 
         # Make a copy of the lmfit Minimizer result as a template for the
         # output of this method
@@ -777,17 +789,30 @@ class Dataset(object):
             params = copy.copy(self.lmfit.params)
             if add_shoterm:
                 # Minimum here is about 0.1ppm 
-                params.add('log_S0', value=-11,  min=-16, max=-1)
+                if log_S0 is None:
+                    params.add('log_S0', value=-11,  min=-16, max=-1)
+                else:
+                    params['log_S0'] = _kw_to_Parameter('log_S0', log_S0)
                 # For time in days, and the default value of Q=1/sqrt(2),
                 # log_omega0=12  is a correlation length 
                 # of about 0.5s and -2.3 is about 10 days.
-                params.add('log_omega0', value=6, min=-2.3, max=12)
-                params.add('log_Q', value=np.log(1/np.sqrt(2)), vary=False)
+                if log_omega0 is None:
+                    params.add('log_omega0', value=6, min=-2.3, max=12)
+                else:
+                    lw0 =  _kw_to_Parameter('log_omega0', log_omega0)
+                    params['log_omega0'] = lw0
+                if log_Q is None:
+                    params.add('log_Q', value=np.log(1/np.sqrt(2)), vary=False)
+                else:
+                    params['log_Q'] = _kw_to_Parameter('log_Q', log_Q)
 
-        if not 'log_sigma' in params:
-            params.add('log_sigma', value=-10, min=-15,max=0)
-            params.add('sigma_w',expr='exp(log_sigma)*1e6')
-            params['log_sigma'].stderr = 1
+        if log_sigma is None:
+            if not 'log_sigma' in params:
+                params.add('log_sigma', value=-10, min=-15,max=0)
+                params['log_sigma'].stderr = 1
+        else:
+            params['log_sigma'] = _kw_to_Parameter('log_sigma', log_sigma)
+        params.add('sigma_w',expr='exp(log_sigma)*1e6')
 
         vv = []
         vs = []
@@ -797,7 +822,10 @@ class Dataset(object):
                 vn.append(p)
                 vv.append(params[p].value)
                 if params[p].stderr is None:
-                    vs.append(0.1*(params[p].max-params[p].min))
+                    if params[p].user_data is None:
+                        vs.append(0.1*(params[p].max-params[p].min))
+                    else:
+                        vs.append(params[p].user_data.s)
                 else:
                     vs.append(params[p].stderr)
 
@@ -1024,7 +1052,7 @@ class Dataset(object):
 
     # ------------------------------------------------------------
     
-    def plot_lmfit(self, figsize=(6,4), fontsize=11, title=None):
+    def plot_lmfit(self, figsize=(6,4), fontsize=11, title=None, detrend=False):
         try:
             time = np.array(self.lc['time'])
             flux = np.array(self.lc['flux'])
@@ -1041,23 +1069,29 @@ class Dataset(object):
             raise AttributeError(
                     "Use lmfit_transit() to get best-fit parameters first.")
 
-        fit = self.model.eval(params, t=time)
-        res = flux - fit
-        plt.rc('font', size=fontsize)    
-        fig,ax=plt.subplots(nrows=2,sharex=True, figsize=figsize,
-                gridspec_kw={'height_ratios':[2,1]})
-
-        ax[0].errorbar(time,flux,yerr=flux_err,fmt='bo',ms=3,zorder=0)
+        res = flux - self.model.eval(params, t=time)
         tmin = np.round(np.min(time)-0.05*np.ptp(time),2)
         tmax = np.round(np.max(time)+0.05*np.ptp(time),2)
         tp = np.linspace(tmin, tmax, 10*len(time))
-        ax[0].plot(tp,self.model.eval(params,t=tp),c='orange',zorder=1)
+        fp = self.model.eval(params,t=tp)
+        if detrend:
+            fp = fp / model.right.eval(params, t=tp) 
+            flux = flux / model.right.eval(params, t=time) 
+
+        plt.rc('font', size=fontsize)    
+        fig,ax=plt.subplots(nrows=2,sharex=True, figsize=figsize,
+                gridspec_kw={'height_ratios':[2,1]})
+        ax[0].errorbar(time,flux,yerr=flux_err,fmt='bo',ms=3,zorder=0)
+        ax[0].plot(tp,fp,c='orange',zorder=1)
         ax[0].set_xlim(tmin, tmax)
         ymin = np.min(flux-flux_err)-0.05*np.ptp(flux)
         ymax = np.max(flux+flux_err)+0.05*np.ptp(flux)
         ax[0].set_ylim(ymin,ymax)
         ax[0].set_title(title)
-        ax[0].set_ylabel('Flux')
+        if detrend:
+            ax[0].set_ylabel('Flux/trend')
+        else:
+            ax[0].set_ylabel('Flux')
         ax[1].errorbar(time,res,yerr=flux_err,fmt='bo',ms=3,zorder=0)
         ax[1].plot([tmin,tmax],[0,0],ls=':',c='orange',zorder=1)
         ax[1].set_xlabel('BJD-{}'.format(self.lc['bjd_ref']))
@@ -1069,7 +1103,8 @@ class Dataset(object):
         
     # ------------------------------------------------------------
     
-    def plot_emcee(self, title=None, nsamples=32, figsize=(6,4), fontsize=11):
+    def plot_emcee(self, title=None, nsamples=32, detrend=False,
+            figsize=(6,4), fontsize=11):
         try:
             time = np.array(self.lc['time'])
             flux = np.array(self.lc['flux'])
@@ -1095,16 +1130,23 @@ class Dataset(object):
         tmax = np.round(np.max(time)+0.05*np.ptp(time),2)
         tp = np.linspace(tmin, tmax, 10*len(time))
         parbest = self.emcee.params_best
+        if detrend:
+            flux = flux / self.model.right.eval(parbest, t=time)
         nchain = self.emcee.chain.shape[0]
         partmp = parbest.copy()
         ax[0].errorbar(time,flux,yerr=flux_err,fmt='bo',ms=3,zorder=0)
         if self.gp is None:
-            ax[0].plot(tp,self.model.eval(parbest,t=tp), c='orange',zorder=1)
+            fp = self.model.eval(parbest,t=tp)
+            if detrend:
+                fp = fp / self.model.right.eval(parbest, t=tp)
+            ax[0].plot(tp,fp, c='orange',zorder=1)
             for i in np.linspace(0,nchain,nsamples,endpoint=False,dtype=np.int):
                 for j, n in enumerate(self.emcee.var_names):
                     partmp[n].value = self.emcee.chain[i,j]
-                ax[0].plot(tp,self.model.eval(partmp,t=tp), 
-                        c='orange',zorder=1,alpha=0.1)
+                    fp = self.model.eval(partmp,t=tp)
+                    if detrend:
+                        fp = fp / self.model.right.eval(partmp, t=tp)
+                ax[0].plot(tp,fp, c='orange',zorder=1,alpha=0.1)
         else:
             self.gp.set_parameter('kernel:terms[0]:log_S0',
                     parbest['log_S0'].value)
@@ -1115,7 +1157,9 @@ class Dataset(object):
             self.gp.set_parameter('kernel:terms[1]:log_sigma',
                     parbest['log_sigma'].value)
             mu0, var = self.gp.predict(res, tp, return_var=True)
-            pp = mu0+self.model.eval(parbest,t=tp)
+            pp = mu0+self.model.eval(parbest, t=tp)
+            if detrend:
+                pp = pp / self.model.right.eval(parbest, t=tp)
             ax[0].plot(tp,pp,c='orange',zorder=1)
             for i in np.linspace(0,nchain,nsamples,endpoint=False,dtype=np.int):
                 for j, n in enumerate(self.emcee.var_names):
@@ -1132,6 +1176,8 @@ class Dataset(object):
                         partmp['log_sigma'].value)
                 mu = self.gp.predict(rr, tp, return_var=False, return_cov=False)
                 pp = mu + self.model.eval(partmp, t=tp)
+                if detrend:
+                    pp = pp / self.model.right.eval(parbest, t=tp)
                 ax[0].plot(tp, pp, c='orange',zorder=1,alpha=0.1)
                 
         ymin = np.min(flux-flux_err)-0.05*np.ptp(flux)
@@ -1139,7 +1185,10 @@ class Dataset(object):
         ax[0].set_xlim(tmin, tmax)
         ax[0].set_ylim(ymin,ymax)
         ax[0].set_title(title)
-        ax[0].set_ylabel('Flux')
+        if detrend:
+            ax[0].set_ylabel('Flux/trend')
+        else:
+            ax[0].set_ylabel('Flux')
         ax[1].errorbar(time,res,yerr=flux_err,fmt='bo',ms=3,zorder=0)
         if self.gp is not None:
             ax[1].plot(tp,mu0,c='orange', zorder=1)
