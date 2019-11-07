@@ -1027,7 +1027,7 @@ def main():
 
     # Load contamination function from pickle
     data_path = join(dirname(abspath(__file__)),'data','instrument')
-    pfile = join(data_path,'Contamination_30arcsec_aperture.p')
+    pfile = join(data_path,'Contamination_33arcsec_aperture.p')
     with open(pfile, 'rb') as fp: 
         fC= pickle.load(fp)
 

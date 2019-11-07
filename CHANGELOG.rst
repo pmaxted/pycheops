@@ -213,3 +213,9 @@ Second attempt to avoid ellc import (try/except)
  Added "detrend" option to dataset.plot_lmfit and dataset.plot_emcee.
  Put dace.cheops import inside try:/except
 
+0.6.0. (2019-11-06)
+~~~~~~~~~~~~~~~~~~~
+ Generate pickle files in data directory at run time when first needed. 
+ Single-source version number from pycheops/VERSION
+ Removed stagger_claret_interpolator and stagger_mugrid_interpolator from ld.
+
