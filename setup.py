@@ -7,6 +7,8 @@ https://github.com/pypa/sampleproject
 
 # Always prefer setuptools over distutils
 from setuptools import setup, find_packages
+from setuptools.command.install import install
+
 # To use a consistent encoding
 from codecs import open
 from os import path
@@ -17,13 +19,14 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
 
-from pycheops import __version__
+with open(path.join(here, 'pycheops/VERSION')) as version_file:
+    version = version_file.read().strip()
 
 setup(
     name='pycheops',
 
     # VERSION
-    version = __version__,
+    version = version, 
 
     description='CHEOPS light curve analysis software',
     long_description=long_description,
@@ -82,6 +85,7 @@ setup(
             'numba',
             'lmfit>=0.9.14', 
             'corner', 
+            'photutils',
             'celerite>=0.3.1'],
             # 'ellc>=1.8.5'],
 
@@ -98,7 +102,7 @@ setup(
     # installed, specify them here.  If using Python 2.6 or less, then these
     # have to be included in MANIFEST.in as well.
     package_data={
-        'pycheops': ['data/*/*', 'examples/*/*']
+        'pycheops': ['VERSION', 'data/*/*', 'examples/*/*']
     },
 
     # Although 'package_data' is the preferred approach, in some case you may
@@ -119,3 +123,4 @@ setup(
     test_suite='nose.collector',
     tests_require=['nose'],
 )
+

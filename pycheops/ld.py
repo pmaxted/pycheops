@@ -24,7 +24,7 @@ Limb darkening functions
 
 The available passband names are:
 
-* 'CHEOPS', 'MOST', 'Kepler', 'CoRoT', 'Gaia',
+* 'CHEOPS', 'MOST', 'Kepler', 'CoRoT', 'Gaia', 'TESS'
 
 * 'U', 'B', 'V', 'R', 'I' (Bessell/Johnson)
 
@@ -46,15 +46,10 @@ Examples
 >>> log_g = 4.3
 >>> Fe_H = -0.3
 >>> passband = 'Kepler'
->>> cK = stagger_claret_interpolator(passband)
->>> ac = cK(T_eff, log_g, Fe_H)
->>> mK = stagger_mugrid_interpolator(passband)
->>> I_mu = mK(T_eff, log_g, Fe_H)
 >>> p2K = stagger_power2_interpolator(passband)
 >>> c2,a2,h1,h2 = p2K(T_eff, log_g, Fe_H)
->>> plt.plot(mK.mu, I_mu,'bo')
+>>> print('h_1 = {:0.3f}, h_2 = {:0.3f}'.format(h1, h2))
 >>> mu = np.linspace(0,1)
->>> plt.plot(mu, ld_claret(mu,ac),label='Claret')
 >>> plt.plot(mu, ld_power2(mu,[c2, a2]),label='power-2')
 >>> plt.xlim(0,1)
 >>> plt.ylim(0,1)
@@ -73,9 +68,10 @@ Examples
 from __future__ import (absolute_import, division, print_function,
                                 unicode_literals)
 import numpy as np
-from os.path import join,abspath,dirname
+from os.path import join,abspath,dirname,isfile
 import pickle
-from scipy.interpolate import pchip_interpolate
+from astropy.table import Table
+from scipy.interpolate import pchip_interpolate, LinearNDInterpolator
 from scipy.optimize import minimize
 from .funcs import transit_width
 try:
@@ -84,7 +80,6 @@ except:
     pass
 
 __all__ = ['ld_power2', 'ld_claret', 'stagger_power2_interpolator',
-        'stagger_mugrid_interpolator', 'stagger_claret_interpolator',
         'ca_to_h1h2', 'h1h2_to_ca' , 'q1q2_to_h1h2', 'h1h2_to_q1q2' ]
 
 data_path = join(dirname(abspath(__file__)),'data','limbdarkening')
@@ -162,7 +157,6 @@ def q1q2_to_h1h2(q1, q2):
     """
     return 1 - np.sqrt(q1) + q2*np.sqrt(q1), 1 - np.sqrt(q1)
 
-
 def ld_claret(mu, a):
     """
     Evaluate Claret 4-parameter limb-darkening law
@@ -176,90 +170,6 @@ def ld_claret(mu, a):
     """
 
     return 1-a[0]*(1-mu**0.5)-a[1]*(1-mu)-a[2]*(1-mu**1.5)-a[3]*(1-mu**2)
-
-class stagger_mugrid_interpolator:
-    """
-    
-    Limb-darkening as a function of mu from the Stagger grid.
-
-    Returns NaN if interpolation outside the grid range is attempted
-
-    :ivar mu: grid of mu values for most recent call
-
-
-    """
-
-    def __init__(self, passband='CHEOPS'):
-
-        self._mu_default = np.array(
-                [0,0.01,0.05,0.1,0.2,0.3,0.5,0.7,0.8,0.9,1.0])
-
-        self.mu = self._mu_default
-
-        pfile = join(data_path,passband+'_stagger_mugrid_interpolator.p')
-        with open(pfile, 'rb') as fp:
-            self._interpolator = pickle.load(fp)
-
-    def __call__(self, T_eff, log_g, Fe_H, n_mu=None):
-
-        """
-
-        :parameter T_eff: effective temperature in Kelvin
-        
-        :parameter log_g: log of the surface gravity in cgs units
-       
-        :parameter Fe/H: [Fe/H] in dex
-       
-        :parameter n_mu: No. of points in the output intensity grid
-       
-        :returns: I(mu) on a grid of mu values from 0 to 1.
-       
-        """
-        I_mu = self._interpolator(T_eff, log_g, Fe_H) 
-
-        if n_mu is None:
-            self.mu = self._mu_default
-        else:
-            self.mu = np.linspace(0,1,n_mu)
-            I_mu = pchip_interpolate(self._mu_default, I_mu, self.mu )
-
-        return I_mu
-
-class stagger_claret_interpolator:
-    """
-    
-    Coefficients of a Claret 4-parameter limb-darkening law interpolated
-    from the Stagger grid.
-    
-    Returns NaN if interpolation outside the grid range is attempted
-
-
-    """
-
-    def __init__(self,passband='CHEOPS'):
-        """
-
-        :param passband: instrument/passband names (case sensitive).
-
-        """
-        pfile = join(data_path, passband+'_stagger_claret_interpolator.p')
-        with open(pfile, 'rb') as fp:
-            self._interpolator = pickle.load(fp)
-
-    def __call__(self, T_eff, log_g, Fe_H):
-        """
-
-        :parameter T_eff: effective temperature in Kelvin
-        
-        :parameter log_g: log of the surface gravity in cgs units
-       
-        :parameter Fe/H: [Fe/H] in dex
-       
-        :returns: array of coefficients 
-       
-        """
-        return self._interpolator(T_eff, log_g, Fe_H)
-
 
 class _coefficient_optimizer:
     """
@@ -412,6 +322,18 @@ class stagger_power2_interpolator:
 
         """
         pfile = join(data_path, passband+'_stagger_power2_interpolator.p')
+        if not isfile(pfile):
+            datfile = join(data_path, 'power2.dat')
+            Tpower2 = Table.read(datfile,format='ascii',
+                names=['Tag','T_eff','log_g','Fe_H','c','alpha','h1','h2'])
+            tag = passband[0:min(len(passband),2)]
+            T = Tpower2[(Tpower2['Tag'] == tag)]
+            p = np.array([T['T_eff'],T['log_g'],T['Fe_H']]).T
+            v = np.array((T.as_array()).tolist())[:,4:]
+            mLNDI = LinearNDInterpolator(p,v)
+            with open(pfile,'wb') as fp:
+                pickle.dump(mLNDI,fp)
+
         with open(pfile, 'rb') as fp:
             self._interpolator = pickle.load(fp)
 

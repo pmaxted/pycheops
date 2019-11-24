@@ -41,7 +41,6 @@ from .models import TransitModel, FactorModel, EclipseModel
 from uncertainties import UFloat
 from lmfit import Parameter, Parameters, minimize, Minimizer,fit_report
 from scipy.interpolate import InterpolatedUnivariateSpline
-from warnings import simplefilter,  catch_warnings
 import matplotlib.pyplot as plt
 from emcee import EnsembleSampler
 import corner
@@ -50,12 +49,10 @@ from celerite import terms, GP
 from sys import stdout 
 from astropy.coordinates import SkyCoord
 from lmfit.printfuncs import gformat
-import warnings
 try:
     from dace.cheops import Cheops
 except ModuleNotFoundError: 
-    warnings.warn("Could not load DACE module - no access to Science Team data",
-            UserWarning)
+    pass
 
 _file_key_re = re.compile(r'CH_PR(\d{2})(\d{4})_TG(\d{4})(\d{2})_V(\d{4})')
 
@@ -75,10 +72,22 @@ def _kw_to_Parameter(name, kwarg, min=min, max=max):
     raise ValueError('Unrecognised type for keyword argument {}'.
         format(name))
 
+# Prior on (D, W, b) for transit/eclipse fitting.
+# This prior assumes uniform priors on cos(i), log(k) and log(aR). The
+# factor 2kW is the absolute value of the determinant of the Jacobian, 
+# J = d(D, W, b)/d(cosi, k, aR)
+def _log_prior(D, W, b):
+    if (D < 2e-6) or (D > 0.2): return -np.inf
+    if (b < 0) or (b > 1): return -np.inf
+    if (W < 1e-4): return -np.inf
+    k = np.sqrt(D)
+    aR = np.sqrt((1+k)**2 - b**2)/(np.pi*W)
+    if (aR < 2): return -np.inf
+    return -np.log(2*k*W) - np.log(k) - np.log(aR)
+
 # Target functions for emcee
 def _log_posterior_jitter(pos, model, time, flux, flux_err,  params, vn,
         return_fit):
-
 
     # Check for pos[i] within valid range has to be done here
     # because it gets set to the limiting value if out of range by the
@@ -98,7 +107,10 @@ def _log_posterior_jitter(pos, model, time, flux, flux_err,  params, vn,
 
     # Also check parameter range here so we catch "derived" parameters
     # that are out of range.
-    lnprior = 0
+    lnprior = _log_prior(parcopy['D'], parcopy['W'], parcopy['b'])
+    if not np.isfinite(lnprior):
+        return -np.inf
+
     for p in parcopy:
         v = parcopy[p].value
         if (v < parcopy[p].min) or (v > parcopy[p].max):
@@ -139,7 +151,9 @@ def _log_posterior_SHOTerm(pos, model, time, flux, flux_err,  params, vn, gp,
     
     # Also check parameter range here so we catch "derived" parameters
     # that are out of range.
-    lnprior = 0
+    lnprior = _log_prior(parcopy['D'], parcopy['W'], parcopy['b'])
+    if not np.isfinite(lnprior):
+        return -np.inf
     for p in parcopy:
         v = parcopy[p].value
         if (v < parcopy[p].min) or (v > parcopy[p].max):
@@ -221,7 +235,7 @@ class Dataset(object):
         # access the FITS file header information
         aperture='OPTIMAL'
         lcFile = "{}-{}.fits".format(self.file_key,aperture)
-        lcPath = Path(self.tgzfile).parent / lcFile
+        lcPath = Path(self.tgzfile).parent/lcFile
         if lcPath.is_file():
             with fits.open(lcPath) as hdul:
                 hdr = hdul[1].header
@@ -278,7 +292,7 @@ class Dataset(object):
             if verbose: print('{} already downloaded'.format(str(zipPath)))
         else:
             cmd = 'RETR {}'.format(zipfile)
-            if verbose: print('Downloading {} ...',format(zipfile))
+            if verbose: print('Downloading {} ...'.format(zipfile))
             ftp.retrbinary(cmd, open(str(zipPath), 'wb').write)
             ftp.quit()
         
@@ -293,26 +307,24 @@ class Dataset(object):
         zpf = ZipFile(str(zipPath), mode='r')
         ziplist = zpf.namelist()
 
-        _re = re.compile('(CH_.*SCI_RAW_Imagette_.*.fits)')
-        imgfiles = list(filter(_re.match, ziplist))
-        if len(imgfiles) > 1:
-            raise ValueError('More than one imagette file in zip file')
-        if len(imgfiles) == 0:
-            raise ValueError('No imagette file in zip file')
-        imgfile = imgfiles[0]
-
-        _re = re.compile('(CH_.*_SCI_COR_Lightcurve-.*fits)')
+        _re_im = re.compile('(CH_.*SCI_RAW_Imagette_.*.fits)')
+        _re_lc = re.compile('(CH_.*_SCI_COR_Lightcurve-.*fits)')
         with tarfile.open(tgzfile, mode='w:gz') as tgz:
-            tarPath = Path('visit')/Path(file_key)/Path(imgfile).name 
-            tarinfo = tarfile.TarInfo(name=str(tarPath))
-            zipinfo = zpf.getinfo(imgfile)
-            tarinfo.size = zipinfo.file_size
-            zf = zpf.open(imgfile)
-            if verbose: print("Writing Imagette data to .tgz file...")
-            tgz.addfile(tarinfo=tarinfo, fileobj=zf)
-            zf.close()
+            imgfiles = list(filter(_re_im.match, ziplist))
+            if len(imgfiles) > 1:
+                raise ValueError('More than one imagette file in zip file')
+            if len(imgfiles) == 1:
+                if verbose: print("Writing Imagette data to .tgz file...")
+                imgfile=imgfiles[0]
+                tarPath = Path('visit')/Path(file_key)/Path(imgfile).name 
+                tarinfo = tarfile.TarInfo(name=str(tarPath))
+                zipinfo = zpf.getinfo(imgfile)
+                tarinfo.size = zipinfo.file_size
+                zf = zpf.open(imgfile)
+                tgz.addfile(tarinfo=tarinfo, fileobj=zf)
+                zf.close()
             if verbose: print("Writing Lightcurve data to .tgz file...")
-            for lcfile in list(filter(_re.match, ziplist)):
+            for lcfile in list(filter(_re_lc.match, ziplist)):
                 tarPath = Path('visit')/Path(file_key)/Path(lcfile).name
                 tarinfo = tarfile.TarInfo(name=str(tarPath))
                 zipinfo = zpf.getinfo(lcfile)
@@ -349,7 +361,7 @@ class Dataset(object):
             if verbose: print('{} already downloaded'.format(str(zipPath)))
         else:
             cmd = 'RETR {}'.format(zipfile)
-            if verbose: print('Downloading {} ...',format(zipfile))
+            if verbose: print('Downloading {} ...'.format(zipfile))
             ftp.retrbinary(cmd, open(str(zipPath), 'wb').write)
             ftp.quit()
         
@@ -363,26 +375,24 @@ class Dataset(object):
         zpf = ZipFile(str(zipPath), mode='r')
         ziplist = zpf.namelist()
 
-        _re = re.compile('(CH_.*SCI_RAW_Imagette_.*.fits)')
-        imgfiles = list(filter(_re.match, ziplist))
-        if len(imgfiles) > 1:
-            raise ValueError('More than one imagette file in zip file')
-        if len(imgfiles) == 0:
-            raise ValueError('No imagette file in zip file')
-        imgfile = imgfiles[0]
-
-        _re = re.compile('(CH_.*_SCI_COR_Lightcurve-.*fits)')
+        _re_im = re.compile('(CH_.*SCI_RAW_Imagette_.*.fits)')
+        _re_lc = re.compile('(CH_.*_SCI_COR_Lightcurve-.*fits)')
         with tarfile.open(tgzfile, mode='w:gz') as tgz:
-            tarPath = Path('visit')/Path(file_key)/Path(imgfile).name 
-            tarinfo = tarfile.TarInfo(name=str(tarPath))
-            zipinfo = zpf.getinfo(imgfile)
-            tarinfo.size = zipinfo.file_size
-            zf = zpf.open(imgfile)
-            if verbose: print("Writing Imagette data to .tgz file...")
-            tgz.addfile(tarinfo=tarinfo, fileobj=zf)
-            zf.close()
+            imgfiles = list(filter(_re_im.match, ziplist))
+            if len(imgfiles) > 1:
+                raise ValueError('More than one imagette file in zip file')
+            if len(imgfiles) == 1:
+                if verbose: print("Writing Imagette data to .tgz file...")
+                imgfile=imgfiles[0]
+                tarPath = Path('visit')/Path(file_key)/Path(imgfile).name 
+                tarinfo = tarfile.TarInfo(name=str(tarPath))
+                zipinfo = zpf.getinfo(imgfile)
+                tarinfo.size = zipinfo.file_size
+                zf = zpf.open(imgfile)
+                tgz.addfile(tarinfo=tarinfo, fileobj=zf)
+                zf.close()
             if verbose: print("Writing Lightcurve data to .tgz file...")
-            for lcfile in list(filter(_re.match, ziplist)):
+            for lcfile in list(filter(_re_lc.match, ziplist)):
                 tarPath = Path('visit')/Path(file_key)/Path(lcfile).name
                 tarinfo = tarfile.TarInfo(name=str(tarPath))
                 zipinfo = zpf.getinfo(lcfile)
@@ -1490,7 +1500,8 @@ class Dataset(object):
                                 dfdsinphi_bad = np.append(dfdsinphi_bad, abs(100*result.params['dfdsinphi'].stderr/result.params['dfdsinphi'].value))
                         if result.params['dfdcosphi'].vary == True:
                             if abs(100*result.params['dfdcosphi'].stderr/result.params['dfdcosphi'].value) < cut_val:
-                                dfdcosphi_bad = np.append(dfdcosphi_bad, abs(100*result.params['dfdcosphi'].stderr/result.params['dfdcosphi'].value))
+                                dfdcosphi_bad = np.append(dfdcosphi_bad,
+                                        abs(100*result.params['dfdcosphi'].stderr/result.params['dfdcosphi'].value))
             
         if len(dfdx_bad) == 0 and len(dfdy_bad) == 0 and len(dfdsinphi_bad) == 0 and len(dfdcosphi_bad) == 0:
             print("No! You don't need to decorrelate.")
@@ -1520,7 +1531,8 @@ class Dataset(object):
                     dfdy_arg = True
                 if "roll_angle" in which_decorr:
                     dfdsinphi_arg, dfdcosphi_arg = True, True
-                self.decorr(dfdx = dfdx_arg, dfdy = dfdy_arg, dfdsinphi = dfdsinphi_arg, dfdcosphi = dfdcosphi_arg)
+                self.decorr(dfdx=dfdx_arg, dfdy=dfdy_arg,
+                        dfdsinphi=dfdsinphi_arg, dfdcosphi=dfdcosphi_arg)
                 
             elif "centroid_x" in decorr_check or "centroid_y" in decorr_check or "roll_angle" in decorr_check:
                 dfdx_arg, dfdy_arg, dfdsinphi_arg, dfdcosphi_arg = False, False, False, False
@@ -1534,7 +1546,8 @@ class Dataset(object):
                     dfdy_arg = True
                 if "roll_angle" in decorr_check:
                     dfdsinphi_arg, dfdcosphi_arg = True, True
-                self.decorr(dfdx = dfdx_arg, dfdy = dfdy_arg, dfdsinphi = dfdsinphi_arg, dfdcosphi = dfdcosphi_arg)
+                self.decorr(dfdx=dfdx_arg, dfdy=dfdy_arg,
+                        dfdsinphi=dfdsinphi_arg, dfdcosphi=dfdcosphi_arg)
                 
             else:
                 print("Ok then")

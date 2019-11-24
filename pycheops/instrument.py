@@ -36,19 +36,19 @@ import warnings
 
 __all__ = [ 'response', 'visibility', 'exposure_time', 'transit_noise']
 
-from astropy.table import Table
-from os.path import join,abspath,dirname
-from pickle import load
+from os.path import join,abspath,dirname,isfile
+import pickle 
 from numpy import int as np_int 
 from numpy import round
+from astropy.table import Table
 
 _data_path = join(dirname(abspath(__file__)),'data')
 
 with open(join(_data_path,'instrument','exposure_time.p'),'rb') as fp:
-    _exposure_time_interpolator = load(fp)
+        _exposure_time_interpolator = pickle.load(fp)
 
 with open(join(_data_path,'instrument','visibility_interpolator.p'),'rb') as fp:
-    _visibility_interpolator = load(fp)
+    _visibility_interpolator = pickle.load(fp)
 
 def visibility(ra, dec):
     """
@@ -65,6 +65,7 @@ def visibility(ra, dec):
     :returns: target visibility (%)
 
     """
+
     return (_visibility_interpolator(ra, dec)*100).astype(np_int)
 
 def response(passband='CHEOPS'):
