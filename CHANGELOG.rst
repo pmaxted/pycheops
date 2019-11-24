@@ -213,9 +213,15 @@ Second attempt to avoid ellc import (try/except)
  Added "detrend" option to dataset.plot_lmfit and dataset.plot_emcee.
  Put dace.cheops import inside try:/except
 
-0.6.0. (2019-11-06)
-~~~~~~~~~~~~~~~~~~~
+0.6.0 (2019-11-06)
+~~~~~~~~~~~~~~~~~~
  Generate pickle files in data directory at run time when first needed. 
  Single-source version number from pycheops/VERSION
  Removed stagger_claret_interpolator and stagger_mugrid_interpolator from ld.
 
+0.6.1 (2019-11-22)
+~~~~~~~~~~~~~~~~~~
+ Remove error message if there is no imagette data in the dataset.
+ Remove DACE import warning in dataset
+ Added calculation of prior on P(D, W, b) for transit/eclipse fitting assuming
+ uniform priors on cos(i), log(k) and log(a/R*).  
