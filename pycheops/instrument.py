@@ -44,8 +44,8 @@ from astropy.table import Table
 
 _data_path = join(dirname(abspath(__file__)),'data')
 
-with open(join(_data_path,'instrument','exposure_time.p'),'rb') as fp:
-        _exposure_time_interpolator = pickle.load(fp)
+with open(join(_data_path,'instrument','log_exposure_time.p'),'rb') as fp:
+        _log_exposure_time_interpolator = pickle.load(fp)
 
 with open(join(_data_path,'instrument','visibility_interpolator.p'),'rb') as fp:
     _visibility_interpolator = pickle.load(fp)
@@ -94,7 +94,7 @@ def exposure_time(G):
     Recommended minimum/maximum exposure times
 
     The function returns the exposure times that are estimated to provide 
-    10% and 90% of the detector full well capacity in the brightest image
+    10% and 98% of the detector full well capacity in the brightest image
     pixel of the target. 
 
      :param G: Gaia G-band magnitude
@@ -103,7 +103,7 @@ def exposure_time(G):
 
     """
 
-    r =  _exposure_time_interpolator(G)
+    r =  10**_log_exposure_time_interpolator(G)
     return round(r[0],2),round(r[1],2)
 
 

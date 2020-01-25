@@ -67,7 +67,6 @@ if not path.isfile(pfile):
     with open(pfile,'wb') as fp:
         pickle.dump(I,fp)
 
-
 # Exposure time calculator for instrument.py and make_xml_files
 pfile = path.join(data_path,'exposure_time.p')
 if not path.isfile(pfile):
