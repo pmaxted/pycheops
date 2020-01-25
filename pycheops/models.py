@@ -344,7 +344,7 @@ class TransitModel(Model):
         self.set_param_hint('P', min=1e-15)
         self.set_param_hint('D', min=0, max=1)
         self.set_param_hint('W', min=0, max=0.3)
-        self.set_param_hint('b', min=0, max=1.5)
+        self.set_param_hint('b', min=0, max=1.0)
         self.set_param_hint('f_c', value=0, min=-1, max=1)
         self.set_param_hint('f_s', value=0, min=-1, max=1)
         self.set_param_hint('h_1', min=0, max=1)

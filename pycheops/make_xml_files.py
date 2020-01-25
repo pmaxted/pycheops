@@ -60,34 +60,33 @@ from . import __version__
 
 __all__ = ['SpTypeToGminusV', 'SpTypeToTeff', '_GaiaDR2match']
 
-# G-V transformation v. spectral type from Table 3. of Jordi et al.
-# (2010A&A...523A..48J) and table (V-I)C v. spectral type from 
-# http://www.stsci.edu/~inr/intrins.html (extrapolated to A0).
+# G-V and Teff  v. spectral type from 
+# http://www.pas.rochester.edu/~emamajek/EEM_dwarf_UBVIJHK_colors_Teff.txt
+# version 2019.03.22
 
 SpTypeToGminusV = {
-'A0':-0.019, 'A1':-0.024, 'A2':-0.029, 'A3':-0.034, 'A4':-0.040,
-'A5':-0.047, 'A6':-0.054, 'A7':-0.062, 'A8':-0.067, 'A9':-0.073,
-'F0':-0.078, 'F1':-0.084, 'F2':-0.090, 'F3':-0.096, 'F4':-0.102,
-'F5':-0.109, 'F6':-0.116, 'F7':-0.135, 'F8':-0.155, 'F9':-0.152,
-'G0':-0.153, 'G1':-0.155, 'G2':-0.157, 'G3':-0.159, 'G4':-0.170,
-'G5':-0.181, 'G6':-0.182, 'G7':-0.192, 'G8':-0.202, 'G9':-0.206,
-'K0':-0.229, 'K1':-0.221, 'K2':-0.319, 'K3':-0.297, 'K4':-0.415,
-'K5':-0.453, 'K6':-0.522, 'K7':-0.595, 'K8':-0.720, 'K9':-0.826,
-'M0':-0.997, 'M1':-1.111, 'M2':-1.238, 'M3':-1.911, 'M4':-2.335,
-'M5':-2.979, 'M6':-2.916, 'M7':-2.951, 'M8':-3.060, 'M9':-3.337 }
+'A0V':+0.007, 'A1V':+0.000, 'A2V':+0.005, 'A3V':-0.009, 'A4V':-0.020,
+'A5V':-0.024, 'A6V':-0.026, 'A7V':-0.036, 'A8V':-0.046, 'A9V':-0.047,
+'F0V':-0.060, 'F1V':-0.079, 'F2V':-0.093, 'F3V':-0.100, 'F4V':-0.107,
+'F5V':-0.116, 'F6V':-0.129, 'F7V':-0.135, 'F8V':-0.140, 'F9V':-0.146,
+'G0V':-0.155, 'G1V':-0.162, 'G2V':-0.167, 'G3V':-0.169, 'G4V':-0.172,
+'G5V':-0.174, 'G6V':-0.180, 'G7V':-0.182, 'G8V':-0.188, 'G9V':-0.204,
+'K0V':-0.221, 'K1V':-0.232, 'K2V':-0.254, 'K3V':-0.322, 'K4V':-0.412,
+'K5V':-0.454, 'K6V':-0.528, 'K7V':-0.595, 'K8V':-0.628, 'K9V':-0.69 ,
+'M0V':-0.65 , 'M1V':-0.82 , 'M2V':-0.92 , 'M3V':-1.09 , 'M4V':-1.41 ,
+'M5V':-1.74 , 'M6V':-2.14 , 'M7V':-2.98 , 'M8V':-3.08 , 'M9V':-3.00 }
 
-# From http://www.pas.rochester.edu/~emamajek/EEM_dwarf_UBVIJHK_colors_Teff.txt
 SpTypeToTeff = { 
-    'A0':9700, 'A1':9200, 'A2':8840, 'A3':8550, 'A4':8270, 
-    'A5':8080, 'A6':8000, 'A7':7800, 'A8':7500, 'A9':7440, 
-    'F0':7220, 'F1':7030, 'F2':6810, 'F3':6720, 'F4':6640, 
-    'F5':6510, 'F6':6340, 'F7':6240, 'F8':6170, 'F9':6040, 
-    'G0':5920, 'G1':5880, 'G2':5770, 'G3':5720, 'G4':5680, 
-    'G5':5660, 'G6':5590, 'G7':5530, 'G8':5490, 'G9':5340, 
-    'K0':5280, 'K1':5170, 'K2':5040, 'K3':4830, 'K4':4600, 
-    'K5':4410, 'K6':4230, 'K7':4070, 'K8':4000, 'K9':3940, 
-    'M0':3870, 'M1':3700, 'M2':3550, 'M3':3410, 'M4':3200, 
-    'M5':3030, 'M6':2850, 'M7':2650, 'M8':2500, 'M9':2400}
+'A0V':9700, 'A1V':9200, 'A2V':8840, 'A3V':8550, 'A4V':8270,
+'A5V':8080, 'A6V':8000, 'A7V':7800, 'A8V':7500, 'A9V':7440,
+'F0V':7220, 'F1V':7030, 'F2V':6810, 'F3V':6720, 'F4V':6640,
+'F5V':6510, 'F6V':6340, 'F7V':6240, 'F8V':6170, 'F9V':6060,
+'G0V':5920, 'G1V':5880, 'G2V':5770, 'G3V':5720, 'G4V':5680,
+'G5V':5660, 'G6V':5590, 'G7V':5530, 'G8V':5490, 'G9V':5340,
+'K0V':5280, 'K1V':5170, 'K2V':5040, 'K3V':4830, 'K4V':4600,
+'K5V':4410, 'K6V':4230, 'K7V':4070, 'K8V':4000, 'K9V':3940,
+'M0V':3870, 'M1V':3700, 'M2V':3550, 'M3V':3410, 'M4V':3200,
+'M5V':3030, 'M6V':2850, 'M7V':2650, 'M8V':2500, 'M9V':2400 }
 
 # Define a TapPlus query object for Gaia DR2
 _gaia = TapPlus(url="http://gea.esac.esa.int/tap-server/tap",verbose=False)
@@ -864,6 +863,11 @@ def main():
              +  32 = Exposure time error - magnitude out of range, not set 
              +  16 = Exposure time warning - magnitude out of range, not checked
 
+        The exposure time can be calculated automatically based on the V-band
+        magnitude and colour of the target. The default behaviour is to use an
+        exposure time that will give 90% of the full-well capacity at the peak
+        of PSF, up to the maximum allowed exposure time of 60s.  This
+        percentage can be adjusted using the option --scaling-factor-percent. 
         N.B. Automatic exposure times only reliable for the range G=5.847 to 
         G=12.847
 
@@ -916,7 +920,12 @@ def main():
         dest='auto_expose',
         const=True,
         default=False,
-        help='Use recommended maximum exposure time'
+        help='Calculate exposure time automatically'
+    )
+
+    parser.add_argument('-s', '--scaling-factor-percent', 
+        default=90., type=float,
+        help='Scaling factor for auto-expose calculation'
     )
 
     parser.add_argument('-e', '--example-file-copy', 
@@ -995,7 +1004,7 @@ def main():
         table['Old_T_exp'] = table['T_exp']
     except KeyError as e:
         if args.auto_expose:
-            table['T_exp'] = -1
+            table['T_exp'] = -1.0
             table['Old_T_exp'] = -1
         else:
             message = e.args[0]
@@ -1040,6 +1049,12 @@ def main():
     print('# Input file: {}'.format(args.table))
     print('# Gaia match radius: {:0.1f} arcsec'.format(rtol))
     print('# Gmag tolerance: {:0.1f} mag '.format(gtol))
+    if args.auto_expose:
+        print('# Exposure time scaling factor: {:0.1f} %'.
+                format(args.scaling_factor_percent))
+    else:
+        print('# Exposure time from input file')
+    
     print('# Output file suffix: {} '.format(args.suffix))
     ObsReqNameFieldWidth = max(12, len(max(table['ObsReqName'],key=len)))
     ObsReqNameFormat = "{{:{}s}}".format(ObsReqNameFieldWidth)
@@ -1092,8 +1107,14 @@ def main():
             else:
                 tmin, tmax = 0.05, 0.5
 
+        # tmin corresponds to 10% of full-well capacity
+        # tmax corresponds to minimum of (98% of full-well capacity) or 60s 
+        # More precise to use tmax for calculations unless it is >~ 60s
         if args.auto_expose:
-            row['T_exp'] = tmax
+            if tmax > 50:
+                row['T_exp'] = min(tmin * args.scaling_factor_percent/10., 60)
+            else:
+                row['T_exp'] = min(tmax * args.scaling_factor_percent/98., 60)
         else:
             if row['T_exp'] > tmax:
                 flags += 128

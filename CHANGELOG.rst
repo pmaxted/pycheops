@@ -225,3 +225,14 @@ Second attempt to avoid ellc import (try/except)
  Remove DACE import warning in dataset
  Added calculation of prior on P(D, W, b) for transit/eclipse fitting assuming
  uniform priors on cos(i), log(k) and log(a/R*).  
+
+0.6.2 (2019-11-23)
+~~~~~~~~~~~~~~~~~~
+ Store pickle files in user's cache directory to avoid permissions issues
+ with root user installations.
+ Added --scaling-factor-percent option to make_xml_files.
+ Fix bug in make_xml_files where T_exp is stored as an integer - now float
+ Improved interpolation of exposure times.
+ Updated spectral-type T_eff G-V values in make_xml_files
+ Bug fix for cases where log_g, [Fe/H] not defined in sweetcat.
+ Add option for user-defined parameters in starproperties.

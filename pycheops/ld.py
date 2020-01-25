@@ -68,6 +68,7 @@ Examples
 from __future__ import (absolute_import, division, print_function,
                                 unicode_literals)
 import numpy as np
+import os 
 from os.path import join,abspath,dirname,isfile
 import pickle
 from astropy.table import Table
@@ -331,7 +332,7 @@ class stagger_power2_interpolator:
             p = np.array([T['T_eff'],T['log_g'],T['Fe_H']]).T
             v = np.array((T.as_array()).tolist())[:,4:]
             mLNDI = LinearNDInterpolator(p,v)
-            with open(pfile,'wb') as fp:
+            with open(os.open(pfile, os.O_CREAT|os.O_WRONLY, 0o644),'wb') as fp:
                 pickle.dump(mLNDI,fp)
 
         with open(pfile, 'rb') as fp:
