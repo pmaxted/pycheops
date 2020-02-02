@@ -41,13 +41,16 @@ import pickle
 from numpy import int as np_int 
 from numpy import round
 from astropy.table import Table
+from .core import load_config
 
 _data_path = join(dirname(abspath(__file__)),'data')
+config = load_config()
+_cache_path = config['DEFAULT']['data_cache_path']
 
-with open(join(_data_path,'instrument','log_exposure_time.p'),'rb') as fp:
+with open(join(_cache_path,'log_exposure_time.p'),'rb') as fp:
         _log_exposure_time_interpolator = pickle.load(fp)
 
-with open(join(_data_path,'instrument','visibility_interpolator.p'),'rb') as fp:
+with open(join(_cache_path,'visibility_interpolator.p'),'rb') as fp:
     _visibility_interpolator = pickle.load(fp)
 
 def visibility(ra, dec):

@@ -39,10 +39,18 @@ from photutils import CircularAperture, aperture_photometry
 import numpy as np
 import pickle
 from astropy.table import Table
+from .core import load_config
+try:
+    config = load_config()
+except ValueError:
+    from .core import setup_config
+    setup_config()
+    config = load_config()
 
 data_path = path.join(here,'data','instrument')
+cache_path = config['DEFAULT']['data_cache_path']
 # Photometric aperture contamation calculation from PSF for make_xml_files
-pfile = path.join(data_path,'Contamination_33arcsec_aperture.p')
+pfile = path.join(cache_path,'Contamination_33arcsec_aperture.p')
 if not path.isfile(pfile):
     radius = 33  # Aperture radius in pixels
     psffile = path.join(data_path, 'CHEOPS_IT_PSFwhite_20180720AO1v1.0.txt')
@@ -68,18 +76,18 @@ if not path.isfile(pfile):
         pickle.dump(I,fp)
 
 # Exposure time calculator for instrument.py and make_xml_files
-pfile = path.join(data_path,'exposure_time.p')
+pfile = path.join(cache_path,'log_exposure_time.p')
 if not path.isfile(pfile):
     tfile = path.join(data_path,'TexpTable.csv')
     TexpTable = Table.read(tfile)
     G_ = np.array(TexpTable['V']) - 0.153
-    I = interp1d(G_,[TexpTable['min'],TexpTable['max']],kind='linear',
-            bounds_error=False,assume_sorted=True)
+    I = interp1d(G_,[np.log10(TexpTable['min']),np.log10(TexpTable['max'])],
+            kind='linear', bounds_error=False,assume_sorted=True)
     with open(pfile,'wb') as fp:
         pickle.dump(I,fp)
 
 # Visibility calculator for instrument.py and make_xml_files
-pfile = path.join(data_path,'visibility_interpolator.p')
+pfile = path.join(cache_path,'visibility_interpolator.p')
 if not path.isfile(pfile):
     vfile = path.join(data_path,'VisibilityTable.csv')
     visTable = Table.read(vfile)

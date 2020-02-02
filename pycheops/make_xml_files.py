@@ -54,6 +54,7 @@ from astroquery.utils.tap.core import TapPlus
 from io import StringIO
 from sys import exit
 from contextlib import redirect_stderr, redirect_stdout
+from .core import load_config
 import pickle
 from .instrument import visibility, exposure_time
 from . import __version__
@@ -65,28 +66,28 @@ __all__ = ['SpTypeToGminusV', 'SpTypeToTeff', '_GaiaDR2match']
 # version 2019.03.22
 
 SpTypeToGminusV = {
-'A0V':+0.007, 'A1V':+0.000, 'A2V':+0.005, 'A3V':-0.009, 'A4V':-0.020,
-'A5V':-0.024, 'A6V':-0.026, 'A7V':-0.036, 'A8V':-0.046, 'A9V':-0.047,
-'F0V':-0.060, 'F1V':-0.079, 'F2V':-0.093, 'F3V':-0.100, 'F4V':-0.107,
-'F5V':-0.116, 'F6V':-0.129, 'F7V':-0.135, 'F8V':-0.140, 'F9V':-0.146,
-'G0V':-0.155, 'G1V':-0.162, 'G2V':-0.167, 'G3V':-0.169, 'G4V':-0.172,
-'G5V':-0.174, 'G6V':-0.180, 'G7V':-0.182, 'G8V':-0.188, 'G9V':-0.204,
-'K0V':-0.221, 'K1V':-0.232, 'K2V':-0.254, 'K3V':-0.322, 'K4V':-0.412,
-'K5V':-0.454, 'K6V':-0.528, 'K7V':-0.595, 'K8V':-0.628, 'K9V':-0.69 ,
-'M0V':-0.65 , 'M1V':-0.82 , 'M2V':-0.92 , 'M3V':-1.09 , 'M4V':-1.41 ,
-'M5V':-1.74 , 'M6V':-2.14 , 'M7V':-2.98 , 'M8V':-3.08 , 'M9V':-3.00 }
+'A0':+0.007, 'A1':+0.000, 'A2':+0.005, 'A3':-0.009, 'A4':-0.020,
+'A5':-0.024, 'A6':-0.026, 'A7':-0.036, 'A8':-0.046, 'A9':-0.047,
+'F0':-0.060, 'F1':-0.079, 'F2':-0.093, 'F3':-0.100, 'F4':-0.107,
+'F5':-0.116, 'F6':-0.129, 'F7':-0.135, 'F8':-0.140, 'F9':-0.146,
+'G0':-0.155, 'G1':-0.162, 'G2':-0.167, 'G3':-0.169, 'G4':-0.172,
+'G5':-0.174, 'G6':-0.180, 'G7':-0.182, 'G8':-0.188, 'G9':-0.204,
+'K0':-0.221, 'K1':-0.232, 'K2':-0.254, 'K3':-0.322, 'K4':-0.412,
+'K5':-0.454, 'K6':-0.528, 'K7':-0.595, 'K8':-0.628, 'K9':-0.69 ,
+'M0':-0.65 , 'M1':-0.82 , 'M2':-0.92 , 'M3':-1.09 , 'M4':-1.41 ,
+'M5':-1.74 , 'M6':-2.14 , 'M7':-2.98 , 'M8':-3.08 , 'M9':-3.00 }
 
 SpTypeToTeff = { 
-'A0V':9700, 'A1V':9200, 'A2V':8840, 'A3V':8550, 'A4V':8270,
-'A5V':8080, 'A6V':8000, 'A7V':7800, 'A8V':7500, 'A9V':7440,
-'F0V':7220, 'F1V':7030, 'F2V':6810, 'F3V':6720, 'F4V':6640,
-'F5V':6510, 'F6V':6340, 'F7V':6240, 'F8V':6170, 'F9V':6060,
-'G0V':5920, 'G1V':5880, 'G2V':5770, 'G3V':5720, 'G4V':5680,
-'G5V':5660, 'G6V':5590, 'G7V':5530, 'G8V':5490, 'G9V':5340,
-'K0V':5280, 'K1V':5170, 'K2V':5040, 'K3V':4830, 'K4V':4600,
-'K5V':4410, 'K6V':4230, 'K7V':4070, 'K8V':4000, 'K9V':3940,
-'M0V':3870, 'M1V':3700, 'M2V':3550, 'M3V':3410, 'M4V':3200,
-'M5V':3030, 'M6V':2850, 'M7V':2650, 'M8V':2500, 'M9V':2400 }
+'A0':9700, 'A1':9200, 'A2':8840, 'A3':8550, 'A4':8270,
+'A5':8080, 'A6':8000, 'A7':7800, 'A8':7500, 'A9':7440,
+'F0':7220, 'F1':7030, 'F2':6810, 'F3':6720, 'F4':6640,
+'F5':6510, 'F6':6340, 'F7':6240, 'F8':6170, 'F9':6060,
+'G0':5920, 'G1':5880, 'G2':5770, 'G3':5720, 'G4':5680,
+'G5':5660, 'G6':5590, 'G7':5530, 'G8':5490, 'G9':5340,
+'K0':5280, 'K1':5170, 'K2':5040, 'K3':4830, 'K4':4600,
+'K5':4410, 'K6':4230, 'K7':4070, 'K8':4000, 'K9':3940,
+'M0':3870, 'M1':3700, 'M2':3550, 'M3':3410, 'M4':3200,
+'M5':3030, 'M6':2850, 'M7':2650, 'M8':2500, 'M9':2400 }
 
 # Define a TapPlus query object for Gaia DR2
 _gaia = TapPlus(url="http://gea.esac.esa.int/tap-server/tap",verbose=False)
@@ -1035,8 +1036,9 @@ def main():
         table['N_Ranges'] = 0
 
     # Load contamination function from pickle
-    data_path = join(dirname(abspath(__file__)),'data','instrument')
-    pfile = join(data_path,'Contamination_33arcsec_aperture.p')
+    config = load_config()
+    cache_path = config['DEFAULT']['data_cache_path']
+    pfile = join(cache_path,'Contamination_33arcsec_aperture.p')
     with open(pfile, 'rb') as fp: 
         fC= pickle.load(fp)
 

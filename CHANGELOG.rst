@@ -226,13 +226,24 @@ Second attempt to avoid ellc import (try/except)
  Added calculation of prior on P(D, W, b) for transit/eclipse fitting assuming
  uniform priors on cos(i), log(k) and log(a/R*).  
 
-0.6.2 (2019-11-23)
+0.6.2 (2020-01-25)
 ~~~~~~~~~~~~~~~~~~
  Store pickle files in user's cache directory to avoid permissions issues
- with root user installations.
+ with root user installations. (not finished)
  Added --scaling-factor-percent option to make_xml_files.
  Fix bug in make_xml_files where T_exp is stored as an integer - now float
- Improved interpolation of exposure times.
- Updated spectral-type T_eff G-V values in make_xml_files
+ Improved interpolation of exposure times. (not finished)
+ Updated spectral-type T_eff G-V values in make_xml_files (not finished)
  Bug fix for cases where log_g, [Fe/H] not defined in sweetcat.
  Add option for user-defined parameters in starproperties.
+
+0.6.3 
+~~~~~~~~~~~~~~~~~~
+ Completed the changes from version 0.6.2 - store pickle files in user's cache
+ directory, interpolation of exposure times, update spectral-type T_eff G-V
+ values.
+ Fixed J=L/D in EclipseModel
+ Added EBLMModel to models.
+ Added a few examples of TESS analysis to  examples/Notebooks
+ Changed target TESS_fit_EB.ipynb to TESS_fit_EBLM.ipynb  fit to EBLM J0113+31.
+

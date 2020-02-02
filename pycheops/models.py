@@ -38,7 +38,7 @@ from asteval import Interpreter, get_ast_names, valid_symbol_name
 
 __all__ = ['qpower2', 'ueclipse', 'TransitModel', 'EclipseModel', 
            'FactorModel', 'ThermalPhaseModel', 'ReflectionModel',
-           'RVModel', 'RVCompanion', 
+           'RVModel', 'RVCompanion','EBLMModel', 
            'scaled_transit_fit', 'minerr_transit_fit']
 
 @jit(nopython=True)
@@ -278,7 +278,7 @@ class TransitModel(Model):
     .. math::
         I(\mu; c, \alpha) = 1 - c (1 - \mu**\alpha)
 
-    The light curve depth, width shape are parameterised by D, W and b. These
+    The transit depth, width shape are parameterised by D, W and b. These
     parameters are defined below in terms of the radius of the star and
     planet, R_s and R_p, respectively, the semi-major axis, a, and the orbital
     inclination, i. The eccentricy and longitude of periastron for the star's
@@ -347,8 +347,8 @@ class TransitModel(Model):
         self.set_param_hint('b', min=0, max=1.0)
         self.set_param_hint('f_c', value=0, min=-1, max=1)
         self.set_param_hint('f_s', value=0, min=-1, max=1)
-        self.set_param_hint('h_1', min=0, max=1)
-        self.set_param_hint('h_2', min=0, max=1)
+        self.set_param_hint('h_1', value=0.7224, min=0, max=1, vary=False)
+        self.set_param_hint('h_2', value=0.6713, min=0, max=1, vary=False)
         expr = "sqrt({p:s}D)".format(p=self.prefix)
         self.set_param_hint('k'.format(p=self.prefix), 
                 expr=expr, min=0, max=0.5)
@@ -362,7 +362,7 @@ class EclipseModel(Model):
     body (planet) with no limb darkening.
 
 
-    The light curve depth, width shape are parameterised by D, W and b. These
+    The transit depth, width shape are parameterised by D, W and b. These
     parameters are defined below in terms of the radius of the star and
     planet, R_s and R_p, respectively, the semi-major axis, a, and the orbital
     inclination, i. The eccentricy and longitude of periastron for the star's
@@ -429,7 +429,7 @@ class EclipseModel(Model):
         self.set_param_hint('a_c', value=0, min=0, vary=False)
         expr = "sqrt({prefix:s}D)".format(prefix=self.prefix)
         self.set_param_hint('k', expr=expr, min=0, max=1)
-        expr = "D/L".format(prefix=self.prefix)
+        expr = "L/D".format(prefix=self.prefix)
         self.set_param_hint('J', expr=expr, min=0)
         expr ="sqrt((1+{p:s}k)**2-{p:s}b**2)/{p:s}W/pi".format(p=self.prefix)
         self.set_param_hint('aR',min=1, expr=expr)
@@ -690,6 +690,95 @@ class RVCompanion(Model):
         self.set_param_hint('{p:s}omega'.format(p=self.prefix), expr=expr)
 
     __init__.__doc__ = COMMON_INIT_DOC
+
+class EBLMModel(Model):
+    r"""Light curve model for the mutual eclipses by spherical stars in an
+    eclipsing binary with one low-mass companion, e.g., F/G-star + M-dwarf.
+
+    The transit depth, width shape are parameterised by D, W and b. These
+    parameters are defined below in terms of the radii of the stars,  R_1 and
+    R_2, the semi-major axis, a, and the orbital inclination, i. This model
+    assumes R_1 >> R_2, i.e., k=R_2/R_1 <~0.2.  The eccentricy and longitude
+    of periastron for the star's orbit are e and omega, respectively. These
+    are the same parameters used in TransitModel. The flux level outside of
+    eclipse is 1 and inside eclipse is (1-L). The apparent time of mid-eclipse
+    includes the correction a_c for the light travel time across the orbit,
+    i.e., for a circular orbit the time of mid-eclipse is (T_0 + 0.5*P) + a_c.
+    N.B. a_c must have the same units as P. The power-2 law is used to model
+    the limb-darkening of star 1. Limb-darkening on star 2 is ignored.
+
+    The following parameters are defined for convenience:
+    - k = R_2/R_1; 
+    - aR = a/R_1; 
+    - J = L/D (surface brightness ratio).
+
+    :param t:   - independent variable (time)
+    :param T_0: - time of mid-transit
+    :param P:   - orbital period
+    :param D:   - (R_2/R_1)**2 = k**2
+    :param W:   - (R_1/a)*sqrt((1+k)**2 - b**2)/pi
+    :param b:    - a*cos(i)/R_1
+    :param L:   - Depth of eclipse
+    :param f_c: - sqrt(ecc).cos(omega)
+    :param f_s: - sqrt(ecc).sin(omega)
+    :param a_c: - correction for light travel time across the orbit
+
+    """
+
+    def __init__(self, independent_vars=['t'], prefix='', nan_policy='raise',
+                 **kwargs):
+        kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
+                       'independent_vars': independent_vars})
+
+        def _eblm_func(t, T_0, P, D, W, b, L, f_c, f_s, h_1, h_2, a_c):
+            if (D <= 0) or (D > 0.25) or (W <= 0) or (b < 0):
+                return np.ones_like(t)
+            if (L <= 0) or (L >= 1): 
+                return np.ones_like(t)
+            if ((1-abs(f_c)) <= 0) or ((1-abs(f_s)) <= 0):
+                return np.ones_like(t)
+            q1 = (1-h_2)**2
+            if (q1 <= 0) or (q1 >=1): return np.ones_like(t)
+            q2 = (h_1-h_2)/(1-h_2)
+            if (q2 <= 0) or (q2 >=1): return np.ones_like(t)
+            c2 = 1 - h_1 + h_2
+            a2 = np.log2(c2/h_2)
+            k = np.sqrt(D)
+            r_star = np.pi*W/np.sqrt((1+k)**2 - b**2)
+            sini = np.sqrt(1-b**2*r_star**2)
+            ecc = f_c**2 + f_s**2
+            om = np.arctan2(f_s, f_c)*180/np.pi
+            z,m = t2z(t, T_0, P, sini, r_star, ecc, om, returnMask=True)
+            # Set z values where star 2 is behind star  1 to a large nominal
+            # value for calculation of the transit
+            z[m] = 100
+            lc =  qpower2(z, k, c2, a2)
+            z,m = t2z(t-a_c, T_0, P, sini, r_star, ecc, om, returnMask=True)
+            # Set z values where star  1 is behind star 2 to a large nominal
+            # value for calculation of the eclipse
+            z[~m]  = 100
+            return (lc + L*ueclipse(z, k))/(1+L)
+
+        super(EBLMModel, self).__init__(_eblm_func, **kwargs)
+        self._set_paramhints_prefix()
+
+    def _set_paramhints_prefix(self):
+        self.set_param_hint('P', min=1e-15)
+        self.set_param_hint('D', min=0, max=1)
+        self.set_param_hint('W', min=0, max=0.3)
+        self.set_param_hint('b', min=0, max=1.5)
+        self.set_param_hint('L', min=0, max=1)
+        self.set_param_hint('f_c', value=0, min=-1, max=1, vary=False)
+        self.set_param_hint('f_s', value=0, min=-1, max=1, vary=False)
+        self.set_param_hint('h_1', value=0.7224, min=0, max=1, vary=False)
+        self.set_param_hint('h_2', value=0.6713, min=0, max=1, vary=False)
+        self.set_param_hint('a_c', value=0, min=0, vary=False)
+        expr = "sqrt({prefix:s}D)".format(prefix=self.prefix)
+        self.set_param_hint('k', expr=expr, min=0, max=1)
+        expr = "L/D".format(prefix=self.prefix)
+        self.set_param_hint('J', expr=expr, min=0)
+        expr ="sqrt((1+{p:s}k)**2-{p:s}b**2)/{p:s}W/pi".format(p=self.prefix)
+        self.set_param_hint('aR',min=1, expr=expr)
 
 class Priors(OrderedDict):
     """An ordered dictionary of all the Prior objects required to evaluate the
