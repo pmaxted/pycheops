@@ -60,9 +60,6 @@ def setup_config(configFile=None, overwrite=False, mode=0o600):
     
     If configFile is None, use pycheops.cfg in the user's home directory
 
-    N.B. The archive username and password are stored in plain text so the
-    default mode value is 0o600 = user read/write permission only.
-
     :param configFile: Full path to configuration file
 
     :param overwrite: overwrite values in existing configFile
@@ -101,6 +98,9 @@ def setup_config(configFile=None, overwrite=False, mode=0o600):
     # SweetCat location and update interval in seconds
     url = 'https://www.astro.up.pt/resources/sweet-cat/download.php' 
     c['SWEET-Cat'] = {'update_interval': 86400, 'download_url': url}
+
+    #N.B. The archive username and password are stored in plain text so the
+    #default mode value is 0o600 = user read/write permission only.
 
     with open(os.open(configFile, os.O_CREAT | os.O_WRONLY, mode), 'w') as cf:
         c.write(cf)
