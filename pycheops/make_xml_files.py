@@ -50,10 +50,13 @@ import re
 from os.path import join,abspath,dirname,exists,isfile
 from os import listdir, getcwd
 from shutil import copy
-from astroquery.utils.tap.core import TapPlus
+# Suppress output to stdout on import of astroquery.gaia.Gaia
+from contextlib import redirect_stdout, redirect_stderr
 from io import StringIO
+_ = StringIO()
+with redirect_stdout(_):
+    from astroquery.gaia import Gaia
 from sys import exit
-from contextlib import redirect_stderr, redirect_stdout
 from .core import load_config
 import pickle
 from .instrument import visibility, exposure_time
@@ -89,12 +92,11 @@ SpTypeToTeff = {
 'M0':3870, 'M1':3700, 'M2':3550, 'M3':3410, 'M4':3200,
 'M5':3030, 'M6':2850, 'M7':2650, 'M8':2500, 'M9':2400 }
 
-# Define a TapPlus query object for Gaia DR2
-_gaia = TapPlus(url="http://gea.esac.esa.int/tap-server/tap",verbose=False)
-_query = """SELECT source_id, ra, dec, parallax, pmra, pmdec, phot_g_mean_mag
-FROM gaiadr2.gaia_source
-WHERE CONTAINS(POINT('ICRS',gaiadr2.gaia_source.ra,gaiadr2.gaia_source.dec),
- CIRCLE('ICRS',{},{},0.0666))=1 AND (phot_g_mean_mag<=16.5);
+# Define a query object for Gaia DR2
+_query = """SELECT source_id, ra, dec, parallax, pmra, pmdec, \
+phot_g_mean_mag FROM gaiadr2.gaia_source \
+WHERE CONTAINS(POINT('ICRS',gaiadr2.gaia_source.ra,gaiadr2.gaia_source.dec), \
+ CIRCLE('ICRS',{},{},0.0666))=1 AND (phot_g_mean_mag<=16.5); \
 """
 
 
@@ -445,9 +447,9 @@ def _GaiaDR2Match(row, fC, match_radius=1,  gaia_mag_tolerance=0.5,
     coo = SkyCoord(row['_RAJ2000'],row['_DEJ2000'],
             frame='icrs',unit=(u.hourangle, u.deg))
     s = coo.to_string('decimal',precision=5).split()
-    j = StringIO()
-    with redirect_stderr(j), redirect_stdout(j):
-        job = _gaia.launch_job(_query.format(s[0],s[1]))
+    _ = StringIO()
+    with redirect_stdout(_), redirect_stderr(_):
+        job = Gaia.launch_job(_query.format(s[0],s[1]))
     DR2Table = job.get_results()
 
     # Replace missing values for pmra, pmdec, parallax
