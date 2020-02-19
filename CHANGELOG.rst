@@ -237,7 +237,7 @@ Second attempt to avoid ellc import (try/except)
  Bug fix for cases where log_g, [Fe/H] not defined in sweetcat.
  Add option for user-defined parameters in starproperties.
 
-0.6.3 
+0.6.3 (2020-02-01)
 ~~~~~~~~~~~~~~~~~~
  Completed the changes from version 0.6.2 - store pickle files in user's cache
  directory, interpolation of exposure times, update spectral-type T_eff G-V
@@ -247,3 +247,9 @@ Second attempt to avoid ellc import (try/except)
  Added a few examples of TESS analysis to  examples/Notebooks
  Changed target TESS_fit_EB.ipynb to TESS_fit_EBLM.ipynb  fit to EBLM J0113+31.
 
+
+0.6.4  (2020-02-19)
+~~~~~~~~~~~~~~~~~~~
+ Simplified call to astroquery.gaia in make_xml_files - fixes HTTPError 302
+ problem that started happening since the last update.
+ change at the server(?)
