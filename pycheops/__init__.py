@@ -98,6 +98,21 @@ if not path.isfile(pfile):
     with open(pfile,'wb') as fp:
         pickle.dump(I,fp)
 
+# T_eff v. G_BP-G_RP colour from 
+# http://www.pas.rochester.edu/~emamajek/EEM_dwarf_UBVIJHK_colors_Teff.txt
+# Version 2019.3.22
+pfile = path.join(cache_path,'Teff_BP_RP_interpolator.p')
+if not path.isfile(pfile):
+    fT = path.join(here,'data','EEM_dwarf_UBVIJHK_colors_Teff',
+            'EEM_dwarf_UBVIJHK_colors_Teff.txt')
+    T = Table.read(fT,format='ascii',header_start=-1,
+            fill_values=('...',np.nan))
+    I = interp1d(T['Bp-Rp'],T['Teff'],bounds_error=False,
+            fill_value='extrapolate')
+    with open(pfile,'wb') as fp:
+        pickle.dump(I,fp)
+
+
 from .dataset import Dataset
 from .starproperties import StarProperties
 
