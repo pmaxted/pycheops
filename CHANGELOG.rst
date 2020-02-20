@@ -247,9 +247,14 @@ Second attempt to avoid ellc import (try/except)
  Added a few examples of TESS analysis to  examples/Notebooks
  Changed target TESS_fit_EB.ipynb to TESS_fit_EBLM.ipynb  fit to EBLM J0113+31.
 
-
 0.6.4  (2020-02-19)
 ~~~~~~~~~~~~~~~~~~~
  Simplified call to astroquery.gaia in make_xml_files - fixes HTTPError 302
  problem that started happening since the last update.
  change at the server(?)
+
+0.6.5
+~~~~~~
+ Change BJD_late to 2460000.5 in example make_xml_file input files.
+ Add --count_rate option to make_xml_files
+

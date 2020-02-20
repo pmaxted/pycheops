@@ -34,7 +34,8 @@ from .models import TransitModel, scaled_transit_fit, minerr_transit_fit
 import warnings 
 
 
-__all__ = [ 'response', 'visibility', 'exposure_time', 'transit_noise']
+__all__ = [ 'response', 'visibility', 'exposure_time', 'transit_noise',
+        'count_rate']
 
 from os.path import join,abspath,dirname,isfile
 import pickle 
@@ -48,10 +49,38 @@ config = load_config()
 _cache_path = config['DEFAULT']['data_cache_path']
 
 with open(join(_cache_path,'log_exposure_time.p'),'rb') as fp:
-        _log_exposure_time_interpolator = pickle.load(fp)
+    _log_exposure_time_interpolator = pickle.load(fp)
+
+with open(join(_cache_path,'Teff_BP_RP_interpolator.p'),'rb') as fp:
+    _Teff_BP_RP_interpolator = pickle.load(fp)
 
 with open(join(_cache_path,'visibility_interpolator.p'),'rb') as fp:
     _visibility_interpolator = pickle.load(fp)
+
+def count_rate(gmag, bp_rp):
+    """
+    Predicted count rate
+
+    The count rate in e-/s based on the star's Gaia G magnitude and G_BP-R_BP
+    colour. This value returned is suitable for use in the CHEOPS exposure
+    time calculator using the option "Expected flux in CHEOPS passband"
+
+    ** Currently based on stellar models convolved with throughout and QE
+    curves measured pre-launch.
+
+    """
+    # Convert G_BP-G_RP colour to T_eff 
+    T_eff = _Teff_BP_RP_interpolator(bp_rp)
+    # From fit to results using models from 
+    #  http://svo2.cab.inta-csic.es/theory/newov/index.php?model=coelho_sed
+    # and the following throughput and QE curves plus re-scaled aperure
+    # diameter of 30 cm
+    #  CH_TU2019-12-17T00-00-00_REF_APP_QE_V0100.fits
+    #  CH_TU2018-01-01T00-00-00_REF_APP_Throughput-BeginOfLife_V0100.fits
+    # Correction to G-magnitude from Casagrande et al., 2018 has already 
+    # been applied so DR2 phot_g_mean_mag can be used directly. 
+    zp_G = 23.310 - 0.0036*(T_eff-5777)/1000
+    return 10**(0.4*(zp_G - gmag))
 
 def visibility(ra, dec):
     """

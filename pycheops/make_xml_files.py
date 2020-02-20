@@ -59,7 +59,7 @@ with redirect_stdout(_):
 from sys import exit
 from .core import load_config
 import pickle
-from .instrument import visibility, exposure_time
+from .instrument import visibility, exposure_time, count_rate
 from . import __version__
 
 __all__ = ['SpTypeToGminusV', 'SpTypeToTeff', '_GaiaDR2match']
@@ -94,7 +94,7 @@ SpTypeToTeff = {
 
 # Define a query object for Gaia DR2
 _query = """SELECT source_id, ra, dec, parallax, pmra, pmdec, \
-phot_g_mean_mag FROM gaiadr2.gaia_source \
+phot_g_mean_mag, bp_rp FROM gaiadr2.gaia_source \
 WHERE CONTAINS(POINT('ICRS',gaiadr2.gaia_source.ra,gaiadr2.gaia_source.dec), \
  CIRCLE('ICRS',{},{},0.0666))=1 AND (phot_g_mean_mag<=16.5); \
 """
@@ -838,6 +838,8 @@ def main():
              --ignore-gaia-id-check is specified. 
              ** N.B. The PI is responsible to check the DR2 ID is correct **
 
+         _RAJ2000,_DEJ2000 - ICRS position of matching Gaia source in degrees
+
          Gmag - The target mean G-band magnitude from Gaia DR2 catalogue.
 
          Contam - estimate of the contamination of a 30 arcsec photometric
@@ -850,7 +852,11 @@ def main():
 
         Texp - the exposure time used in the output XML file.
 
-         _RAJ2000,_DEJ2000 - ICRS position of matching Gaia source in degrees
+        e-/s - The count rate in e-/s based on the star's Gaia G magnitude and
+               G_BP-R_BP colour. This value returned is suitable for use in the
+               CHEOPS exposure time calculator using the option "Expected flux
+               in CHEOPS passband". Only printed if the command is called with 
+               the -c / --count-rate option.
 
          Flags - sum of the following error/warnings flags.
              + 32768 = Gaia ID error - input/output IDs do not match
@@ -904,6 +910,16 @@ def main():
         help= '''
         Tolerance in magnitudes for Gaia DR2 cross-match (default:
         %(default)3.1f)
+        '''
+    )
+
+    parser.add_argument('-c', '--count_rate',
+        action='store_const',
+        dest='count_rate',
+        const=True,
+        default=False,
+        help='''
+        Predict count rate from Gaia G magnitude and G_BP-G_RP colour
         '''
     )
 
@@ -1066,6 +1082,8 @@ def main():
     TerminalOutputFormat = (
         '{}'.format(ObsReqNameFormat)+
         '{:20d} {:5.2f} {:8.4f} {:+8.4f}  {:6.3f}  {:2d} {:4.1f} {:5d}')
+    if args.count_rate:
+        TerminalOutputFormat += ' {:0.2e}'
     print('#')
     if not args.id_check:
         print('#')
@@ -1073,9 +1091,11 @@ def main():
         print('# ** The PI is responsible to check the DR2 ID is correct **')
         print('#')
 
-    print('#{}'.format(ObsReqNameHeader) +
-    'Gaia_DR2_ID         Gmag  _RAJ2000 _DEJ2000  Contam Vis Texp Flags'
-           .format(ObsReqNameHeader))
+    tstr = 'Gaia_DR2_ID         Gmag  _RAJ2000 _DEJ2000  Contam Vis Texp Flags'
+    if args.count_rate:
+        tstr += ' e-/s'
+
+    print('#{}'.format(ObsReqNameHeader) + tstr.format(ObsReqNameHeader))
 
     # String of coordinates, Vmag and SpTy to enable re-use of DR2 data
     old_tag = None
@@ -1156,10 +1176,16 @@ def main():
         if vis == 0:
             flags += 256
 
-
-
-        print(TerminalOutputFormat.format(
-            row['ObsReqName'], DR2data['source_id'], DR2data['phot_g_mean_mag'],
-            coords.ra.degree,coords.dec.degree, contam, vis, 
-            row['T_exp'],flags))
+        gmag = DR2data['phot_g_mean_mag']
+        if args.count_rate:
+            print(TerminalOutputFormat.format(
+             row['ObsReqName'], DR2data['source_id'],
+             gmag, coords.ra.degree, coords.dec.degree,
+             contam, vis, row['T_exp'],flags,
+             count_rate(gmag, DR2data['bp_rp'])))
+        else:
+            print(TerminalOutputFormat.format(
+             row['ObsReqName'], DR2data['source_id'],
+             gmag, coords.ra.degree, coords.dec.degree,
+             contam, vis, row['T_exp'],flags))
 
