@@ -1350,9 +1350,13 @@ class Dataset(object):
         else:
             s = abs(flux-np.nanmedian(flux)).mean()
         ok = abs(flux-np.nanmedian(flux)) < clip * s
-        self.lc['time'] = self.lc['time'][ok]
-        self.lc['flux'] = self.lc['flux'][ok]
-        self.lc['flux_err'] = self.lc['flux_err'][ok]
+        self.lc = {'time':self.lc['time'][ok], 'flux':flux[ok],
+                'flux_err':self.lc['flux_err'][ok], 'xoff':self.lc['xoff'][ok],
+                'yoff':self.lc['yoff'][ok], 'bjd_ref':self.lc['bjd_ref'],
+                'table':self.lc['table'], 'header':self.lc['header'],
+                'centroid_x':self.lc['centroid_x'],
+                'centroid_y':self.lc['centroid_y'],
+                'roll_angle':self.lc['roll_angle'][ok]}
         if verbose:
             stat = 'RMS' if use_stdev  else 'MAD'
             nclip = np.sum(~ok)
