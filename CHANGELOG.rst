@@ -258,3 +258,8 @@ Second attempt to avoid ellc import (try/except)
  Change BJD_late to 2460000.5 in example make_xml_file input files.
  Add --count_rate option to make_xml_files
 
+0.6.6
+~~~~~
+ Added numba version requirement to setup.py
+ Added V magnitude and spectral type information to dataset object
+ Add light curve stats to dataset objects

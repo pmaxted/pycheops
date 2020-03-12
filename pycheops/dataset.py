@@ -263,11 +263,19 @@ class Dataset(object):
         self.ra = coords.ra.to_string(precision=2,unit='hour',sep=':',pad=True)
         self.dec = coords.dec.to_string(precision=1,sep=':',unit='degree',
                 alwayssign=True,pad=True)
+        self.vmag = hdr['MAG_V']
+        self.e_vmag = hdr['MAG_VERR']
+        self.spectype = hdr['SPECTYPE']
+        self.exptime = hdr['EXPTIME']
+        self.texptime = hdr['TEXPTIME']
         if verbose:
             print(' PI name     : {}'.format(self.pi_name))
             print(' OBS ID      : {}'.format(self.obsid))
             print(' Target      : {}'.format(self.target))
             print(' Coordinates : {} {}'.format(self.ra, self.dec))
+            print(' Spec. type  : {}'.format(self.spectype))
+            print(' V magnitude : {:0.2f} +- {:0.2f}'.
+                    format(self.vmag, self.e_vmag))
         
 #----
 
@@ -506,8 +514,12 @@ class Dataset(object):
             print('RMS counts = {:0.1f} [{:0.0f} ppm]'.format(np.std(flux), 
                 1e6*np.std(flux)/fluxmed))
             print('Median standard error = {:0.1f} [{:0.0f} ppm]'.format(
-                fluxmed, 1e6*np.nanmedian(flux_err)/fluxmed))
+                np.nanmedian(flux_err), 1e6*np.nanmedian(flux_err)/fluxmed))
 
+        self.flux_mean = flux.mean()
+        self.flux_median = fluxmed
+        self.flux_rms = np.std(flux)
+        self.flux_mse = np.nanmedian(flux_err)
         flux = flux/fluxmed
         flux_err = flux_err/fluxmed
         self.lc = {'time':time, 'flux':flux, 'flux_err':flux_err,
@@ -881,18 +893,18 @@ class Dataset(object):
             pos.append(pos_i)
 
         sampler = EnsembleSampler(nwalkers, n_varys, log_posterior_func,
-                args=args)
+            args=args, pool=pool)
         if progress:
             print('Running burn-in ..')
             stdout.flush()
         pos, _, _ = sampler.run_mcmc(pos, burn, store=False, 
-                skip_initial_state_check=True, progress=progress)
+            skip_initial_state_check=True, progress=progress)
         sampler.reset()
         if progress:
             print('Running sampler ..')
             stdout.flush()
         state = sampler.run_mcmc(pos, steps, thin_by=thin,
-                skip_initial_state_check=True, progress=progress)
+            skip_initial_state_check=True, progress=progress)
 
         flatchain = sampler.get_chain(flat=True).reshape((-1, len(vn)))
         pos_i = flatchain[np.argmax(sampler.get_log_prob()),:]
@@ -1289,6 +1301,64 @@ class Dataset(object):
         else:
             plt.savefig(fname)
         
+
+    #------
+
+    def flatten(self, mask_centre, mask_width, npoly=2):
+        """
+        Renormalize using a polynomial fit excluding a section of the data
+     
+        The position and width of the mask to exclude the transit/eclipse is
+        specified on the same time scale as the light curve data.
+
+        :param mask_centre: time at the centre of the mask
+        :param mask_width: full width of the mask
+        :param npoly: number of terms in the normalizing polynomial
+
+        :returns: time, flux, flux_err
+
+        """
+        time = self.lc['time']
+        flux = self.lc['flux']
+        flux_err = self.lc['flux_err']
+        mask = abs(time-mask_centre) > mask_width/2
+        n = np.polyval(np.polyfit(time[mask],flux[mask],npoly-1),time)
+        self.lc['flux'] /= n
+        self.lc['flux_err'] /= n
+
+        return self.lc['time'], self.lc['flux'], self.lc['flux_err']
+
+    #------
+
+    def clip_outliers(self, clip=4.0, use_stdev=False, verbose=True):
+        """
+        Remove outliers from the light curve.
+
+        Data more than clip*s from the median are removed where s is the
+        mean absolute deviation from the median or (if use_stdev=True) the
+        standard deviation.
+
+        :param clip: tolerance on clipping
+        :param use_stdev: if true, use standard deviation instead of MAD.
+
+        :returns: time, flux, flux_err
+
+        """
+        flux = self.lc['flux']
+        if use_stdev:
+            s = np.nanstd(flux)
+        else:
+            s = abs(flux-np.nanmedian(flux)).mean()
+        ok = abs(flux-np.nanmedian(flux)) < clip * s
+        self.lc['time'] = self.lc['time'][ok]
+        self.lc['flux'] = self.lc['flux'][ok]
+        self.lc['flux_err'] = self.lc['flux_err'][ok]
+        if verbose:
+            stat = 'RMS' if use_stdev  else 'MAD'
+            nclip = np.sum(~ok)
+            print('\nRejected {} points more than {:0.1f} x {} = {:0.0f} ppm '
+                    'from the median'.format(nclip,clip,stat,1e6*s*clip))
+        return self.lc['time'], self.lc['flux'], self.lc['flux_err']
 
     #------
 
