@@ -542,7 +542,7 @@ class Dataset(object):
             h_1=None, h_2=None,
             c=None, dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
-            dfdt=None, d2fdt2=None, 
+            dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None, 
             logrhoprior=None):
 
         def _chisq_prior(params, *args):
@@ -628,6 +628,10 @@ class Dataset(object):
             params['dfdsin2phi'] = _kw_to_Parameter('dfdsin2phi', dfdsin2phi)
         if dfdcos2phi is not None:
             params['dfdcos2phi'] = _kw_to_Parameter('dfdcos2phi', dfdcos2phi)
+        if dfdsin3phi is not None:
+            params['dfdsin3phi'] = _kw_to_Parameter('dfdsin3phi', dfdsin3phi)
+        if dfdcos3phi is not None:
+            params['dfdcos3phi'] = _kw_to_Parameter('dfdcos3phi', dfdcos3phi)
 
         params.add('k',expr='sqrt(D)',min=0,max=1)
         params.add('aR',expr='sqrt((1+k)**2-b**2)/W/pi',min=1)
@@ -657,7 +661,7 @@ class Dataset(object):
             f_c=None, f_s=None, a_c=None, 
             c=None, dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
-            dfdt=None, d2fdt2=None):
+            dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None):
 
         def _chisq_prior(params, *args):
             r =  (flux - model.eval(params, t=time))/flux_err
@@ -742,6 +746,10 @@ class Dataset(object):
             params['dfdsin2phi'] = _kw_to_Parameter('dfdsin2phi', dfdsin2phi)
         if dfdcos2phi is not None:
             params['dfdcos2phi'] = _kw_to_Parameter('dfdcos2phi', dfdcos2phi)
+        if dfdsin3phi is not None:
+            params['dfdsin3phi'] = _kw_to_Parameter('dfdsin3phi', dfdsin3phi)
+        if dfdcos3phi is not None:
+            params['dfdcos3phi'] = _kw_to_Parameter('dfdcos3phi', dfdcos3phi)
 
         params.add('k',expr='sqrt(D)',min=0,max=1)
         params.add('aR',expr='sqrt((1+k)**2-b**2)/W/pi',min=1)
@@ -1010,6 +1018,10 @@ class Dataset(object):
                     labels.append(r'$df/d\sin(2\phi)$')
                 elif key == 'dfdcos2phi':
                     labels.append(r'$df/d\cos(2\phi)$')
+                elif key == 'dfdsin3phi':
+                    labels.append(r'$df/d\sin(3\phi)$')
+                elif key == 'dfdcos3phi':
+                    labels.append(r'$df/d\cos(3\phi)$')
                 elif key == 'log_sigma':
                     labels.append(r'$\log\sigma$')
                 elif key == 'log_omega0':

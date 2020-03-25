@@ -440,9 +440,10 @@ class FactorModel(Model):
     """Flux scaling and trend factor model
 
     f = c*(1 + dfdx*dx(t) + dfdy*dy(t) + d2fdx2*dx(t)**2 + d2f2y2*dy(t)**2 +
-        d2fdxdy*x(t)*dy(t) + dfdsinphi*sin(phi(t)) + dfdcosphi*cos(phi(t)) +
-        dfdsin2phi*sin(2.phi(t)) + dfdcos2phi*cos(2.phi(t)) + 
-        dfdt*dt + d2fdt2*dt**2)
+           d2fdxdy*x(t)*dy(t) + dfdsinphi*sin(phi(t)) + dfdcosphi*cos(phi(t)) +
+           dfdsin2phi*sin(2.phi(t)) + dfdcos2phi*cos(2.phi(t)) + 
+           dfdsin3phi*sin(3.phi(t)) + dfdcos3phi*cos(3.phi(t)) + 
+           dfdt*dt + d2fdt2*dt**2)
 
     The detrending coefficients dfdx, etc. are 0 and fixed by default. If
     any of the coefficients dfdx, d2fdxdy or d2f2x2 is not 0, a function to
@@ -460,9 +461,9 @@ class FactorModel(Model):
         kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
                        'independent_vars': independent_vars})
 
-        def factor(t, d2fdt2=0, dfdt=0, dfdcosphi=0, dfdsinphi=0,
-                dfdcos2phi=0, dfdsin2phi=0, d2fdy2=0, d2fdxdy=0, d2fdx2=0,
-                dfdy=0, dfdx=0, c=1.0):
+        def factor(t, c=1.0,dfdt=0, d2fdt2=0, dfdx=0, dfdy=0, d2fdxdy=0,
+                d2fdx2=0, d2fdy2=0, dfdcosphi=0, dfdsinphi=0, dfdcos2phi=0,
+                dfdsin2phi=0, dfdcos3phi=0, dfdsin3phi=0):
 
             dt = t - np.median(t)
             trend = 1 + dfdt*dt + d2fdt2*dt**2
@@ -482,6 +483,12 @@ class FactorModel(Model):
             if dfdcos2phi != 0 :
                 cos2phi = self.sinphi(t)**2 - self.cosphi(t)**2
                 trend += dfdcos2phi*cos2phi
+            if dfdsin3phi != 0 :
+                sin3phi = 3*self.sinphi(t)*self.cosphi(t)
+                trend += dfdsin3phi*sin3phi
+            if dfdcos3phi != 0 :
+                cos3phi = self.sinphi(t)**3 - self.cosphi(t)**3
+                trend += dfdcos3phi*cos3phi
             return c*trend
 
         super(FactorModel, self).__init__(factor, **kwargs)
@@ -493,7 +500,7 @@ class FactorModel(Model):
         self.set_param_hint('c', min=0)
         for p in ['dfdx', 'dfdy', 'd2fdx2', 'd2fdxdy',  'd2fdy2', 
                   'dfdsinphi', 'dfdcosphi', 'dfdcos2phi', 'dfdsin2phi',
-                  'dfdt', 'd2fdt2']:
+                  'dfdcos3phi', 'dfdsin3phi', 'dfdt', 'd2fdt2']:
             self.set_param_hint(p, value=0, vary=False)
 
     def guess(self, data, **kwargs):
@@ -503,7 +510,7 @@ class FactorModel(Model):
         pars['%sc' % self.prefix].set(value=data.median())
         for p in ['dfdx', 'dfdy', 'd2fdx2', 'd2fdy2', 
                 'dfdsinphi', 'dfdcosphi', 'dfdcos2phi', 'dfdsin2phi',
-                'dfdt', 'd2fdt2']:
+                'dfdcos3phi', 'dfdsin3phi','dfdt', 'd2fdt2']:
             pars['{}{}'.format(self.prefix, p)].set(value = 0.0, vary=False)
         return update_param_vals(pars, self.prefix, **kwargs)
 
