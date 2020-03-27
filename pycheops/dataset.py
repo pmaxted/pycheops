@@ -488,6 +488,7 @@ class Dataset(object):
         xoff = np.array(table['CENTROID_X'][ok]- table['LOCATION_X'][ok])
         yoff = np.array(table['CENTROID_Y'][ok]- table['LOCATION_Y'][ok])
         roll_angle = np.array(table['ROLL_ANGLE'][ok])
+        bg = np.array(table['BACKGROUND'][ok])
         ap_rad = hdr['AP_RADI']
         self.bjd_ref = bjd_ref
         self.ap_rad = ap_rad
@@ -504,6 +505,7 @@ class Dataset(object):
             xoff = xoff[ok]
             yoff = yoff[ok]
             roll_angle = roll_angle[ok]
+            bg = bg[ok]
             N_cut = len(bjd) - len(time)
         if verbose:
             if reject_highpoints:
@@ -524,7 +526,7 @@ class Dataset(object):
         flux_err = flux_err/fluxmed
         self.lc = {'time':time, 'flux':flux, 'flux_err':flux_err,
                 'bjd_ref':bjd_ref, 'table':table, 'header':hdr,
-                'xoff':xoff, 'yoff':yoff,
+                'xoff':xoff, 'yoff':yoff, 'bg':bg, 
                 'centroid_x':np.array(table['CENTROID_X'][ok]),
                 'centroid_y':np.array(table['CENTROID_Y'][ok]),
                 'roll_angle':roll_angle, 'aperture':aperture}
@@ -1240,7 +1242,7 @@ class Dataset(object):
 
     def transit_noise_plot(self, width=3, steps=500,
             fname=None, figsize=(6,4), fontsize=11,
-            requirement=None, verbose=True):
+            requirement=None, local=False, verbose=True):
 
         try:
             time = np.array(self.lc['time'])
@@ -1248,22 +1250,29 @@ class Dataset(object):
             flux_err = np.array(self.lc['flux_err'])
         except AttributeError:
             raise AttributeError("Use get_lightcurve() to load data first.")
-        T = np.linspace(np.min(time)+width/48,np.max(time)-width/48 , steps)
 
+        T = np.linspace(np.min(time)+width/48,np.max(time)-width/48 , steps)
         Nsc = np.zeros_like(T)
         Fsc = np.zeros_like(T)
         Nmn = np.zeros_like(T)
 
         for i,_t in enumerate(T):
-            _n,_f = transit_noise(time, flux, flux_err, T_0=_t,
+            if local:
+                j = (np.abs(time-_t) < (width/48)).nonzero()[0]
+                _n,_f = transit_noise(time[j], flux[j], flux_err[j], T_0=_t,
                               width=width, method='scaled')
+                _m = transit_noise(time[j], flux[j], flux_err[j], T_0=_t,
+                           width=width, method='minerr')
+            else:
+                _n,_f = transit_noise(time, flux, flux_err, T_0=_t,
+                              width=width, method='scaled')
+                _m = transit_noise(time, flux, flux_err, T_0=_t,
+                           width=width, method='minerr')
             if np.isfinite(_n):
                 Nsc[i] = _n
                 Fsc[i] = _f
-            _n = transit_noise(time, flux, flux_err, T_0=_t,
-                           width=width, method='minerr')
-            if np.isfinite(_n):
-                Nmn[i] = _n
+            if np.isfinite(_m):
+                Nmn[i] = _m
 
         msk = (Nsc > 0) 
         Tsc = T[msk]

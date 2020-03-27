@@ -263,3 +263,8 @@ Second attempt to avoid ellc import (try/except)
  Added numba version requirement to setup.py
  Added V magnitude and spectral type information to dataset object
  Add light curve stats to dataset objects
+ Added "local" option to dataset.transit_noise_plot
+ Set max value of D to 0.25 in models.TransitModel and models.EBLMModel
+ Fixed bug with missing prefix in expr for param hints in models.
+ Added model.PlanetModel
+ Added dataset.lc['bg']

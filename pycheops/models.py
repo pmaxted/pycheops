@@ -38,7 +38,7 @@ from asteval import Interpreter, get_ast_names, valid_symbol_name
 
 __all__ = ['qpower2', 'ueclipse', 'TransitModel', 'EclipseModel', 
            'FactorModel', 'ThermalPhaseModel', 'ReflectionModel',
-           'RVModel', 'RVCompanion','EBLMModel', 
+           'RVModel', 'RVCompanion','EBLMModel', 'PlanetModel',
            'scaled_transit_fit', 'minerr_transit_fit']
 
 @jit(nopython=True)
@@ -270,6 +270,9 @@ def ueclipse(z,k):
             fl[i] = 1 - (k**2*t1 + t2 - t3)/(np.pi*k**2)
     return fl
 
+
+#----------------------
+
 class TransitModel(Model):
     r"""Light curve model for the transit of a spherical star by an opaque
     spherical body (planet).
@@ -342,7 +345,7 @@ class TransitModel(Model):
 
     def _set_paramhints_prefix(self):
         self.set_param_hint('P', min=1e-15)
-        self.set_param_hint('D', min=0, max=1)
+        self.set_param_hint('D', min=0, max=0.25)
         self.set_param_hint('W', min=0, max=0.3)
         self.set_param_hint('b', min=0, max=1.0)
         self.set_param_hint('f_c', value=0, min=-1, max=1)
@@ -356,6 +359,9 @@ class TransitModel(Model):
         self.set_param_hint('aR',min=1, expr=expr)
         expr = "0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix)
         self.set_param_hint('rho', min=0, expr = expr)
+
+
+#----------------------
 
 class EclipseModel(Model):
     r"""Light curve model for the eclipse by a spherical star of a spherical
@@ -420,7 +426,7 @@ class EclipseModel(Model):
 
     def _set_paramhints_prefix(self):
         self.set_param_hint('P', min=1e-15)
-        self.set_param_hint('D', min=0, max=1)
+        self.set_param_hint('D', min=0, max=0.25)
         self.set_param_hint('W', min=0, max=0.3)
         self.set_param_hint('b', min=0, max=1.5)
         self.set_param_hint('L', min=0, max=1)
@@ -429,21 +435,25 @@ class EclipseModel(Model):
         self.set_param_hint('a_c', value=0, min=0, vary=False)
         expr = "sqrt({prefix:s}D)".format(prefix=self.prefix)
         self.set_param_hint('k', expr=expr, min=0, max=1)
-        expr = "L/D".format(prefix=self.prefix)
+        expr = "{prefix:s}L/{prefix:s}D".format(prefix=self.prefix)
         self.set_param_hint('J', expr=expr, min=0)
         expr ="sqrt((1+{p:s}k)**2-{p:s}b**2)/{p:s}W/pi".format(p=self.prefix)
         self.set_param_hint('aR',min=1, expr=expr)
         self.set_param_hint('rho', min=0, expr = 
                 "0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix) )
 
+
+#----------------------
+
 class FactorModel(Model):
     """Flux scaling and trend factor model
 
-    f = c*(1 + dfdx*dx(t) + dfdy*dy(t) + d2fdx2*dx(t)**2 + d2f2y2*dy(t)**2 +
-           d2fdxdy*x(t)*dy(t) + dfdsinphi*sin(phi(t)) + dfdcosphi*cos(phi(t)) +
-           dfdsin2phi*sin(2.phi(t)) + dfdcos2phi*cos(2.phi(t)) + 
-           dfdsin3phi*sin(3.phi(t)) + dfdcos3phi*cos(3.phi(t)) + 
-           dfdt*dt + d2fdt2*dt**2)
+    f = c*(1 + dfdt*dt + d2fdt2*dt**2 + dfdbg*bg(t)  + 
+               dfdx*dx(t) + dfdy*dy(t) +
+               d2fdx2*dx(t)**2 + d2f2y2*dy(t)**2 + d2fdxdy*x(t)*dy(t) +
+               dfdsinphi*sin(phi(t)) + dfdcosphi*cos(phi(t)) +
+               dfdsin2phi*sin(2.phi(t)) + dfdcos2phi*cos(2.phi(t)) + 
+               dfdsin3phi*sin(3.phi(t)) + dfdcos3phi*cos(3.phi(t)) ) 
 
     The detrending coefficients dfdx, etc. are 0 and fixed by default. If
     any of the coefficients dfdx, d2fdxdy or d2f2x2 is not 0, a function to
@@ -451,22 +461,26 @@ class FactorModel(Model):
     passed as a keyword argument, and similarly for the y-position offset,
     dy(t). For detrending against the spacecraft roll angle, phi(t), the
     functions to be provided as keywords arguments are sinphi(t) and
-    cosphi(t). The time trend decribed by dfdt and d2fdt2 is calculated using
-    the variable dt = t - median(t).
+    cosphi(t). The linear trend dfdbg is proportional to the estimated
+    background flux in the aperture, bg(t). The time trend decribed by dfdt
+    and d2fdt2 is calculated using the variable dt = t - median(t).
 
     """
 
     def __init__(self, independent_vars=['t'], prefix='', nan_policy='raise',
-                dx=None, dy=None, sinphi=None, cosphi=None, **kwargs):
+                 dx=None, dy=None, sinphi=None, cosphi=None, bg=None, **kwargs):
         kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
                        'independent_vars': independent_vars})
 
-        def factor(t, c=1.0,dfdt=0, d2fdt2=0, dfdx=0, dfdy=0, d2fdxdy=0,
-                d2fdx2=0, d2fdy2=0, dfdcosphi=0, dfdsinphi=0, dfdcos2phi=0,
-                dfdsin2phi=0, dfdcos3phi=0, dfdsin3phi=0):
+        def factor(t, c=1.0,dfdt=0, d2fdt2=0, dfdbg=0,
+                dfdx=0, dfdy=0, d2fdxdy=0, d2fdx2=0, d2fdy2=0,
+                dfdcosphi=0, dfdsinphi=0, dfdcos2phi=0, dfdsin2phi=0,
+                dfdcos3phi=0, dfdsin3phi=0):
 
             dt = t - np.median(t)
-            trend = 1 + dfdt*dt + d2fdt2*dt**2
+            trend = 1 + dfdt*dt + d2fdt2*dt**2 
+            if dfdbg != 0:
+                trend += dfdbg*self.bg(t)
             if dfdx != 0 or d2fdx2 != 0:
                 trend += dfdx*self.dx(t) + d2fdx2*self.dx(t)**2
             if dfdy != 0 or d2fdy2 != 0:
@@ -493,14 +507,16 @@ class FactorModel(Model):
 
         super(FactorModel, self).__init__(factor, **kwargs)
 
+        self.bg = bg
         self.dx = dx
         self.dy = dy
         self.sinphi = sinphi
         self.cosphi = cosphi
         self.set_param_hint('c', min=0)
-        for p in ['dfdx', 'dfdy', 'd2fdx2', 'd2fdxdy',  'd2fdy2', 
+        for p in ['dfdt', 'd2fdt2', 'dfdbg', 
+                  'dfdx', 'dfdy', 'd2fdx2', 'd2fdxdy',  'd2fdy2', 
                   'dfdsinphi', 'dfdcosphi', 'dfdcos2phi', 'dfdsin2phi',
-                  'dfdcos3phi', 'dfdsin3phi', 'dfdt', 'd2fdt2']:
+                  'dfdcos3phi', 'dfdsin3phi']:
             self.set_param_hint(p, value=0, vary=False)
 
     def guess(self, data, **kwargs):
@@ -508,14 +524,17 @@ class FactorModel(Model):
         pars = self.make_params()
 
         pars['%sc' % self.prefix].set(value=data.median())
-        for p in ['dfdx', 'dfdy', 'd2fdx2', 'd2fdy2', 
+        for p in ['dfdt', 'd2fdt2' 'dfdbg',
+                'dfdx', 'dfdy', 'd2fdx2', 'd2fdy2', 
                 'dfdsinphi', 'dfdcosphi', 'dfdcos2phi', 'dfdsin2phi',
-                'dfdcos3phi', 'dfdsin3phi','dfdt', 'd2fdt2']:
+                'dfdcos3phi', 'dfdsin3phi']:
             pars['{}{}'.format(self.prefix, p)].set(value = 0.0, vary=False)
         return update_param_vals(pars, self.prefix, **kwargs)
 
     __init__.__doc__ = COMMON_INIT_DOC
     guess.__doc__ = COMMON_GUESS_DOC
+
+#----------------------
 
 class ThermalPhaseModel(Model):
     """Thermal phase model for a tidally-locked planet
@@ -566,6 +585,9 @@ class ThermalPhaseModel(Model):
     __init__.__doc__ = COMMON_INIT_DOC
 
 
+
+#----------------------
+
 class ReflectionModel(Model):
     """Reflected stellar light from a planet with a Lambertian phase function.
 
@@ -614,6 +636,9 @@ class ReflectionModel(Model):
 
     __init__.__doc__ = COMMON_INIT_DOC
 
+
+#----------------------
+
 class RVModel(Model):
     """Radial velocity in a Keplerian orbit
 
@@ -655,6 +680,9 @@ class RVModel(Model):
 
     __init__.__doc__ = COMMON_INIT_DOC
 
+
+
+#----------------------
 
 class RVCompanion(Model):
     """Radial velocity in a Keplerian orbit for the companion
@@ -698,6 +726,135 @@ class RVCompanion(Model):
 
     __init__.__doc__ = COMMON_INIT_DOC
 
+#----------------------
+
+class PlanetModel(Model):
+    r"""Light curve model for a transiting exoplanet including transits,
+    eclipses, and a thermal phase curve for the planet with an offset.
+
+    The flux level from the star is 1 and is assumed to be constant.  
+
+    The thermal phase curve from the planet is approximated by a cosine
+    function with amplitude A=F_max-F_min plus the minimum flux, F_min, i.e.,
+    the maximum flux is F_max = F_min+A, and this occurs at phase (ph_off+0.5)
+    relative to the time of mid-transit, i.e., 
+    .. math::
+        f_th = F_min + A*(1-cos(phi-phi_off))/2
+    where phi = 2*pi*(t-T_0)/P and phi_off = 2*pi*ph_off.
+
+    The transit depth, width shape are parameterised by D, W and b. These
+    parameters are defined below in terms of the radius of the star,  R_1 and
+    R_2, the semi-major axis, a, and the orbital inclination, i. This model
+    assumes R_1 >> R_2, i.e., k=R_2/R_1 <~0.2.  The eccentricy and longitude
+    of periastron for the star's orbit are e and omega, respectively. These
+    are the same parameters used in TransitModel. The eclipse of the planet
+    assumes a uniform flux distribution.
+
+     The apparent time of mid-eclipse includes the correction a_c for the
+    light travel time across the orbit, i.e., for a circular orbit the time of
+    mid-eclipse is (T_0 + 0.5*P) + a_c. 
+    N.B. a_c must have the same units as P. 
+
+    Stellar limb-darkening is described by the power-2 law:
+    .. math::
+        I(\mu; c, \alpha) = 1 - c (1 - \mu**\alpha)
+
+    The following parameters are defined for convenience:
+    - k = R_2/R_1; 
+    - aR = a/R_1; 
+    - A = F_max - F_min = amplitude of thermal phase effect.
+    - rho = 0.013418*aR**3/(P/d)**2.
+    N.B., the mean stellar density in solar units is rho, but only if the mass
+    ratio q = M_planet/M_star is q << 1. 
+
+    :param t:      - independent variable (time)
+    :param T_0:    - time of mid-transit
+    :param P:      - orbital period
+    :param D:      - (R_2/R_1)**2 = k**2
+    :param W:      - (R_1/a)*sqrt((1+k)**2 - b**2)/pi
+    :param b:      - a*cos(i)/R_1
+    :param F_min:  - minimum flux in the thermal phase model 
+    :param F_max:  - maximum flux in the thermal phase model
+    :param ph_off: - offset phase in the thermal phase model
+    :param f_c:    - sqrt(ecc).cos(omega)
+    :param f_s:    - sqrt(ecc).sin(omega)
+    :param h_1:    - I(0.5) = 1 - c*(1-0.5**alpha)
+    :param h_2:    - I(0.5) - I(0) = c*0.5**alpha
+    :param a_c:    - correction for light travel time across the orbit
+
+    """
+
+    def __init__(self, independent_vars=['t'], prefix='', nan_policy='raise',
+                 **kwargs):
+        kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
+                       'independent_vars': independent_vars})
+
+        def _planet_func(t, T_0, P, D, W, b, F_min, F_max, ph_off, f_c, f_s,
+                h_1, h_2, a_c):
+            if (D <= 0) or (D > 0.25) or (W <= 0) or (b < 0):
+                return np.ones_like(t)
+            if (F_min < 0): 
+                return np.ones_like(t)
+            if ((1-abs(f_c)) <= 0) or ((1-abs(f_s)) <= 0):
+                return np.ones_like(t)
+
+            q1 = (1-h_2)**2
+            if (q1 <= 0) or (q1 >=1): return np.ones_like(t)
+            q2 = (h_1-h_2)/(1-h_2)
+            if (q2 <= 0) or (q2 >=1): return np.ones_like(t)
+            c2 = 1 - h_1 + h_2
+            a2 = np.log2(c2/h_2)
+            k = np.sqrt(D)
+            q = (1+k)**2 - b**2
+            if q <= 0: return np.ones_like(t)
+            r_star = np.pi*W/np.sqrt(q)
+            q = 1-b**2*r_star**2
+            if q <= 0: return np.ones_like(t)
+            sini = np.sqrt(q)
+            ecc = f_c**2 + f_s**2
+            om = np.arctan2(f_s, f_c)*180/np.pi
+            # Star-planet apparent separation and mask eclipses/transits
+            z,m = t2z(t, T_0, P, sini, r_star, ecc, om, returnMask=True)
+            # Set z values where planet is behind star  1 to a large nominal
+            # value for calculation of the transit
+            zt = z + 0   # copy 
+            zt[m] = 100
+            # Flux from the star including transits
+            f_star = qpower2(zt, k, c2, a2)
+            # thermal phase effect
+            A = F_max - F_min
+            f_th = F_min + A*(1-np.cos(2*np.pi*((t-T_0)/P-ph_off)))/2
+            # Flux from planet including eclipses
+            z[~m]  = 100
+            f_planet = f_th * ueclipse(z, k)
+            return f_star + f_planet
+
+        super(PlanetModel, self).__init__(_planet_func, **kwargs)
+        self._set_paramhints_prefix()
+
+    def _set_paramhints_prefix(self):
+        self.set_param_hint('P', min=1e-15)
+        self.set_param_hint('D', min=0, max=0.25)
+        self.set_param_hint('W', min=0, max=0.3)
+        self.set_param_hint('b', min=0, max=1.5)
+        self.set_param_hint('F_min', min=0)
+        self.set_param_hint('ph_off', min=-0.5, max=0.5)
+        self.set_param_hint('f_c', value=0, min=-1, max=1, vary=False)
+        self.set_param_hint('f_s', value=0, min=-1, max=1, vary=False)
+        self.set_param_hint('h_1', value=0.7224, min=0, max=1, vary=False)
+        self.set_param_hint('h_2', value=0.6713, min=0, max=1, vary=False)
+        self.set_param_hint('a_c', value=0, min=0, vary=False)
+        expr = "sqrt({prefix:s}D)".format(prefix=self.prefix)
+        self.set_param_hint('k', expr=expr, min=0, max=1)
+        expr ="sqrt((1+{p:s}k)**2-{p:s}b**2)/{p:s}W/pi".format(p=self.prefix)
+        self.set_param_hint('aR',min=1, expr=expr)
+        expr = "{prefix:s}F_max-{prefix:s}F_min".format(prefix=self.prefix)
+        self.set_param_hint('A', expr=expr)
+        expr = "0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix)
+        self.set_param_hint('rho', min=0, expr = expr)
+
+#----------------------
+
 class EBLMModel(Model):
     r"""Light curve model for the mutual eclipses by spherical stars in an
     eclipsing binary with one low-mass companion, e.g., F/G-star + M-dwarf.
@@ -728,6 +885,8 @@ class EBLMModel(Model):
     :param L:   - Depth of eclipse
     :param f_c: - sqrt(ecc).cos(omega)
     :param f_s: - sqrt(ecc).sin(omega)
+    :param h_1:  - I(0.5) = 1 - c*(1-0.5**alpha)
+    :param h_2:  - I(0.5) - I(0) = c*0.5**alpha
     :param a_c: - correction for light travel time across the orbit
 
     """
@@ -771,7 +930,7 @@ class EBLMModel(Model):
 
     def _set_paramhints_prefix(self):
         self.set_param_hint('P', min=1e-15)
-        self.set_param_hint('D', min=0, max=1)
+        self.set_param_hint('D', min=0, max=0.25)
         self.set_param_hint('W', min=0, max=0.3)
         self.set_param_hint('b', min=0, max=1.5)
         self.set_param_hint('L', min=0, max=1)
@@ -782,10 +941,13 @@ class EBLMModel(Model):
         self.set_param_hint('a_c', value=0, min=0, vary=False)
         expr = "sqrt({prefix:s}D)".format(prefix=self.prefix)
         self.set_param_hint('k', expr=expr, min=0, max=1)
-        expr = "L/D".format(prefix=self.prefix)
+        expr = "{prefix:s}L/{prefix:s}D".format(prefix=self.prefix)
         self.set_param_hint('J', expr=expr, min=0)
         expr ="sqrt((1+{p:s}k)**2-{p:s}b**2)/{p:s}W/pi".format(p=self.prefix)
         self.set_param_hint('aR',min=1, expr=expr)
+
+
+#----------------------
 
 class Priors(OrderedDict):
     """An ordered dictionary of all the Prior objects required to evaluate the
@@ -813,6 +975,9 @@ class Priors(OrderedDict):
         self._asteval = Interpreter(usersyms=usersyms)
 
 
+
+
+#----------------------
 
 class Prior(object):
     """A Prior is an object that can be used in the calculation of the
