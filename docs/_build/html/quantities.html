@@ -1,0 +1,193 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>quantities &#8212; pycheops 0.0.16 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="models" href="models.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="toctree-wrapper compound">
+</div>
+<span class="target" id="module-pycheops.quantities"></span><div class="section" id="quantities">
+<h1>quantities<a class="headerlink" href="#quantities" title="Permalink to this headline">¶</a></h1>
+<p>Nominal values of solar and planetary constants from IAU Resolution B3 <a class="footnote-reference brackets" href="#id5" id="id1">1</a>
+plus related constants as astropy quantities.</p>
+<p>Masses in SI units are derived using the 2014 CODATA value for the Newtonian
+constant, G=6.67408E-11 m3.kg-1.s-2.</p>
+<p>The following conversion constants are defined.</p>
+<div class="section" id="solar-conversion-constants">
+<h2>Solar conversion constants<a class="headerlink" href="#solar-conversion-constants" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li><p>R_SunN     - solar radius</p></li>
+<li><p>S_SunN     - total solar irradiance</p></li>
+<li><p>L_SunN     - solar luminosity</p></li>
+<li><p>Teff_SunN  - solar effective temperature</p></li>
+<li><p>GM_SunN    - solar mass parameter</p></li>
+<li><p>M_SunN     - solar mass derived from GM_SunN and G_2014</p></li>
+<li><p>V_SunN     - solar volume = (4.pi.R_SunN**3/3)</p></li>
+</ul>
+</div>
+<div class="section" id="planetary-conversion-constants">
+<h2>Planetary conversion constants<a class="headerlink" href="#planetary-conversion-constants" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li><p>R_eEarthN  - equatorial radius of the Earth</p></li>
+<li><p>R_pEarthN  - polar radius of the Earth</p></li>
+<li><p>R_eJupN    - equatorial radius of Jupiter</p></li>
+<li><p>R_pJupN    - polar radius of Jupiter</p></li>
+<li><p>GM_EarthN  - terrestrial mass parameter</p></li>
+<li><p>GM_JupN    - jovian mass parameter</p></li>
+<li><p>M_EarthN   - mass of the Earth from GM_EarthN and G_2014</p></li>
+<li><p>M_JupN     - mass of Jupiter from GM_JupN and G_2014</p></li>
+<li><p>V_EarthN   - volume of the Earth (4.pi.R_eEarthN^2.R_pEarthN/3)</p></li>
+<li><p>V_JupN     - volume of Jupiter (4.pi.R_eJupN^2.R_pJupN/3)</p></li>
+<li><p>R_EarthN   - volume-average radius of the Earth  (3.V_EarthN/4.pi)^(1/3)</p></li>
+<li><p>R_JupN     - volume-average radius of Jupiter  (3.V_JupN/4.pi)^(1/3)</p></li>
+</ul>
+</div>
+<div class="section" id="related-constants">
+<h2>Related constants<a class="headerlink" href="#related-constants" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li><p>G_2014          - 2014 CODATA value for the Newtonian constant</p></li>
+<li><p>mean_solar_day  - 86,400.002 seconds <a class="footnote-reference brackets" href="#id6" id="id2">2</a></p></li>
+<li><p>au              - IAU 2009 value for astronomical constant in metres. <a class="footnote-reference brackets" href="#id7" id="id3">3</a></p></li>
+<li><p>pc              - 1 parsec = 3600*au*180/pi</p></li>
+</ul>
+</div>
+<div class="section" id="fundamental-constants">
+<h2>Fundamental constants<a class="headerlink" href="#fundamental-constants" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li><p>c               - speed of light in m.s-1 <a class="footnote-reference brackets" href="#id7" id="id4">3</a></p></li>
+</ul>
+</div>
+<div class="section" id="example">
+<h2>Example<a class="headerlink" href="#example" title="Permalink to this headline">¶</a></h2>
+<p>Calculate the density relative to Jupiter for a planet 1/10 the radius of 
+the Sun with a mass 1/1000 of a solar mass. Note that we use the 
+volume-average radius for Jupiter in this case:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pycheops.quantities</span> <span class="kn">import</span> <span class="n">M_SunN</span><span class="p">,</span> <span class="n">R_SunN</span><span class="p">,</span> <span class="n">M_JupN</span><span class="p">,</span> <span class="n">R_JupN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">M_planet_Jup</span> <span class="o">=</span> <span class="n">M_SunN</span><span class="o">/</span><span class="mi">1000</span> <span class="o">/</span> <span class="n">M_JupN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">R_planet_Jup</span> <span class="o">=</span> <span class="n">R_SunN</span><span class="o">/</span><span class="mi">10</span> <span class="o">/</span> <span class="n">R_JupN</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">rho_planet_Jup</span> <span class="o">=</span> <span class="n">M_planet_Jup</span> <span class="o">/</span> <span class="p">(</span><span class="n">R_planet_Jup</span><span class="o">**</span><span class="mi">3</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span> <span class="p">(</span><span class="s2">&quot;Planet mass    = </span><span class="si">{:.3f}</span><span class="s2"> M_Jup&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">M_planet_Jup</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span> <span class="p">(</span><span class="s2">&quot;Planet radius  = </span><span class="si">{:.3f}</span><span class="s2"> R_Jup&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">R_planet_Jup</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span> <span class="p">(</span><span class="s2">&quot;Planet density = </span><span class="si">{:.3f}</span><span class="s2"> rho_Jup&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">rho_planet_Jup</span><span class="p">))</span>
+<span class="go">Planet mass    = 1.048 M_Jup</span>
+<span class="go">Planet radius  = 0.995 R_Jup</span>
+<span class="go">Planet density = 1.063 rho_Jup</span>
+</pre></div>
+</div>
+<p class="rubric">References</p>
+<dl class="footnote brackets">
+<dt class="label" id="id5"><span class="brackets"><a class="fn-backref" href="#id1">1</a></span></dt>
+<dd><p><a class="reference external" href="https://www.iau.org/static/resolutions/IAU2015_English.pdf">https://www.iau.org/static/resolutions/IAU2015_English.pdf</a></p>
+</dd>
+<dt class="label" id="id6"><span class="brackets"><a class="fn-backref" href="#id2">2</a></span></dt>
+<dd><p><a class="reference external" href="http://tycho.usno.navy.mil/leapsec.html">http://tycho.usno.navy.mil/leapsec.html</a></p>
+</dd>
+<dt class="label" id="id7"><span class="brackets">3</span><span class="fn-backref">(<a href="#id3">1</a>,<a href="#id4">2</a>)</span></dt>
+<dd><p>Luzum et al., Celest Mech Dyn Astr (2011) 110:293-304</p>
+</dd>
+</dl>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">pycheops</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="constants.html">constants</a></li>
+<li class="toctree-l1"><a class="reference internal" href="funcs.html">funcs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="instrument.html">instrument</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ld.html">ld</a></li>
+<li class="toctree-l1"><a class="reference internal" href="models.html">models</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">quantities</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="models.html" title="previous chapter">models</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, p.maxted@keele.ac.uk.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.4.0</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/quantities.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

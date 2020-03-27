@@ -1,0 +1,469 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>funcs &#8212; pycheops 0.0.16 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="instrument" href="instrument.html" />
+    <link rel="prev" title="constants" href="constants.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="toctree-wrapper compound">
+</div>
+<span class="target" id="module-pycheops.funcs"></span><div class="section" id="funcs">
+<h1>funcs<a class="headerlink" href="#funcs" title="Permalink to this headline">¶</a></h1>
+<p>Functions relating observable properties of binary stars and exoplanet 
+systems to their fundamental properties, and vice versa. Also functions
+related to Keplerian orbits.</p>
+<div class="section" id="parameters">
+<h2>Parameters<a class="headerlink" href="#parameters" title="Permalink to this headline">¶</a></h2>
+<p>Functions are defined in terms of the following parameters. <a class="footnote-reference brackets" href="#id2" id="id1">1</a></p>
+<ul class="simple">
+<li><p>a          - orbital semi-major axis in solar radii = a_1 + a_2</p></li>
+<li><p>P          - orbital period in mean solar days</p></li>
+<li><p>Mass       - total system mass in solar masses, Mass = m_1 + m_2</p></li>
+<li><p>ecc        - orbital eccentricity</p></li>
+<li><p>omdeg      - longitude of periastron of star’s orbit, omega, in _degrees_</p></li>
+<li><p>sini       - sine of the orbital inclination</p></li>
+<li><p>K          - 2.pi.a.sini/(P.sqrt(1-e^2)) = K_1 + K_2</p></li>
+<li><p>K_1, K_2   - orbital semi-amplitudes in km/s</p></li>
+<li><p>q          - mass ratio = m_2/m_1 = K_1/K_2 = a_1/a_2</p></li>
+<li><dl class="simple">
+<dt>f_m        - mass function = m_2^3.sini^3/(m_1+m_2)^2 in solar masses </dt><dd><p>= K_1^3.P/(2.pi.G).(1-e^2)^(3/2)</p>
+</dd>
+</dl>
+</li>
+<li><p>r_1        - radius of star 1 in units of the semi-major axis, r_1 = R_*/a</p></li>
+<li><p>rhostar    - mean stellar density = 3.pi/(GP^2(1+q)r_1^3)</p></li>
+<li><p>rstar      - host star radius/semi-major axis, rstar = R_*/a</p></li>
+<li><p>k          - planet/star radius ratio, k = R_planet/R_star</p></li>
+<li><p>tzero      - time of mid-transit (minimum on-sky star-planet separation).</p></li>
+<li><p>b          - impact parameter, b = a.cos(i)/R_star</p></li>
+</ul>
+<dl class="footnote brackets">
+<dt class="label" id="id2"><span class="brackets"><a class="fn-backref" href="#id1">1</a></span></dt>
+<dd><p>Hilditch, R.W., An Introduction to Close Binary Stars, CUP 2001.</p>
+</dd>
+</dl>
+</div>
+<div class="section" id="functions">
+<h2>Functions<a class="headerlink" href="#functions" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="pycheops.funcs.a_rsun">
+<code class="sig-prename descclassname">pycheops.funcs.</code><code class="sig-name descname">a_rsun</code><span class="sig-paren">(</span><em class="sig-param">P</em>, <em class="sig-param">Mass</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.a_rsun" title="Permalink to this definition">¶</a></dt>
+<dd><p>Semi-major axis in solar radii</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P</strong> – orbital period in mean solar days</p></li>
+<li><p><strong>Mass</strong> – total mass in solar masses, M</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>a = (G.M.P^2/(4.pi^2))^(1/3) in solar radii</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.f_m">
+<code class="sig-prename descclassname">pycheops.funcs.</code><code class="sig-name descname">f_m</code><span class="sig-paren">(</span><em class="sig-param">P</em>, <em class="sig-param">K</em>, <em class="sig-param">ecc=0</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.f_m" title="Permalink to this definition">¶</a></dt>
+<dd><p>Mass function in solar masses</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>P</strong> – orbital period in mean solar days</p></li>
+<li><p><strong>K</strong> – semi-amplitude of the spectroscopic orbit in km/s</p></li>
+<li><p><strong>ecc</strong> – orbital eccentricity</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>f_m =  m_2^3.sini^3/(m_1+m_2)^2  in solar masses</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.m1sin3i">
+<code class="sig-prename descclassname">pycheops.funcs.</code><code class="sig-name descname">m1sin3i</code><span class="sig-paren">(</span><em class="sig-param">P</em>, <em class="sig-param">K_1</em>, <em class="sig-param">K_2</em>, <em class="sig-param">ecc=0</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.m1sin3i" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reduced mass of star 1 in solar masses</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>K_1</strong> – semi-amplitude of star 1 in km/s</p></li>
+<li><p><strong>K_2</strong> – semi-amplitude of star 2 in km/s</p></li>
+<li><p><strong>P</strong> – orbital period in mean solar days</p></li>
+<li><p><strong>ecc</strong> – orbital eccentricity</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>m_1.sini^3 in solar masses</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.m2sin3i">
+<code class="sig-prename descclassname">pycheops.funcs.</code><code class="sig-name descname">m2sin3i</code><span class="sig-paren">(</span><em class="sig-param">P</em>, <em class="sig-param">K_1</em>, <em class="sig-param">K_2</em>, <em class="sig-param">ecc=0</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.m2sin3i" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reduced mass of star 2 in solar masses</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>K_1</strong> – semi-amplitude of star 1 in km/s</p></li>
+<li><p><strong>K_2</strong> – semi-amplitude of star 2 in km/s</p></li>
+<li><p><strong>P</strong> – orbital period in mean solar days</p></li>
+<li><p><strong>ecc</strong> – orbital eccentricity</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>m_2.sini^3 in solar masses</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.asini">
+<code class="sig-prename descclassname">pycheops.funcs.</code><code class="sig-name descname">asini</code><span class="sig-paren">(</span><em class="sig-param">K</em>, <em class="sig-param">P</em>, <em class="sig-param">ecc=0</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.asini" title="Permalink to this definition">¶</a></dt>
+<dd><p>a.sini in solar radii</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>K</strong> – semi-amplitude of the spectroscopic orbit in km/s</p></li>
+<li><p><strong>P</strong> – orbital period in mean solar days</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>a.sin(i) in solar radii</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.rhostar">
+<code class="sig-prename descclassname">pycheops.funcs.</code><code class="sig-name descname">rhostar</code><span class="sig-paren">(</span><em class="sig-param">r_1</em>, <em class="sig-param">P</em>, <em class="sig-param">q=0</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.rhostar" title="Permalink to this definition">¶</a></dt>
+<dd><p>Mean stellar density from scaled stellar radius.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>r_1</strong> – radius of star in units of the semi-major axis, r_1 = R_*/a</p></li>
+<li><p><strong>P</strong> – orbital period in mean solar days</p></li>
+<li><p><strong>q</strong> – mass ratio, m_2/m_1</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Mean stellar density in solar units</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.K_kms">
+<code class="sig-prename descclassname">pycheops.funcs.</code><code class="sig-name descname">K_kms</code><span class="sig-paren">(</span><em class="sig-param">m_1</em>, <em class="sig-param">m_2</em>, <em class="sig-param">P</em>, <em class="sig-param">sini</em>, <em class="sig-param">ecc</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.K_kms" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="simple">
+<dt>Semi-amplitudes of the spectroscopic orbits in km/s</dt><dd><ul class="simple">
+<li><p>K = 2.pi.a.sini/(P.sqrt(1-ecc^2))</p></li>
+<li><p>K_1 = K * m_2/(m_1+m_2)</p></li>
+<li><p>K_2 = K * m_1/(m_1+m_2)</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>m_1</strong> – mass of star 1 in solar masses</p></li>
+<li><p><strong>m_2</strong> – mass of star 2 in solar masses</p></li>
+<li><p><strong>P</strong> – orbital period in mean solar days</p></li>
+<li><p><strong>sini</strong> – sine of the orbital inclination</p></li>
+<li><p><strong>ecc</strong> – orbital eccentrcity</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>K_1, K_2 – semi-amplitudes in km/s</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.m_comp">
+<code class="sig-prename descclassname">pycheops.funcs.</code><code class="sig-name descname">m_comp</code><span class="sig-paren">(</span><em class="sig-param">f_m</em>, <em class="sig-param">m_1</em>, <em class="sig-param">sini</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.m_comp" title="Permalink to this definition">¶</a></dt>
+<dd><p>Companion mass in solar masses given mass function and stellar mass</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>f_m</strong> – = K_1^3.P/(2.pi.G).(1-ecc^2)^(3/2) in solar masses</p></li>
+<li><p><strong>m_1</strong> – mass of star 1 in solar masses</p></li>
+<li><p><strong>sini</strong> – sine of orbital inclination</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>m_2 = mass of companion to star 1 in solar masses</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.transit_width">
+<code class="sig-prename descclassname">pycheops.funcs.</code><code class="sig-name descname">transit_width</code><span class="sig-paren">(</span><em class="sig-param">r</em>, <em class="sig-param">k</em>, <em class="sig-param">b</em>, <em class="sig-param">P=1</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.transit_width" title="Permalink to this definition">¶</a></dt>
+<dd><p>Total transit duration for a circular orbit.</p>
+<p>See equation (3) from Seager and Malen-Ornelas, 2003ApJ…585.1038S.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>r</strong> – R_star/a</p></li>
+<li><p><strong>k</strong> – R_planet/R_star</p></li>
+<li><p><strong>b</strong> – impact parameter = a.cos(i)/R_star</p></li>
+<li><p><strong>P</strong> – orbital period (optional, default P=1)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Total transit duration in the same units as P.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.t2z">
+<code class="sig-prename descclassname">pycheops.funcs.</code><code class="sig-name descname">t2z</code><span class="sig-paren">(</span><em class="sig-param">t</em>, <em class="sig-param">tzero</em>, <em class="sig-param">P</em>, <em class="sig-param">sini</em>, <em class="sig-param">rstar</em>, <em class="sig-param">ecc=0</em>, <em class="sig-param">omdeg=90</em>, <em class="sig-param">returnMask=False</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.t2z" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculate star-planet separation relative to scaled stellar radius, z</p>
+<p>Optionally, return a flag/mask to indicate cases where the planet is
+further from the observer than the star, i.e., whether phases with z&lt;1 are
+transits (mask==True) or eclipses (mask==False)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>t</strong> – time of observation (scalar or array)</p></li>
+<li><p><strong>tzero</strong> – time of inferior conjunction, i.e., mid-transit</p></li>
+<li><p><strong>P</strong> – orbital period</p></li>
+<li><p><strong>sini</strong> – sine of orbital inclination</p></li>
+<li><p><strong>rstar</strong> – scaled stellar radius, R_star/a</p></li>
+<li><p><strong>ecc</strong> – eccentricity (optional, default=0)</p></li>
+<li><p><strong>omdeg</strong> – longitude of periastron in degrees (optional, default=90)</p></li>
+<li><p><strong>returnFlag</strong> – return a flag to distinguish transits from eclipses.</p></li>
+</ul>
+</dd>
+</dl>
+<p>N.B. omdeg is the longitude of periastron for the star’s orbit</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>z [, mask]</p>
+</dd>
+<dt class="field-even">Example</dt>
+<dd class="field-even"><p></p></dd>
+</dl>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pycheops.funcs</span> <span class="kn">import</span> <span class="n">t2z</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">numpy</span> <span class="kn">import</span> <span class="n">linspace</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">t</span> <span class="o">=</span> <span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1000</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sini</span> <span class="o">=</span> <span class="mf">0.999</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">rstar</span> <span class="o">=</span> <span class="mf">0.1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">t2z</span><span class="p">(</span><span class="n">t</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="n">sini</span><span class="p">,</span><span class="n">rstar</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">12</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ecc</span> <span class="o">=</span> <span class="mf">0.1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">omdeg</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">90</span><span class="p">,</span> <span class="mi">180</span><span class="p">,</span> <span class="mi">270</span><span class="p">):</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">t2z</span><span class="p">(</span><span class="n">t</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="n">sini</span><span class="p">,</span><span class="n">rstar</span><span class="p">,</span><span class="n">ecc</span><span class="p">,</span><span class="n">omdeg</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.tzero2tperi">
+<code class="sig-prename descclassname">pycheops.funcs.</code><code class="sig-name descname">tzero2tperi</code><span class="sig-paren">(</span><em class="sig-param">tzero</em>, <em class="sig-param">P</em>, <em class="sig-param">sini</em>, <em class="sig-param">ecc</em>, <em class="sig-param">omdeg</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.tzero2tperi" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculate time of periastron from time of mid-transit</p>
+<p>Uses the method by Lacy, 1992AJ….104.2213L</p>
+<dl class="field-list">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>tzero</strong> – times of mid-transit</p></li>
+<li><p><strong>P</strong> – orbital period</p></li>
+<li><p><strong>sini</strong> – sine of orbital inclination</p></li>
+<li><p><strong>ecc</strong> – eccentricity</p></li>
+<li><p><strong>omdeg</strong> – longitude of periastron in degrees</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>time of periastron prior to tzero</p>
+</dd>
+<dt class="field-odd">Example</dt>
+<dd class="field-odd"><div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pycheops.funcs</span> <span class="kn">import</span> <span class="n">tzero2tperi</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">tzero</span> <span class="o">=</span> <span class="mf">54321.6789</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P</span> <span class="o">=</span> <span class="mf">1.23456</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sini</span> <span class="o">=</span> <span class="mf">0.987</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ecc</span> <span class="o">=</span> <span class="mf">0.123</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">omdeg</span> <span class="o">=</span> <span class="mf">89.01</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">tzero2tperi</span><span class="p">(</span><span class="n">tzero</span><span class="p">,</span><span class="n">P</span><span class="p">,</span><span class="n">sini</span><span class="p">,</span><span class="n">ecc</span><span class="p">,</span><span class="n">omdeg</span><span class="p">))</span>
+<span class="go">54321.6762764</span>
+</pre></div>
+</div>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.vrad">
+<code class="sig-prename descclassname">pycheops.funcs.</code><code class="sig-name descname">vrad</code><span class="sig-paren">(</span><em class="sig-param">t</em>, <em class="sig-param">tzero</em>, <em class="sig-param">P</em>, <em class="sig-param">K</em>, <em class="sig-param">ecc=0</em>, <em class="sig-param">omdeg=90</em>, <em class="sig-param">sini=1</em>, <em class="sig-param">primary=True</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.vrad" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculate radial velocity, V_r, for body in a Keplerian orbit</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>t</strong> – array of input times</p></li>
+<li><p><strong>tzero</strong> – time of inferior conjunction, i.e., mid-transit</p></li>
+<li><p><strong>P</strong> – orbital period</p></li>
+<li><p><strong>K</strong> – radial velocity semi-amplitude</p></li>
+<li><p><strong>ecc</strong> – eccentricity (optional, default=0)</p></li>
+<li><p><strong>omdeg</strong> – longitude of periastron in degrees (optional, default=90)</p></li>
+<li><p><strong>sini</strong> – sine of orbital inclination (to convert tzero to t_peri)</p></li>
+<li><p><strong>primary</strong> – if false calculate V_r for companion</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>V_r in same units as K relative to the barycentre of the binary</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.funcs.xyz_planet">
+<code class="sig-prename descclassname">pycheops.funcs.</code><code class="sig-name descname">xyz_planet</code><span class="sig-paren">(</span><em class="sig-param">t</em>, <em class="sig-param">tzero</em>, <em class="sig-param">P</em>, <em class="sig-param">sini</em>, <em class="sig-param">ecc=0</em>, <em class="sig-param">omdeg=90</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.funcs.xyz_planet" title="Permalink to this definition">¶</a></dt>
+<dd><p>Position of the planet in Cartesian coordinates.</p>
+<p>The position of the ascending node is taken to be Omega=0 and the
+semi-major axis is taken to be a=1.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>t</strong> – time of observation (scalar or array)</p></li>
+<li><p><strong>tzero</strong> – time of inferior conjunction, i.e., mid-transit</p></li>
+<li><p><strong>P</strong> – orbital period</p></li>
+<li><p><strong>sini</strong> – sine of orbital inclination</p></li>
+<li><p><strong>ecc</strong> – eccentricity (optional, default=0)</p></li>
+<li><p><strong>omdeg</strong> – longitude of periastron in degrees (optional, default=90)</p></li>
+</ul>
+</dd>
+</dl>
+<p>N.B. omdeg is the longitude of periastron for the star’s orbit</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>(x, y, z)</p>
+</dd>
+<dt class="field-even">Example</dt>
+<dd class="field-even"><p></p></dd>
+</dl>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pycheops.funcs</span> <span class="kn">import</span> <span class="n">phase_angle</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">numpy</span> <span class="kn">import</span> <span class="n">linspace</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">t</span> <span class="o">=</span> <span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1000</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sini</span> <span class="o">=</span> <span class="mf">0.9</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ecc</span> <span class="o">=</span> <span class="mf">0.1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">omdeg</span> <span class="o">=</span> <span class="mi">90</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">xyz_planet</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">sini</span><span class="p">,</span> <span class="n">ecc</span><span class="p">,</span> <span class="n">omdeg</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">pycheops</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="constants.html">constants</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">funcs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="instrument.html">instrument</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ld.html">ld</a></li>
+<li class="toctree-l1"><a class="reference internal" href="models.html">models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quantities.html">quantities</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="constants.html" title="previous chapter">constants</a></li>
+      <li>Next: <a href="instrument.html" title="next chapter">instrument</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, p.maxted@keele.ac.uk.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.4.0</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/funcs.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

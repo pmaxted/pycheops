@@ -268,3 +268,4 @@ Second attempt to avoid ellc import (try/except)
  Fixed bug with missing prefix in expr for param hints in models.
  Added model.PlanetModel
  Added dataset.lc['bg']
+ Updated conf.py for sphinx documentation

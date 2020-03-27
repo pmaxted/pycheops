@@ -1,0 +1,250 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>instrument &#8212; pycheops 0.0.16 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="ld" href="ld.html" />
+    <link rel="prev" title="funcs" href="funcs.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="toctree-wrapper compound">
+</div>
+<span class="target" id="module-pycheops.instrument"></span><div class="section" id="instrument">
+<h1>instrument<a class="headerlink" href="#instrument" title="Permalink to this headline">¶</a></h1>
+<blockquote>
+<div><p>Constants, functions and data related to the CHEOPS instrument.</p>
+</div></blockquote>
+<div class="section" id="functions">
+<h2>Functions<a class="headerlink" href="#functions" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="pycheops.instrument.response">
+<code class="sig-prename descclassname">pycheops.instrument.</code><code class="sig-name descname">response</code><span class="sig-paren">(</span><em class="sig-param">passband='CHEOPS'</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.instrument.response" title="Permalink to this definition">¶</a></dt>
+<dd><p>Instrument response functions.</p>
+<p>The response functions have been digitized from Fig. 2 of
+<a class="reference external" href="https://www.cosmos.esa.int/web/cheops/cheops-performances">https://www.cosmos.esa.int/web/cheops/cheops-performances</a></p>
+<p>The available passband names are ‘CHEOPS’, ‘MOST’, 
+‘Kepler’, ‘CoRoT’, ‘Gaia’, ‘B’, ‘V’, ‘R’, ‘I’,
+‘u_’,’g_’,’r_’,’i_’,’z_’, and ‘NGTS’</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>passband</strong> – instrument/passband names (case sensitive).</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Instrument response function as an astropy Table object.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.instrument.visibility">
+<code class="sig-prename descclassname">pycheops.instrument.</code><code class="sig-name descname">visibility</code><span class="sig-paren">(</span><em class="sig-param">ra</em>, <em class="sig-param">dec</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.instrument.visibility" title="Permalink to this definition">¶</a></dt>
+<dd><p>Estimate of target visibility</p>
+<p>The target visibility estimated with this function is approximate. A more
+reliable estimate of the observing efficiency can be made with the 
+Feasibility Checker tool.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ra</strong> – right ascension in degrees (scalar or array)</p></li>
+<li><p><strong>dec</strong> – declination in degrees (scalar or array)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>target visibility (%)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.instrument.exposure_time">
+<code class="sig-prename descclassname">pycheops.instrument.</code><code class="sig-name descname">exposure_time</code><span class="sig-paren">(</span><em class="sig-param">G</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.instrument.exposure_time" title="Permalink to this definition">¶</a></dt>
+<dd><p>Recommended minimum/maximum exposure times</p>
+<p>The function returns the exposure times that are estimated to provide 
+10% and 98% of the detector full well capacity in the brightest image
+pixel of the target.</p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd">param G</dt>
+<dd class="field-odd"><p>Gaia G-band magnitude</p>
+</dd>
+<dt class="field-even">returns</dt>
+<dd class="field-even"><p>min,max recommended exposure time</p>
+</dd>
+</dl>
+</div></blockquote>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.instrument.transit_noise">
+<code class="sig-prename descclassname">pycheops.instrument.</code><code class="sig-name descname">transit_noise</code><span class="sig-paren">(</span><em class="sig-param">time</em>, <em class="sig-param">flux</em>, <em class="sig-param">flux_err</em>, <em class="sig-param">T_0=None</em>, <em class="sig-param">width=3</em>, <em class="sig-param">h_1=0.7224</em>, <em class="sig-param">h_2=0.6713</em>, <em class="sig-param">tol=0.1</em>, <em class="sig-param">method='scaled'</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.instrument.transit_noise" title="Permalink to this definition">¶</a></dt>
+<dd><p>Transit noise estimate</p>
+<p>The noise is calculated in a window of duration ‘width’ in hours centered 
+at time T_0 by first dividing out the best-fitting transit (even if this
+has a negative depth), and then finding the depth of an injected transit
+that gives S/N = 1.</p>
+<p>Two methods are available to estimate the transit depth and its standard
+error - ‘scaled’ or ‘minerr’.</p>
+<p>If method=’scaled’, the transit depth and its standard error are
+calculated assuming that the true standard errors on the flux measurements
+are a factor f times the nominal standard error(s) provided in flux_err.</p>
+<p>If method=’minerr’, the transit depth and its standard error are
+calculated assuming that standard error(s) provided in flux_err are a
+lower bound to the true standard errors. This tends to be more
+conservative than using method=’scaled’.</p>
+<p>The transit is calculated from an impact parameter b=0 using power-2 limb
+darkening parameters h_1 and h_2. Default values for h_1 and h_2 are solar
+values.</p>
+<p>If T_0 is not specifed that the median value of time is used.</p>
+<p>If there are insufficient data for the calculation the function returns
+values returned are np.nan, np.nan</p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd">param time</dt>
+<dd class="field-odd"><p>Array of observed times (days)</p>
+</dd>
+<dt class="field-even">param flux</dt>
+<dd class="field-even"><p>Array of normalised flux measurements</p>
+</dd>
+<dt class="field-odd">param flux_err</dt>
+<dd class="field-odd"><p>Standard error estimate(s) for flux - array of scalar</p>
+</dd>
+<dt class="field-even">param T_0</dt>
+<dd class="field-even"><p>Centre of time window for noise estimate</p>
+</dd>
+<dt class="field-odd">param width</dt>
+<dd class="field-odd"><p>Width of time window for noise estimate in hours</p>
+</dd>
+<dt class="field-even">param h_1</dt>
+<dd class="field-even"><p>Limb darkening parameter</p>
+</dd>
+<dt class="field-odd">param h_2</dt>
+<dd class="field-odd"><p>Limb darkening parameter</p>
+</dd>
+<dt class="field-even">param tol</dt>
+<dd class="field-even"><p>Tolerance criterion for convergence (ppm)</p>
+</dd>
+<dt class="field-odd">param method</dt>
+<dd class="field-odd"><p>‘scaled’ or ‘minerr’</p>
+</dd>
+<dt class="field-even">returns</dt>
+<dd class="field-even"><p>noise in ppm and, if method is ‘scaled’, noise scaling factor, f</p>
+</dd>
+</dl>
+</div></blockquote>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.instrument.count_rate">
+<code class="sig-prename descclassname">pycheops.instrument.</code><code class="sig-name descname">count_rate</code><span class="sig-paren">(</span><em class="sig-param">gmag</em>, <em class="sig-param">bp_rp</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.instrument.count_rate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Predicted count rate</p>
+<p>The count rate in e-/s based on the star’s Gaia G magnitude and G_BP-R_BP
+colour. This value returned is suitable for use in the CHEOPS exposure
+time calculator using the option “Expected flux in CHEOPS passband”</p>
+<p>** Currently based on stellar models convolved with throughout and QE
+curves measured pre-launch.</p>
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">pycheops</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="constants.html">constants</a></li>
+<li class="toctree-l1"><a class="reference internal" href="funcs.html">funcs</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">instrument</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ld.html">ld</a></li>
+<li class="toctree-l1"><a class="reference internal" href="models.html">models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quantities.html">quantities</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="funcs.html" title="previous chapter">funcs</a></li>
+      <li>Next: <a href="ld.html" title="next chapter">ld</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, p.maxted@keele.ac.uk.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.4.0</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/instrument.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

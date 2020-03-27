@@ -21,10 +21,10 @@
 constants
 =========
 Nominal values of solar and planetary constants in SI units from IAU
-Resolution B3 [1] plus related constants
+Resolution B3 [1]_ plus related constants
 
 Masses in SI units are derived using the 2014 CODATA value for the 
-Newtonian constant, G=6.67408E-11 m3.kg-1.s-2.
+Newtonian constant, :math:`G=6.67408\\times 10^{-11}\,m^3\,kg^{-1}\,s^{-2}`.
 
 The following conversion constants are defined.
 
@@ -57,8 +57,8 @@ Planetary conversion constants
 Related constants
 -----------------
 * G_2014          - 2014 CODATA value for the Newtonian constant
-* mean_solar_day  - 86,400.002 seconds [2] 
-* au              - IAU 2009 value for astronomical constant in metres. [3]
+* mean_solar_day  - 86,400.002 seconds [2]_
+* au              - IAU 2009 value for astronomical constant in metres. [3]_
 * pc              - 1 parsec = 3600*au*180/pi
 * c               - speed of light = 299,792,458 m / s
 

@@ -27,7 +27,7 @@ related to Keplerian orbits.
 
 Parameters
 ----------
-Functions are defined in terms of the following parameters. [1]
+Functions are defined in terms of the following parameters. [1]_
 
 * a          - orbital semi-major axis in solar radii = a_1 + a_2 
 * P          - orbital period in mean solar days
@@ -306,6 +306,7 @@ def t2z(t, tzero, P, sini, rstar, ecc=0, omdeg=90, returnMask=False):
     :param ecc: eccentricity (optional, default=0)
     :param omdeg: longitude of periastron in degrees (optional, default=90)
     :param returnFlag: return a flag to distinguish transits from eclipses.
+
     N.B. omdeg is the longitude of periastron for the star's orbit
 
     :returns: z [, mask]

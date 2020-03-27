@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>ld &#8212; pycheops 0.0.16 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="models" href="models.html" />
+    <link rel="prev" title="instrument" href="instrument.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="toctree-wrapper compound">
+</div>
+<span class="target" id="module-pycheops.ld"></span><div class="section" id="ld">
+<h1>ld<a class="headerlink" href="#ld" title="Permalink to this headline">¶</a></h1>
+<p>Limb darkening functions</p>
+<p>The available passband names are:</p>
+<ul class="simple">
+<li><p>‘CHEOPS’, ‘MOST’, ‘Kepler’, ‘CoRoT’, ‘Gaia’, ‘TESS’</p></li>
+<li><p>‘U’, ‘B’, ‘V’, ‘R’, ‘I’ (Bessell/Johnson)</p></li>
+<li><p>‘u_’, ‘g_’, ‘r_’, ‘i_’, ‘z_’  (SDSS)</p></li>
+<li><p>‘NGTS’</p></li>
+</ul>
+<p>The power-2 limb-darkening law is described in Maxted (2018) <a class="footnote-reference brackets" href="#id3" id="id1">1</a>.
+Uninformative sampling of the parameter space for the power-2 law
+is described in Short et al. (2019) <a class="footnote-reference brackets" href="#id4" id="id2">2</a>.</p>
+<div class="section" id="examples">
+<h2>Examples<a class="headerlink" href="#examples" title="Permalink to this headline">¶</a></h2>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pycheops.ld</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">T_eff</span> <span class="o">=</span> <span class="mi">5560</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">log_g</span> <span class="o">=</span> <span class="mf">4.3</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Fe_H</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.3</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">passband</span> <span class="o">=</span> <span class="s1">&#39;Kepler&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">p2K</span> <span class="o">=</span> <span class="n">stagger_power2_interpolator</span><span class="p">(</span><span class="n">passband</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c2</span><span class="p">,</span><span class="n">a2</span><span class="p">,</span><span class="n">h1</span><span class="p">,</span><span class="n">h2</span> <span class="o">=</span> <span class="n">p2K</span><span class="p">(</span><span class="n">T_eff</span><span class="p">,</span> <span class="n">log_g</span><span class="p">,</span> <span class="n">Fe_H</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="s1">&#39;h_1 = </span><span class="si">{:0.3f}</span><span class="s1">, h_2 = </span><span class="si">{:0.3f}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">h1</span><span class="p">,</span> <span class="n">h2</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">mu</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">mu</span><span class="p">,</span> <span class="n">ld_power2</span><span class="p">(</span><span class="n">mu</span><span class="p">,[</span><span class="n">c2</span><span class="p">,</span> <span class="n">a2</span><span class="p">]),</span><span class="n">label</span><span class="o">=</span><span class="s1">&#39;power-2&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;$\mu$&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;$I_{\lambda}(\mu)$&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p class="rubric">References</p>
+<dl class="footnote brackets">
+<dt class="label" id="id3"><span class="brackets"><a class="fn-backref" href="#id1">1</a></span></dt>
+<dd><p>Maxted, P.F.L., 2018, A&amp;A, submitted</p>
+</dd>
+<dt class="label" id="id4"><span class="brackets"><a class="fn-backref" href="#id2">2</a></span></dt>
+<dd><p>Short, D.R., et al., 2019, RNAAS, …, …</p>
+</dd>
+</dl>
+<dl class="function">
+<dt id="pycheops.ld.ld_power2">
+<code class="sig-prename descclassname">pycheops.ld.</code><code class="sig-name descname">ld_power2</code><span class="sig-paren">(</span><em class="sig-param">mu</em>, <em class="sig-param">a</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.ld.ld_power2" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluate power-2 limb-darkening law</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>mu</strong> – cos of angle between surface normal and line of sight</p></li>
+<li><p><strong>a</strong> – array or tuple [c, alpha]</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>1 - c * (1-mu**alpha)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.ld.ld_claret">
+<code class="sig-prename descclassname">pycheops.ld.</code><code class="sig-name descname">ld_claret</code><span class="sig-paren">(</span><em class="sig-param">mu</em>, <em class="sig-param">a</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.ld.ld_claret" title="Permalink to this definition">¶</a></dt>
+<dd><p>Evaluate Claret 4-parameter limb-darkening law</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>mu</strong> – cos of angle between surface normal and line of sight</p></li>
+<li><p><strong>a</strong> – array or tuple [a_1, a_2, a_3, a_4]</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>1 - Sum(i=1,4) a_i*(1-mu**(i/2))</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="class">
+<dt id="pycheops.ld.stagger_power2_interpolator">
+<em class="property">class </em><code class="sig-prename descclassname">pycheops.ld.</code><code class="sig-name descname">stagger_power2_interpolator</code><span class="sig-paren">(</span><em class="sig-param">passband='CHEOPS'</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.ld.stagger_power2_interpolator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Parameters of a power-2 limb-darkening law interpolated
+from the Stagger grid.</p>
+<dl class="simple">
+<dt>The power-2 limb darkening law is </dt><dd><p>I_X(mu) = 1 - c * (1-mu**alpha)</p>
+</dd>
+</dl>
+<p>It is often better to use the transformed coefficients</p>
+<ul class="simple">
+<li><p>h1 = 1 - c*(1-0.5**alpha)</p></li>
+</ul>
+<p>and</p>
+<ul class="simple">
+<li><p>h2 = c*0.5**alpha</p></li>
+</ul>
+<p>as free parameters in a least-squares fit and/or for applying priors.</p>
+<p>Returns NaN if interpolation outside the grid range is attempted</p>
+<dl class="method">
+<dt id="pycheops.ld.stagger_power2_interpolator.__call__">
+<code class="sig-name descname">__call__</code><span class="sig-paren">(</span><em class="sig-param">T_eff</em>, <em class="sig-param">log_g</em>, <em class="sig-param">Fe_H</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.ld.stagger_power2_interpolator.__call__" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>T_eff</strong> – effective temperature in Kelvin</p></li>
+<li><p><strong>log_g</strong> – log of the surface gravity in cgs units</p></li>
+<li><p><strong>Fe/H</strong> – [Fe/H] in dex</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>c, alpha, h_1, h_2</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.ld.ca_to_h1h2">
+<code class="sig-prename descclassname">pycheops.ld.</code><code class="sig-name descname">ca_to_h1h2</code><span class="sig-paren">(</span><em class="sig-param">c</em>, <em class="sig-param">alpha</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.ld.ca_to_h1h2" title="Permalink to this definition">¶</a></dt>
+<dd><p>Transform for power-2 law coefficients
+h1 = 1 - c*(1-0.5**alpha)
+h2 = c*0.5**alpha</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>c</strong> – power-2 law coefficient, c</p></li>
+<li><p><strong>alpha</strong> – power-2 law exponent, alpha</p></li>
+</ul>
+</dd>
+</dl>
+<p>returns: h1, h2</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.ld.h1h2_to_ca">
+<code class="sig-prename descclassname">pycheops.ld.</code><code class="sig-name descname">h1h2_to_ca</code><span class="sig-paren">(</span><em class="sig-param">h1</em>, <em class="sig-param">h2</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.ld.h1h2_to_ca" title="Permalink to this definition">¶</a></dt>
+<dd><p>Inverse transform for power-2 law coefficients
+c = 1 - h1 + h2
+alpha = log2(c/h2)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>h1</strong> – 1 - c*(1-0.5**alpha)</p></li>
+<li><p><strong>h2</strong> – c*0.5**alpha</p></li>
+</ul>
+</dd>
+</dl>
+<p>returns: c, alpha</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.ld.q1q2_to_h1h2">
+<code class="sig-prename descclassname">pycheops.ld.</code><code class="sig-name descname">q1q2_to_h1h2</code><span class="sig-paren">(</span><em class="sig-param">q1</em>, <em class="sig-param">q2</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.ld.q1q2_to_h1h2" title="Permalink to this definition">¶</a></dt>
+<dd><p>Inverse transform to h1, h2 from uninformative paramaters q1, q2</p>
+<p>h1 = 1 - sqrt(q1) + q2*sqrt(q1)
+h2 = 1 - sqrt(q1)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>q1</strong> – (1 - h2)**2</p></li>
+<li><p><strong>q2</strong> – (h1 - h2)/(1-h2)</p></li>
+</ul>
+</dd>
+</dl>
+<p>returns: q1, q2</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.ld.h1h2_to_q1q2">
+<code class="sig-prename descclassname">pycheops.ld.</code><code class="sig-name descname">h1h2_to_q1q2</code><span class="sig-paren">(</span><em class="sig-param">h1</em>, <em class="sig-param">h2</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.ld.h1h2_to_q1q2" title="Permalink to this definition">¶</a></dt>
+<dd><p>Transform h1, h2 to uninformative paramaters q1, q2</p>
+<p>q1 = (1 - h2)**2
+q2 = (h1 - h2)/(1-h2)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>h1</strong> – 1 - c*(1-0.5**alpha)</p></li>
+<li><p><strong>h2</strong> – c*0.5**alpha</p></li>
+</ul>
+</dd>
+</dl>
+<p>returns: q1, q2</p>
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">pycheops</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="constants.html">constants</a></li>
+<li class="toctree-l1"><a class="reference internal" href="funcs.html">funcs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="instrument.html">instrument</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">ld</a></li>
+<li class="toctree-l1"><a class="reference internal" href="models.html">models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quantities.html">quantities</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="instrument.html" title="previous chapter">instrument</a></li>
+      <li>Next: <a href="models.html" title="next chapter">models</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, p.maxted@keele.ac.uk.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.4.0</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/ld.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

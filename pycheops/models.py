@@ -17,7 +17,7 @@
 #   You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-"""
+r"""
 models
 ======
 Models and likelihood functions for use with lmfit
@@ -46,14 +46,17 @@ def qpower2(z,k,c,a):
     r"""
     Fast and accurate transit light curves for the power-2 limb-darkening law
 
-    The power-2 limb-darkening law is I(\mu) = 1 - c (1 - \mu**\alpha)
+    The power-2 limb-darkening law is
 
-    Light curves are calculated using the qpower2 approximation [1]. The
+    .. math::
+        I(\mu) = 1 - c (1 - \mu^\alpha)
+
+    Light curves are calculated using the qpower2 approximation [2]_. The
     approximation is accurate to better than 100ppm for radius ratio k < 0.1.
 
-    N.B. qpower2 is untested/inaccurate for values of k > 0.2
+    **N.B.** qpower2 is untested/inaccurate for values of k > 0.2
 
-    .. [1] Maxted, P.F.L. & Gill, S., 2019, accepted for publication in A&A.
+    .. [2] Maxted, P.F.L. & Gill, S., 2019A&A...622A..33M 
 
     :param z: star-planet separation on the sky cf. star radius (array)
     :param k: planet-star radius ratio (scalar, k<1) 
@@ -63,6 +66,7 @@ def qpower2(z,k,c,a):
     :returns: light curve (observed flux)  
 
     :Example:
+
     >>> from pycheops.models import qpower2
     >>> from pycheops.funcs import t2z
     >>> from numpy import linspace
@@ -125,7 +129,7 @@ def qpower2(z,k,c,a):
 
 @jit(nopython=True)
 def scaled_transit_fit(flux, sigma, model):
-    """
+    r"""
     Optimum scaled transit depth for data with scaled errors
 
     Find the value of the scaling factor s that provides the best fit of the
@@ -164,26 +168,26 @@ def scaled_transit_fit(flux, sigma, model):
 
 
 def minerr_transit_fit(flux, sigma, model):
-    """
+    r"""
     Optimum scaled transit depth for data with lower bounds on errors
 
     Find the value of the scaling factor s that provides the best fit of the
     model m = 1 + s*(model-1) to the normalised input fluxes. It is assumed
     that the nominal standard error(s) provided in sigma are lower bounds to
-    the true standard errors on the flux measurements. The probability
-    distribution for the true standard errors is assumed to be [1]
-        P(sigma_true|sigma) = sigma/sigma_true**2
+    the true standard errors on the flux measurements. [1]_ The probability
+    distribution for the true standard errors is assumed to be
 
+    .. math::
+        P(\sigma_{\rm true} | \sigma) = \sigma/\sigma_{\rm true}^2 
 
-     :param flux: Array of normalised flux measurements
+    :param flux: Array of normalised flux measurements
 
-     :param sigma: Lower bound(s) on standard error for flux - array or scalar
+    :param sigma: Lower bound(s) on standard error for flux - array or scalar
 
-     :param model: Transit model to be scaled
+    :param model: Transit model to be scaled
 
-     :returns: s, sigma_s
+    :returns: s, sigma_s
 
-  
 .. rubric References
 .. [1] Sivia, D.S. & Skilling, J., Data Analysis - A Bayesian Tutorial, 2nd
    ed., section 8.3.1
@@ -247,7 +251,7 @@ def minerr_transit_fit(flux, sigma, model):
 
 @jit(nopython=True)
 def ueclipse(z,k):
-    """
+    r"""
     Eclipse light curve for a planet with uniform surface brightness by a star
 
     :param z: star-planet separation on the sky cf. star radius (array)
@@ -278,8 +282,9 @@ class TransitModel(Model):
     spherical body (planet).
 
     Limb-darkening is described by the power-2 law:
+
     .. math::
-        I(\mu; c, \alpha) = 1 - c (1 - \mu**\alpha)
+        I(\mu) = 1 - c (1 - \mu^\alpha)
 
     The transit depth, width shape are parameterised by D, W and b. These
     parameters are defined below in terms of the radius of the star and
@@ -288,11 +293,13 @@ class TransitModel(Model):
     orbit are e and omega, respectively.
 
     The following parameters are defined for convenience:
-    - k = R_p/R_s; 
-    - aR = a/R_s; 
-    - rho = 0.013418*aR**3/(P/d)**2.
-    N.B., the mean stellar density in solar units is rho, but only if the mass
-    ratio q = M_planet/M_star is q << 1. 
+
+    * k = R_p/R_s; 
+    * aR = a/R_s; 
+    * rho = 0.013418*aR**3/(P/d)**2.
+
+    **N.B.** the mean stellar density in solar units is rho, but only if the 
+    mass ratio q = M_planet/M_star is q << 1. 
 
     :param t:    - independent variable (time)
     :param T_0:  - time of mid-transit
@@ -376,15 +383,18 @@ class EclipseModel(Model):
     TransitModel. The flux level outside of eclipse is 1 and inside eclipse is
     (1-L). The apparent time of mid-eclipse includes the correction a_c for
     the light travel time across the orbit, i.e., for a circular orbit the
-    time of mid-eclipse is (T_0 + 0.5*P) + a_c. N.B. a_c must have the same
-    units as P.
+    time of mid-eclipse is (T_0 + 0.5*P) + a_c. 
+    
+    **N.B.** a_c must have the same units as P.
 
     The following parameters are defined for convenience:
-    - k = R_p/R_s; 
-    - aR = a/R_s; 
-    - rho = 0.013418*aR**3/(P/d)**2.
-    N.B., the mean stellar density in solar units is rho, but only if the mass
-    ratio q = M_planet/M_star is q << 1. 
+
+    * k = R_p/R_s; 
+    * aR = a/R_s; 
+    * rho = 0.013418*aR**3/(P/d)**2.
+
+    **N.B.** the mean stellar density in solar units is rho, but only if the
+    mass ratio q = M_planet/M_star is q << 1. 
 
     :param t:   - independent variable (time)
     :param T_0: - time of mid-transit
@@ -446,7 +456,7 @@ class EclipseModel(Model):
 #----------------------
 
 class FactorModel(Model):
-    """Flux scaling and trend factor model
+    r"""Flux scaling and trend factor model
 
     f = c*(1 + dfdt*dt + d2fdt2*dt**2 + dfdbg*bg(t)  + 
                dfdx*dx(t) + dfdy*dy(t) +
@@ -520,7 +530,7 @@ class FactorModel(Model):
             self.set_param_hint(p, value=0, vary=False)
 
     def guess(self, data, **kwargs):
-        """Estimate initial model parameter values from data."""
+        r"""Estimate initial model parameter values from data."""
         pars = self.make_params()
 
         pars['%sc' % self.prefix].set(value=data.median())
@@ -531,15 +541,18 @@ class FactorModel(Model):
             pars['{}{}'.format(self.prefix, p)].set(value = 0.0, vary=False)
         return update_param_vals(pars, self.prefix, **kwargs)
 
-    __init__.__doc__ = COMMON_INIT_DOC
-    guess.__doc__ = COMMON_GUESS_DOC
+    #__init__.__doc__ = COMMON_INIT_DOC
+    #guess.__doc__ = COMMON_GUESS_DOC
 
 #----------------------
 
 class ThermalPhaseModel(Model):
-    """Thermal phase model for a tidally-locked planet
-         a_th*(1-cos(phi))/2 + b_th*(1+sin(phi))/2 + c_th,
-    where phi = 2*pi*(t-T_0)/P
+    r"""Thermal phase model for a tidally-locked planet
+
+    .. math::
+        a_{th}[1-\cos(\phi))/2 + b_{th}*(1+\sin(\phi)/2 + c_{th},
+
+    where :math:`\phi = 2\pi(t-T_0)/P`
 
     :param t:    - independent variable (time)
     :param T_0:  - time of inferior conjunction (mid-transit)
@@ -550,9 +563,9 @@ class ThermalPhaseModel(Model):
 
     The following parameters are defined for convenience.
 
-    A = sqrt(a_th**2 + b_th**2), peak-to-trough amplitude of the phase curve
-    F = c_th + (a_th + b_th + A)/2, flux at the maximum of the phase curve
-    ph_max = arctan2(b_th,-a_th)/(2*pi) = phase at maximum flux
+    * A = sqrt(a_th**2 + b_th**2), peak-to-trough amplitude of the phase curve
+    * F = c_th + (a_th + b_th + A)/2, flux at the maximum of the phase curve
+    * ph_max = arctan2(b_th,-a_th)/(2*pi) = phase at maximum flux
 
     """
 
@@ -589,13 +602,16 @@ class ThermalPhaseModel(Model):
 #----------------------
 
 class ReflectionModel(Model):
-    """Reflected stellar light from a planet with a Lambertian phase function.
+    r"""Reflected stellar light from a planet with a Lambertian phase function.
 
-     The fraction of the stellar flux reflected from the planet of radius R_p 
-    at a distance r from the star and viewed at phase angle beta is
-      A_g*(R_p/r)**2 * [sin(beta) + (pi-beta)*cos(beta) ]/pi
+    The fraction of the stellar flux reflected from the planet of radius
+    :math:`R_p` at a distance :math:`r` from the star and viewed at phase
+    angle :math:`\beta` is
+
+    .. math::
+        A_g(R_p/r)^2  \times  [\sin(\beta) + (\pi-\beta)*\cos(\beta) ]/\pi
  
-     The eccentricity and longitude of periastron for the planet's orbit are
+    The eccentricity and longitude of periastron for the planet's orbit are
     ecc and omega, respectively.
 
     :param t:    - independent variable (time)
@@ -640,7 +656,7 @@ class ReflectionModel(Model):
 #----------------------
 
 class RVModel(Model):
-    """Radial velocity in a Keplerian orbit
+    r"""Radial velocity in a Keplerian orbit
 
     :param t:    - independent variable (time)
     :param T_0:  - time of inferior conjunction for the companion (mid-transit)
@@ -685,7 +701,7 @@ class RVModel(Model):
 #----------------------
 
 class RVCompanion(Model):
-    """Radial velocity in a Keplerian orbit for the companion
+    r"""Radial velocity in a Keplerian orbit for the companion
 
 
     :param t:    - independent variable (time)
@@ -738,9 +754,13 @@ class PlanetModel(Model):
     function with amplitude A=F_max-F_min plus the minimum flux, F_min, i.e.,
     the maximum flux is F_max = F_min+A, and this occurs at phase (ph_off+0.5)
     relative to the time of mid-transit, i.e., 
+
     .. math::
-        f_th = F_min + A*(1-cos(phi-phi_off))/2
-    where phi = 2*pi*(t-T_0)/P and phi_off = 2*pi*ph_off.
+    
+        f_{\rm th} = F_{\rm min} + A[1-\cos(\phi-\phi_{\rm off})]/2
+
+    where :math:`\phi = 2\pi(t-T_0)/P` and 
+    :math:`\phi_{\rm off} = 2\pi\,{\rm ph\_off}`.
 
     The transit depth, width shape are parameterised by D, W and b. These
     parameters are defined below in terms of the radius of the star,  R_1 and
@@ -750,22 +770,27 @@ class PlanetModel(Model):
     are the same parameters used in TransitModel. The eclipse of the planet
     assumes a uniform flux distribution.
 
-     The apparent time of mid-eclipse includes the correction a_c for the
+    The apparent time of mid-eclipse includes the correction a_c for the
     light travel time across the orbit, i.e., for a circular orbit the time of
     mid-eclipse is (T_0 + 0.5*P) + a_c. 
-    N.B. a_c must have the same units as P. 
+
+    **N.B.** a_c must have the same units as P. 
 
     Stellar limb-darkening is described by the power-2 law:
+
     .. math::
-        I(\mu; c, \alpha) = 1 - c (1 - \mu**\alpha)
+
+        I(\mu) = 1 - c (1 - \mu^\alpha)
 
     The following parameters are defined for convenience:
-    - k = R_2/R_1; 
-    - aR = a/R_1; 
-    - A = F_max - F_min = amplitude of thermal phase effect.
-    - rho = 0.013418*aR**3/(P/d)**2.
-    N.B., the mean stellar density in solar units is rho, but only if the mass
-    ratio q = M_planet/M_star is q << 1. 
+
+    * k = R_2/R_1; 
+    * aR = a/R_1; 
+    * A = F_max - F_min = amplitude of thermal phase effect.
+    * rho = 0.013418*aR**3/(P/d)**2.
+
+    **N.B.** the mean stellar density in solar units is rho, but only if the
+    mass ratio q = M_planet/M_star is q << 1. 
 
     :param t:      - independent variable (time)
     :param T_0:    - time of mid-transit
@@ -868,13 +893,15 @@ class EBLMModel(Model):
     eclipse is 1 and inside eclipse is (1-L). The apparent time of mid-eclipse
     includes the correction a_c for the light travel time across the orbit,
     i.e., for a circular orbit the time of mid-eclipse is (T_0 + 0.5*P) + a_c.
-    N.B. a_c must have the same units as P. The power-2 law is used to model
+
+    **N.B.** a_c must have the same units as P. The power-2 law is used to model
     the limb-darkening of star 1. Limb-darkening on star 2 is ignored.
 
     The following parameters are defined for convenience:
-    - k = R_2/R_1; 
-    - aR = a/R_1; 
-    - J = L/D (surface brightness ratio).
+
+    * k = R_2/R_1; 
+    * aR = a/R_1; 
+    * J = L/D (surface brightness ratio).
 
     :param t:   - independent variable (time)
     :param T_0: - time of mid-transit
