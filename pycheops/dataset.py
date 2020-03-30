@@ -489,6 +489,7 @@ class Dataset(object):
         yoff = np.array(table['CENTROID_Y'][ok]- table['LOCATION_Y'][ok])
         roll_angle = np.array(table['ROLL_ANGLE'][ok])
         bg = np.array(table['BACKGROUND'][ok])
+        contam = np.array(table['CONTA_LC'][ok])
         ap_rad = hdr['AP_RADI']
         self.bjd_ref = bjd_ref
         self.ap_rad = ap_rad
@@ -506,6 +507,7 @@ class Dataset(object):
             yoff = yoff[ok]
             roll_angle = roll_angle[ok]
             bg = bg[ok]
+            contam = contam[ok]
             N_cut = len(bjd) - len(time)
         if verbose:
             if reject_highpoints:
@@ -526,7 +528,7 @@ class Dataset(object):
         flux_err = flux_err/fluxmed
         self.lc = {'time':time, 'flux':flux, 'flux_err':flux_err,
                 'bjd_ref':bjd_ref, 'table':table, 'header':hdr,
-                'xoff':xoff, 'yoff':yoff, 'bg':bg, 
+                'xoff':xoff, 'yoff':yoff, 'bg':bg, 'contam':contam,
                 'centroid_x':np.array(table['CENTROID_X'][ok]),
                 'centroid_y':np.array(table['CENTROID_Y'][ok]),
                 'roll_angle':roll_angle, 'aperture':aperture}
@@ -542,7 +544,8 @@ class Dataset(object):
     def lmfit_transit(self, 
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
             h_1=None, h_2=None,
-            c=None, dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
+            c=None, dfdbg=None, dfdcontam=None, 
+            dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
             dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None, 
             logrhoprior=None):
@@ -610,18 +613,22 @@ class Dataset(object):
             params.add(name='c', value=1, min=min(flux)/2,max=2*max(flux))
         else:
             params['c'] = _kw_to_Parameter('c', c)
+        if dfdbg is not None:
+            params['dfdbg'] = _kw_to_Parameter('dfdbg', dfdbg)
+        if dfdcontam is not None:
+            params['dfdcontam'] = _kw_to_Parameter('dfdcontam', dfdcontam)
         if dfdx is not None:
             params['dfdx'] = _kw_to_Parameter('dfdx', dfdx)
         if dfdy is not None:
             params['dfdy'] = _kw_to_Parameter('dfdy', dfdy)
         if d2fdx2 is not None:
-            params['d2fdx2'] = _kw_to_Parameter('d2fdx2', dfdx)
+            params['d2fdx2'] = _kw_to_Parameter('d2fdx2', d2fdx2)
         if d2fdy2 is not None:
-            params['d2fdy2'] = _kw_to_Parameter('d2fdy2', dfdy)
+            params['d2fdy2'] = _kw_to_Parameter('d2fdy2', d2fdy2)
         if dfdt is not None:
             params['dfdt'] = _kw_to_Parameter('dfdt', dfdt)
         if d2fdt2 is not None:
-            params['d2fdt2'] = _kw_to_Parameter('d2fdt2', dfdt)
+            params['d2fdt2'] = _kw_to_Parameter('d2fdt2', d2fdt2)
         if dfdsinphi is not None:
             params['dfdsinphi'] = _kw_to_Parameter('dfdsinphi', dfdsinphi)
         if dfdcosphi is not None:
@@ -660,7 +667,7 @@ class Dataset(object):
     # ----------------------------------------------------------------
     def lmfit_eclipse(self, 
             T_0=None, P=None, D=None, W=None, b=None, L=None, 
-            f_c=None, f_s=None, a_c=None, 
+            f_c=None, f_s=None, a_c=None, dfdbg=None, dfdcontam=None, 
             c=None, dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
             dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None):
@@ -728,18 +735,22 @@ class Dataset(object):
             params.add(name='a_c', value=0, vary=False)
         else:
             params['a_c'] = _kw_to_Parameter('a_c', a_c)
+        if dfdbg is not None:
+            params['dfdbg'] = _kw_to_Parameter('dfdbg', dfdbg)
+        if dfdcontam is not None:
+            params['dfdcontam'] = _kw_to_Parameter('dfdcontam', dfdcontam)
         if dfdx is not None:
             params['dfdx'] = _kw_to_Parameter('dfdx', dfdx)
         if dfdy is not None:
             params['dfdy'] = _kw_to_Parameter('dfdy', dfdy)
         if d2fdx2 is not None:
-            params['d2fdx2'] = _kw_to_Parameter('d2fdx2', dfdx)
+            params['d2fdx2'] = _kw_to_Parameter('d2fdx2', df2dx2)
         if d2fdy2 is not None:
-            params['d2fdy2'] = _kw_to_Parameter('d2fdy2', dfdy)
+            params['d2fdy2'] = _kw_to_Parameter('d2fdy2', df2dy2)
         if dfdt is not None:
             params['dfdt'] = _kw_to_Parameter('dfdt', dfdt)
         if d2fdt2 is not None:
-            params['d2fdt2'] = _kw_to_Parameter('d2fdt2', dfdt)
+            params['d2fdt2'] = _kw_to_Parameter('d2fdt2', df2dt2)
         if dfdsinphi is not None:
             params['dfdsinphi'] = _kw_to_Parameter('dfdsinphi', dfdsinphi)
         if dfdcosphi is not None:
@@ -1000,6 +1011,10 @@ class Dataset(object):
                 xs.append(chain[:,varkeys.index(key)])
                 if key == 'T_0':
                     labels.append(r'T$_0-{}$'.format(self.lc['bjd_ref']))
+                elif key == 'dfdbg':
+                    labels.append(r'$df/d{\rm (bg)}$')
+                elif key == 'dfdcontam':
+                    labels.append(r'$df/d{\rm (contam)}$')
                 elif key == 'dfdx':
                     labels.append(r'$df/dx$')
                 elif key == 'd2fdx2':

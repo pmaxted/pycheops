@@ -355,8 +355,8 @@ class TransitModel(Model):
         self.set_param_hint('D', min=0, max=0.25)
         self.set_param_hint('W', min=0, max=0.3)
         self.set_param_hint('b', min=0, max=1.0)
-        self.set_param_hint('f_c', value=0, min=-1, max=1)
-        self.set_param_hint('f_s', value=0, min=-1, max=1)
+        self.set_param_hint('f_c', value=0, min=-1, max=1, vary=False)
+        self.set_param_hint('f_s', value=0, min=-1, max=1, vary=False)
         self.set_param_hint('h_1', value=0.7224, min=0, max=1, vary=False)
         self.set_param_hint('h_2', value=0.6713, min=0, max=1, vary=False)
         expr = "sqrt({p:s}D)".format(p=self.prefix)
@@ -438,7 +438,7 @@ class EclipseModel(Model):
         self.set_param_hint('P', min=1e-15)
         self.set_param_hint('D', min=0, max=0.25)
         self.set_param_hint('W', min=0, max=0.3)
-        self.set_param_hint('b', min=0, max=1.5)
+        self.set_param_hint('b', min=0, max=1.0)
         self.set_param_hint('L', min=0, max=1)
         self.set_param_hint('f_c', value=0, min=-1, max=1, vary=False)
         self.set_param_hint('f_s', value=0, min=-1, max=1, vary=False)
@@ -458,7 +458,7 @@ class EclipseModel(Model):
 class FactorModel(Model):
     r"""Flux scaling and trend factor model
 
-    f = c*(1 + dfdt*dt + d2fdt2*dt**2 + dfdbg*bg(t)  + 
+    f = c*(1 + dfdt*dt + d2fdt2*dt**2 + dfdbg*bg(t)  + dfdcontam*contam(t) +
                dfdx*dx(t) + dfdy*dy(t) +
                d2fdx2*dx(t)**2 + d2f2y2*dy(t)**2 + d2fdxdy*x(t)*dy(t) +
                dfdsinphi*sin(phi(t)) + dfdcosphi*cos(phi(t)) +
@@ -472,8 +472,10 @@ class FactorModel(Model):
     dy(t). For detrending against the spacecraft roll angle, phi(t), the
     functions to be provided as keywords arguments are sinphi(t) and
     cosphi(t). The linear trend dfdbg is proportional to the estimated
-    background flux in the aperture, bg(t). The time trend decribed by dfdt
-    and d2fdt2 is calculated using the variable dt = t - median(t).
+    background flux in the aperture, bg(t). The linear trend dfdcontam is
+    proportional to the estimated contamination in the aperture contam(t).
+    The time trend decribed by dfdt and d2fdt2 is calculated using the
+    variable dt = t - median(t).
 
     """
 
@@ -482,7 +484,7 @@ class FactorModel(Model):
         kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
                        'independent_vars': independent_vars})
 
-        def factor(t, c=1.0,dfdt=0, d2fdt2=0, dfdbg=0,
+        def factor(t, c=1.0,dfdt=0, d2fdt2=0, dfdbg=0, dfdcontam=0,
                 dfdx=0, dfdy=0, d2fdxdy=0, d2fdx2=0, d2fdy2=0,
                 dfdcosphi=0, dfdsinphi=0, dfdcos2phi=0, dfdsin2phi=0,
                 dfdcos3phi=0, dfdsin3phi=0):
@@ -491,6 +493,8 @@ class FactorModel(Model):
             trend = 1 + dfdt*dt + d2fdt2*dt**2 
             if dfdbg != 0:
                 trend += dfdbg*self.bg(t)
+            if dfdcontam != 0:
+                trend += dfdcontam*self.contam(t)
             if dfdx != 0 or d2fdx2 != 0:
                 trend += dfdx*self.dx(t) + d2fdx2*self.dx(t)**2
             if dfdy != 0 or d2fdy2 != 0:
@@ -518,12 +522,13 @@ class FactorModel(Model):
         super(FactorModel, self).__init__(factor, **kwargs)
 
         self.bg = bg
+        self.contam = contam
         self.dx = dx
         self.dy = dy
         self.sinphi = sinphi
         self.cosphi = cosphi
         self.set_param_hint('c', min=0)
-        for p in ['dfdt', 'd2fdt2', 'dfdbg', 
+        for p in ['dfdt', 'd2fdt2', 'dfdbg', 'dfdcontam',
                   'dfdx', 'dfdy', 'd2fdx2', 'd2fdxdy',  'd2fdy2', 
                   'dfdsinphi', 'dfdcosphi', 'dfdcos2phi', 'dfdsin2phi',
                   'dfdcos3phi', 'dfdsin3phi']:
@@ -534,7 +539,7 @@ class FactorModel(Model):
         pars = self.make_params()
 
         pars['%sc' % self.prefix].set(value=data.median())
-        for p in ['dfdt', 'd2fdt2' 'dfdbg',
+        for p in ['dfdt', 'd2fdt2' 'dfdbg', 'dfdcontam',
                 'dfdx', 'dfdy', 'd2fdx2', 'd2fdy2', 
                 'dfdsinphi', 'dfdcosphi', 'dfdcos2phi', 'dfdsin2phi',
                 'dfdcos3phi', 'dfdsin3phi']:
@@ -861,7 +866,7 @@ class PlanetModel(Model):
         self.set_param_hint('P', min=1e-15)
         self.set_param_hint('D', min=0, max=0.25)
         self.set_param_hint('W', min=0, max=0.3)
-        self.set_param_hint('b', min=0, max=1.5)
+        self.set_param_hint('b', min=0, max=1.0)
         self.set_param_hint('F_min', min=0)
         self.set_param_hint('ph_off', min=-0.5, max=0.5)
         self.set_param_hint('f_c', value=0, min=-1, max=1, vary=False)
@@ -959,7 +964,7 @@ class EBLMModel(Model):
         self.set_param_hint('P', min=1e-15)
         self.set_param_hint('D', min=0, max=0.25)
         self.set_param_hint('W', min=0, max=0.3)
-        self.set_param_hint('b', min=0, max=1.5)
+        self.set_param_hint('b', min=0, max=1.0)
         self.set_param_hint('L', min=0, max=1)
         self.set_param_hint('f_c', value=0, min=-1, max=1, vary=False)
         self.set_param_hint('f_s', value=0, min=-1, max=1, vary=False)

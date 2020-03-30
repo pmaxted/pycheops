@@ -207,12 +207,12 @@ def m_comp(f_m, m_1, sini):
                 return real(r)
         raise ValueError("No finite companion mass for input values.")
 
-    _m_comp_vector = vectorize(_m_comp_scalar )
+#    _m_comp_vector = vectorize(_m_comp_scalar )
 
     if isscalar(f_m) & isscalar(m_1) & isscalar(sini):
         return float(_m_comp_scalar(f_m, m_1, sini))
     else:
-        return _m_comp_vector(f_m, m_1, sini)
+        return np.array([m for m in map(_m_comp_scalar,f_m, m_1, sini)])
 
 #---------------
 
@@ -379,6 +379,13 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg):
     omrad = omdeg*pi/180
     theta = 0.5*pi-omrad
     if (1-sini**2) > finfo(0.).eps :
+        fa = _delta(theta-0.25*pi, sini**2, omrad, ecc)
+        fb = _delta(theta        , sini**2, omrad, ecc)
+        fc = _delta(theta+0.25*pi, sini**2, omrad, ecc)
+        if ((fb>fa)|(fb>fc)):
+            print (theta-0.25*pi,theta,theta+0.25*pi)
+            print (fa,fb,fc)
+
         theta = brent(_delta, args = (sini**2, omrad, ecc),
                 brack = (theta-0.25*pi,theta,theta+0.25*pi))
     if theta == pi:
