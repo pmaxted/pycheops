@@ -336,8 +336,12 @@ class TransitModel(Model):
             q2 = (h_1-h_2)/(1-h_2)
             if (q2 <= 0) or (q2 >=1): return np.ones_like(t)
             k = np.sqrt(D)
-            r_star = np.pi*W/np.sqrt((1+k)**2 - b**2)
-            sini = np.sqrt(1-b**2*r_star**2)
+            q = (1+k)**2 - b**2
+            if q <= 0: return np.ones_like(t)
+            r_star = np.pi*W/np.sqrt(q)
+            q = 1-b**2*r_star**2
+            if q <= 0: return np.ones_like(t)
+            sini = np.sqrt(q)
             ecc = f_c**2 + f_s**2
             om = np.arctan2(f_s, f_c)*180/np.pi
             c2 = 1 - h_1 + h_2
@@ -422,8 +426,12 @@ class EclipseModel(Model):
             if ((1-abs(f_c)) <= 0) or ((1-abs(f_s)) <= 0):
                 return np.ones_like(t)
             k = np.sqrt(D)
-            r_star = np.pi*W/np.sqrt((1+k)**2 - b**2)
-            sini = np.sqrt(1-b**2*r_star**2)
+            q = (1+k)**2 - b**2
+            if q <= 0: return np.ones_like(t)
+            r_star = np.pi*W/np.sqrt(q)
+            q = 1-b**2*r_star**2
+            if q <= 0: return np.ones_like(t)
+            sini = np.sqrt(q)
             ecc = f_c**2 + f_s**2
             om = np.arctan2(f_s, f_c)*180/np.pi
             z,m = t2z(t-a_c, T_0, P, sini, r_star, ecc, om, returnMask=True)
@@ -480,7 +488,8 @@ class FactorModel(Model):
     """
 
     def __init__(self, independent_vars=['t'], prefix='', nan_policy='raise',
-                 dx=None, dy=None, sinphi=None, cosphi=None, bg=None, **kwargs):
+                 dx=None, dy=None, sinphi=None, cosphi=None, bg=None,
+                 contam=None,  **kwargs):
         kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
                        'independent_vars': independent_vars})
 

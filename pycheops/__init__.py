@@ -75,17 +75,6 @@ if not path.isfile(pfile):
     with open(pfile,'wb') as fp:
         pickle.dump(I,fp)
 
-# Exposure time calculator for instrument.py and make_xml_files
-pfile = path.join(cache_path,'log_exposure_time.p')
-if not path.isfile(pfile):
-    tfile = path.join(data_path,'TexpTable.csv')
-    TexpTable = Table.read(tfile)
-    G_ = np.array(TexpTable['V']) - 0.153
-    I = interp1d(G_,[np.log10(TexpTable['min']),np.log10(TexpTable['max'])],
-            kind='linear', bounds_error=False,assume_sorted=True)
-    with open(pfile,'wb') as fp:
-        pickle.dump(I,fp)
-
 # Visibility calculator for instrument.py and make_xml_files
 pfile = path.join(cache_path,'visibility_interpolator.p')
 if not path.isfile(pfile):
@@ -114,6 +103,17 @@ if not path.isfile(pfile):
     with open(pfile,'wb') as fp:
         pickle.dump(I,fp)
 
+# CHEOPS magnitude - Gaia G magnitude v. T_eff
+# From ImageETCc1.4 exposure time calculator spreadsheet
+pfile = path.join(cache_path,'C_G_Teff_interpolator.p')
+if not path.isfile(pfile):
+    fT = path.join(here,'data','instrument', 'C_G_Teff.csv')
+    T = Table.read(fT,format='csv')
+    Teff = np.array(T['Teff'])  # convert to numpy array else sphinx complains
+    C_G = np.array(T['C-G']) # convert to numpy array else sphinx complains
+    I = interp1d(Teff,C_G,bounds_error=False, fill_value='extrapolate')
+    with open(pfile,'wb') as fp:
+        pickle.dump(I,fp)
 
 from .dataset import Dataset
 from .starproperties import StarProperties

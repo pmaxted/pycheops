@@ -6,10 +6,21 @@ Changes since 0.6.0 onwards.
 * Set vary=False default for f_c and f_s in TransitModel.
 * Replaced vectorize in func/m_comp() with map.
 * Fixed bug in dataset.lmfit_transit() and dataset.lmfit_eclipse() for fitting 
- d2fdx2, d2fdy2 and d2fdt2.
+  d2fdx2, d2fdy2 and d2fdt2.
 * Added dfdcontam to models/FactorModel() 
 * Added dfdbg and dfdcontam to dataset.lmfit_transit and dataset.lmfit_eclipse()
 * Changed CHANGELOG format
+* Improved/simplified dataset.clip_outliers()
+* Removed broken pool option from dataset.emcee_sampler()
+* Additional parameter checks in EclipseModel and TransitModel
+* Change default to reject_highpoints=False in dataset
+* Include pycheops version with fit reports in dataset
+* Added nu_max to funcs
+* Updated instrument.count_rate and instrument.exposure_time to make them
+  consistent with spreadsheet ImageETCv1.4, 2020-04-01
+* Added instrument.cadence()
+* Updated make_xml_files
+* Updated pycheops/examples/Notebooks/TestThermalPhaseModel.ipynb 
 
 0.6.6
 ~~~~~
@@ -30,15 +41,14 @@ Changes since 0.6.0 onwards.
 
 0.6.4  (2020-02-19)
 ~~~~~~~~~~~~~~~~~~~
- Simplified call to astroquery.gaia in make_xml_files - fixes HTTPError 302
- problem that started happening since the last update.
- change at the server(?)
+* Simplified call to astroquery.gaia in make_xml_files - fixes HTTPError 302
+  problem that started happening since the last update. Change at the server(?)
 
 0.6.3 (2020-02-01)
 ~~~~~~~~~~~~~~~~~~
 * Completed the changes from version 0.6.2 - store pickle files in user's cache
-directory, interpolation of exposure times, update spectral-type T_eff G-V
-values.
+  directory, interpolation of exposure times, update spectral-type T_eff G-V
+  values.
 * Fixed J=L/D in EclipseModel
 * Added EBLMModel to models.
 * Added a few examples of TESS analysis to  examples/Notebooks
@@ -47,7 +57,7 @@ values.
 0.6.2 (2020-01-25)
 ~~~~~~~~~~~~~~~~~~
 * Store pickle files in user's cache directory to avoid permissions issues
- with root user installations. (not finished)
+  with root user installations. (not finished)
 * Added --scaling-factor-percent option to make_xml_files.
 * Fix bug in make_xml_files where T_exp is stored as an integer - now float
 * Improved interpolation of exposure times. (not finished)
@@ -60,7 +70,7 @@ values.
 * Remove error message if there is no imagette data in the dataset.
 * Remove DACE import warning in dataset
 * Added calculation of prior on P(D, W, b) for transit/eclipse fitting assuming
- uniform priors on cos(i), log(k) and log(a/R*).  
+  uniform priors on cos(i), log(k) and log(a/R*).  
 
 0.6.0 (2019-11-06)
 ~~~~~~~~~~~~~~~~~~

@@ -49,6 +49,8 @@ from celerite import terms, GP
 from sys import stdout 
 from astropy.coordinates import SkyCoord
 from lmfit.printfuncs import gformat
+from scipy.signal import medfilt
+from . import __version__
 try:
     from dace.cheops import Cheops
 except ModuleNotFoundError: 
@@ -268,6 +270,7 @@ class Dataset(object):
         self.spectype = hdr['SPECTYPE']
         self.exptime = hdr['EXPTIME']
         self.texptime = hdr['TEXPTIME']
+        self.pipe_ver = hdr['PIPE_VER']
         if verbose:
             print(' PI name     : {}'.format(self.pi_name))
             print(' OBS ID      : {}'.format(self.obsid))
@@ -449,7 +452,7 @@ class Dataset(object):
         return cube
 
     def get_lightcurve(self, aperture=None,
-            returnTable=False, reject_highpoints=True, verbose=True):
+            returnTable=False, reject_highpoints=False, verbose=True):
 
         if aperture not in ('OPTIMAL','RSUP','RINF','DEFAULT'):
             raise ValueError('Invalid/missing aperture name')
@@ -796,6 +799,8 @@ class Dataset(object):
                     noPriors = False
                 report += "    %s:%s" % (p, ' '*(namelen-len(p)))
                 report += '%s +/-%s\n' % (gformat(u.n), gformat(u.s))
+        report += 'pycheops version %s\n' % __version__
+        report += 'CHEOPS DRP version %s\n' % self.pipe_ver
         return(report)
 
     # ----------------------------------------------------------------
@@ -914,7 +919,7 @@ class Dataset(object):
             pos.append(pos_i)
 
         sampler = EnsembleSampler(nwalkers, n_varys, log_posterior_func,
-            args=args, pool=pool)
+            args=args)
         if progress:
             print('Running burn-in ..')
             stdout.flush()
@@ -989,6 +994,8 @@ class Dataset(object):
                     noPriors = False
                 report += "    %s:%s" % (p, ' '*(namelen-len(p)))
                 report += '%s +/-%s\n' % (gformat(u.n), gformat(u.s))
+        report += 'pycheops version %s\n' % __version__
+        report += 'CHEOPS DRP version %s\n' % self.pipe_ver
         return(report)
 
     # ----------------------------------------------------------------
@@ -1241,9 +1248,11 @@ class Dataset(object):
             ax[0].set_ylabel('Flux/trend')
         else:
             ax[0].set_ylabel('Flux')
-        ax[1].errorbar(time,res,yerr=flux_err,fmt='bo',ms=3,zorder=0)
+        # SHOTerm sometimes offset from 0 - fix that here
+        off = res.mean()
+        ax[1].errorbar(time,res-off,yerr=flux_err,fmt='bo',ms=3,zorder=0)
         if self.gp is not None:
-            ax[1].plot(tp,mu0,c='orange', zorder=1)
+            ax[1].plot(tp,mu0-off,c='orange', zorder=1)
         ax[1].plot([tmin,tmax],[0,0],ls=':',c='orange', zorder=1)
         ax[1].set_xlabel('BJD-{}'.format(self.lc['bjd_ref']))
         ax[1].set_ylabel('Residual')
@@ -1366,26 +1375,24 @@ class Dataset(object):
 
     #------
 
-    def clip_outliers(self, clip=4.0, use_stdev=False, verbose=True):
+    def clip_outliers(self, clip=5, width=11, verbose=True):
         """
         Remove outliers from the light curve.
 
-        Data more than clip*s from the median are removed where s is the
-        mean absolute deviation from the median or (if use_stdev=True) the
-        standard deviation.
+        Data more than clip*mad from a smoothed version of the light curve are
+        removed where mad is the mean absolute deviation from the
+        median-smoothed light curve.
 
         :param clip: tolerance on clipping
-        :param use_stdev: if true, use standard deviation instead of MAD.
+        :param width: width of window for median-smoothing filter
 
         :returns: time, flux, flux_err
 
         """
         flux = self.lc['flux']
-        if use_stdev:
-            s = np.nanstd(flux)
-        else:
-            s = abs(flux-np.nanmedian(flux)).mean()
-        ok = abs(flux-np.nanmedian(flux)) < clip * s
+        d = abs(flux - medfilt(flux, width))
+        mad = d.mean()
+        ok = d < clip*mad
         self.lc = {'time':self.lc['time'][ok], 'flux':flux[ok],
                 'flux_err':self.lc['flux_err'][ok], 'xoff':self.lc['xoff'][ok],
                 'yoff':self.lc['yoff'][ok], 'bjd_ref':self.lc['bjd_ref'],
@@ -1394,10 +1401,8 @@ class Dataset(object):
                 'centroid_y':self.lc['centroid_y'],
                 'roll_angle':self.lc['roll_angle'][ok]}
         if verbose:
-            stat = 'RMS' if use_stdev  else 'MAD'
-            nclip = np.sum(~ok)
-            print('\nRejected {} points more than {:0.1f} x {} = {:0.0f} ppm '
-                    'from the median'.format(nclip,clip,stat,1e6*s*clip))
+            print('\nRejected {} points more than {:0.1f} x MAD = {:0.0f} ppm '
+                    'from the median'.format(sum(~ok),clip,1e6*mad*clip))
         return self.lc['time'], self.lc['flux'], self.lc['flux_err']
 
     #------

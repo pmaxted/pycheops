@@ -59,7 +59,7 @@ with redirect_stdout(_):
 from sys import exit
 from .core import load_config
 import pickle
-from .instrument import visibility, exposure_time, count_rate
+from .instrument import visibility, exposure_time, count_rate, cadence
 from . import __version__
 
 __all__ = ['SpTypeToGminusV', 'SpTypeToTeff', '_GaiaDR2match']
@@ -67,7 +67,6 @@ __all__ = ['SpTypeToGminusV', 'SpTypeToTeff', '_GaiaDR2match']
 # G-V and Teff  v. spectral type from 
 # http://www.pas.rochester.edu/~emamajek/EEM_dwarf_UBVIJHK_colors_Teff.txt
 # version 2019.03.22
-
 SpTypeToGminusV = {
 'A0':+0.007, 'A1':+0.000, 'A2':+0.005, 'A3':-0.009, 'A4':-0.020,
 'A5':-0.024, 'A6':-0.026, 'A7':-0.036, 'A8':-0.046, 'A9':-0.047,
@@ -759,7 +758,6 @@ def _target_table_row_to_xml(row,
               )
     return xml
 
-
 def main():
 
     # Set up command line switches
@@ -828,6 +826,7 @@ def main():
          BegPh2     - start of phase range 1
          EndPh2     - end of phase range 1
          Effic2     - minimum observing efficiency (%), phase range 2 (integer)
+
         N.B. If you have 2 phase ranges with extra efficiency constraints but
         only require one of them to be satisified then use N_Ranges = -2
          
@@ -853,10 +852,17 @@ def main():
         Texp - the exposure time used in the output XML file.
 
         e-/s - The count rate in e-/s based on the star's Gaia G magnitude and
-               G_BP-R_BP colour. This value returned is suitable for use in the
+               spectral type. This value returned is suitable for use in the
                CHEOPS exposure time calculator using the option "Expected flux
-               in CHEOPS passband". Only printed if the command is called with 
-               the -c / --count-rate option.
+               in CHEOPS passband". 
+
+        duty - duty cycle (%)
+
+        frac - maximim counts as a fraction of the full-well capacity (%)
+
+        img  - image stacking order
+
+        igt  - imaggete stacking order
 
          Flags - sum of the following error/warnings flags.
              + 32768 = Gaia ID error - input/output IDs do not match
@@ -872,13 +878,11 @@ def main():
              +  32 = Exposure time error - magnitude out of range, not set 
              +  16 = Exposure time warning - magnitude out of range, not checked
 
-        The exposure time can be calculated automatically based on the V-band
-        magnitude and colour of the target. The default behaviour is to use an
-        exposure time that will give 90% of the full-well capacity at the peak
-        of PSF, up to the maximum allowed exposure time of 60s.  This
+        The exposure time can be calculated automatically based on the G-band
+        magnitude and spectral type of the target. The default behaviour is to
+        use an exposure time that will give 85% of the full-well capacity at
+        the peak of PSF, up to the maximum allowed exposure time of 60s.  This
         percentage can be adjusted using the option --scaling-factor-percent. 
-        N.B. Automatic exposure times only reliable for the range G=5.847 to 
-        G=12.847
 
         See examples/make_xml_files/ReadMe.txt in the source distribution for a
         description of example input files included in the same folder.
@@ -913,16 +917,6 @@ def main():
         '''
     )
 
-    parser.add_argument('-c', '--count_rate',
-        action='store_const',
-        dest='count_rate',
-        const=True,
-        default=False,
-        help='''
-        Predict count rate from Gaia G magnitude and G_BP-G_RP colour
-        '''
-    )
-
     parser.add_argument('--ignore-gaia-id-check',
         action='store_const',
         dest='id_check',
@@ -943,7 +937,7 @@ def main():
     )
 
     parser.add_argument('-s', '--scaling-factor-percent', 
-        default=90., type=float,
+        default=85., type=float,
         help='Scaling factor for auto-expose calculation'
     )
 
@@ -986,11 +980,11 @@ def main():
     if args.copy_examples:
         src = join(dirname(abspath(__file__)),'examples','make_xml_files')
         src_files = listdir(src)
-        print("Copy examples files from {}".format(src))
         for file_name in src_files:
             full_file_name = join(src, file_name)
             if (isfile(full_file_name)):
                 copy(full_file_name, getcwd())
+        print("Copied examples files from {}".format(src))
         exit()
 
 
@@ -1018,7 +1012,6 @@ def main():
             table['Gaia_DR2'] = -1
             table['Old_Gaia_DR2'] = -1
 
-
     try:
         table['Old_T_exp'] = table['T_exp']
     except KeyError as e:
@@ -1045,13 +1038,14 @@ def main():
             table[key] = 0.0
 
     # Create missing optional columns
-    for key in ( 'Period', 'BJD_0', 'Ph_early', 'Ph_late', 'BegPh1', 
+    for key in ( 'Period', 'BJD_0', 'Ph_early', 'Ph_late', 'BegPh1',
             'EndPh1', 'Effic1', 'BegPh2', 'EndPh2', 'Effic2'):
         if not key in table.columns:
             table[key] = 0.0
 
     if not 'N_Ranges' in table.columns:
         table['N_Ranges'] = 0
+
 
     # Load contamination function from pickle
     config = load_config()
@@ -1081,9 +1075,8 @@ def main():
     ObsReqNameHeader = ObsReqNameFormat.format('ObsReqName')
     TerminalOutputFormat = (
         '{}'.format(ObsReqNameFormat)+
-        '{:20d} {:5.2f} {:8.4f} {:+8.4f}  {:6.3f}  {:2d} {:4.1f} {:5d}')
-    if args.count_rate:
-        TerminalOutputFormat += ' {:0.2e}'
+        '{:20d} {:5.2f} {:8.4f} {:+8.4f}  {:6.3f}  {:2d} {:4.1f} {:5d}'+
+        '{:9.2e} {:4.0f}  {:3.0f} {:3d} {:3d}')
     print('#')
     if not args.id_check:
         print('#')
@@ -1092,8 +1085,7 @@ def main():
         print('#')
 
     tstr = 'Gaia_DR2_ID         Gmag  _RAJ2000 _DEJ2000  Contam Vis Texp Flags'
-    if args.count_rate:
-        tstr += ' e-/s'
+    tstr += ' e-/s     frac duty img igt'
 
     print('#{}'.format(ObsReqNameHeader) + tstr.format(ObsReqNameHeader))
 
@@ -1120,31 +1112,6 @@ def main():
         row['pmdec'] = DR2data['pmdec']
         row['parallax'] = DR2data['parallax']
 
-        tmin, tmax = exposure_time(DR2data['phot_g_mean_mag'])
-        if not np.isfinite(tmax):
-            if args.auto_expose:
-                flags += 32
-            else:
-                flags += 16
-            if DR2data['phot_g_mean_mag'] > 13:
-                tmin, tmax = 35, 60
-            else:
-                tmin, tmax = 0.05, 0.5
-
-        # tmin corresponds to 10% of full-well capacity
-        # tmax corresponds to minimum of (98% of full-well capacity) or 60s 
-        # More precise to use tmax for calculations unless it is >~ 60s
-        if args.auto_expose:
-            if tmax > 50:
-                row['T_exp'] = min(tmin * args.scaling_factor_percent/10., 60)
-            else:
-                row['T_exp'] = min(tmax * args.scaling_factor_percent/98., 60)
-        else:
-            if row['T_exp'] > tmax:
-                flags += 128
-            if row['T_exp'] < tmin:
-                flags += 64
-
         try:
             if row['Old_T_eff'] <= 0:
                 raise KeyError
@@ -1157,6 +1124,19 @@ def main():
                 warn('# No Teff value for spectral type, using Teff=5999')
                 row['T_eff'] = 5999
 
+        _T = row['T_eff']
+        _G = DR2data['phot_g_mean_mag']
+        if args.auto_expose:
+            row['T_exp'] = exposure_time(_G, _T, 
+                    frac=args.scaling_factor_percent/100)
+        if row['T_exp'] >60:
+            raise ValueError("Maximum exposure time 60 s exceeded")
+        img, igt, cad, duty, frac = cadence(row['T_exp'], _G, _T)
+
+        if frac > 0.95:
+            flags += 128
+        if frac < 0.1:
+            flags += 64
 
         xmlfile = "{}{}".format(row['ObsReqName'],args.suffix)
         if exists(xmlfile) and not args.overwrite:
@@ -1176,16 +1156,8 @@ def main():
         if vis == 0:
             flags += 256
 
-        gmag = DR2data['phot_g_mean_mag']
-        if args.count_rate:
-            print(TerminalOutputFormat.format(
-             row['ObsReqName'], DR2data['source_id'],
-             gmag, coords.ra.degree, coords.dec.degree,
-             contam, vis, row['T_exp'],flags,
-             count_rate(gmag, DR2data['bp_rp'])))
-        else:
-            print(TerminalOutputFormat.format(
-             row['ObsReqName'], DR2data['source_id'],
-             gmag, coords.ra.degree, coords.dec.degree,
-             contam, vis, row['T_exp'],flags))
+        c_tot, c_av, c_max = count_rate(_G, row['T_exp'])
+        print(TerminalOutputFormat.format( row['ObsReqName'],
+            DR2data['source_id'], _G, coords.ra.degree, coords.dec.degree,
+            contam, vis, row['T_exp'],flags, c_tot, 100*frac, duty, img, igt))
 
