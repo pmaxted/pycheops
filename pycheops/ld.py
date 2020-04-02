@@ -32,9 +32,9 @@ The available passband names are:
 
 * 'NGTS'
 
-The power-2 limb-darkening law is described in Maxted (2018) [2].
+The power-2 limb-darkening law is described in Maxted (2018) [1]_.
 Uninformative sampling of the parameter space for the power-2 law
-is described in Short et al. (2019) [3].
+is described in Short et al. (2019) [2]_.
 
 Examples
 --------
@@ -60,8 +60,8 @@ Examples
 
 
 .. rubric:: References
-.. [2] Maxted, P.F.L., 2018, A&A, submitted 
-.. [3] Short, D.R., et al., 2019, RNAAS, ..., ...
+.. [1] Maxted, P.F.L., 2018, A&A, submitted 
+.. [2] Short, D.R., et al., 2019, RNAAS, ..., ...
 
 """
 

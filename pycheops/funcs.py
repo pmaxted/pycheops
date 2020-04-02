@@ -20,14 +20,12 @@
 """
 funcs
 =====
-Functions relating observable properties of binary stars and exoplanet 
-systems to their fundamental properties, and vice versa. Also functions
-related to Keplerian orbits.
 
+ Functions related to observable properties of stars and exoplanets
 
 Parameters
 ----------
-Functions are defined in terms of the following parameters. [1]
+Functions are defined in terms of the following parameters. [1]_
 
 * a          - orbital semi-major axis in solar radii = a_1 + a_2 
 * P          - orbital period in mean solar days
@@ -207,12 +205,12 @@ def m_comp(f_m, m_1, sini):
                 return real(r)
         raise ValueError("No finite companion mass for input values.")
 
-    _m_comp_vector = vectorize(_m_comp_scalar )
+#    _m_comp_vector = vectorize(_m_comp_scalar )
 
     if isscalar(f_m) & isscalar(m_1) & isscalar(sini):
         return float(_m_comp_scalar(f_m, m_1, sini))
     else:
-        return _m_comp_vector(f_m, m_1, sini)
+        return np.array([m for m in map(_m_comp_scalar,f_m, m_1, sini)])
 
 #---------------
 
@@ -306,6 +304,7 @@ def t2z(t, tzero, P, sini, rstar, ecc=0, omdeg=90, returnMask=False):
     :param ecc: eccentricity (optional, default=0)
     :param omdeg: longitude of periastron in degrees (optional, default=90)
     :param returnFlag: return a flag to distinguish transits from eclipses.
+
     N.B. omdeg is the longitude of periastron for the star's orbit
 
     :returns: z [, mask]
@@ -378,6 +377,13 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg):
     omrad = omdeg*pi/180
     theta = 0.5*pi-omrad
     if (1-sini**2) > finfo(0.).eps :
+        fa = _delta(theta-0.25*pi, sini**2, omrad, ecc)
+        fb = _delta(theta        , sini**2, omrad, ecc)
+        fc = _delta(theta+0.25*pi, sini**2, omrad, ecc)
+        if ((fb>fa)|(fb>fc)):
+            print (theta-0.25*pi,theta,theta+0.25*pi)
+            print (fa,fb,fc)
+
         theta = brent(_delta, args = (sini**2, omrad, ecc),
                 brack = (theta-0.25*pi,theta,theta+0.25*pi))
     if theta == pi:
@@ -385,6 +391,26 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg):
     else:
         E = 2*arctan(sqrt((1-ecc)/(1+ecc))*tan(theta/2))
     return tzero - (E - ecc*sin(E))*P/(2*pi)
+
+#---------------
+
+def nu_max(Teff, logg):
+    """
+    Peak frequency in micro-Hz for solar-like oscillations.
+
+    From equation (17) of Campante et al., (2016)[2]_.
+
+    :param logg: log of the surface gravity in cgs units.
+    :param Teff: effective temperature in K
+
+    :returns: nu_max in micro-Hz
+
+    .. rubric References
+    .. [2] Campante, 2016, ApJ 830, 138.
+
+    """
+    return 3090 * 10**(logg-4.438)/sqrt(Teff/5777)
+
 
 #---------------
 

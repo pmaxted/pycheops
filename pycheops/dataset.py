@@ -49,6 +49,8 @@ from celerite import terms, GP
 from sys import stdout 
 from astropy.coordinates import SkyCoord
 from lmfit.printfuncs import gformat
+from scipy.signal import medfilt
+from . import __version__
 try:
     from dace.cheops import Cheops
 except ModuleNotFoundError: 
@@ -263,11 +265,20 @@ class Dataset(object):
         self.ra = coords.ra.to_string(precision=2,unit='hour',sep=':',pad=True)
         self.dec = coords.dec.to_string(precision=1,sep=':',unit='degree',
                 alwayssign=True,pad=True)
+        self.vmag = hdr['MAG_V']
+        self.e_vmag = hdr['MAG_VERR']
+        self.spectype = hdr['SPECTYPE']
+        self.exptime = hdr['EXPTIME']
+        self.texptime = hdr['TEXPTIME']
+        self.pipe_ver = hdr['PIPE_VER']
         if verbose:
             print(' PI name     : {}'.format(self.pi_name))
             print(' OBS ID      : {}'.format(self.obsid))
             print(' Target      : {}'.format(self.target))
             print(' Coordinates : {} {}'.format(self.ra, self.dec))
+            print(' Spec. type  : {}'.format(self.spectype))
+            print(' V magnitude : {:0.2f} +- {:0.2f}'.
+                    format(self.vmag, self.e_vmag))
         
 #----
 
@@ -441,7 +452,7 @@ class Dataset(object):
         return cube
 
     def get_lightcurve(self, aperture=None,
-            returnTable=False, reject_highpoints=True, verbose=True):
+            returnTable=False, reject_highpoints=False, verbose=True):
 
         if aperture not in ('OPTIMAL','RSUP','RINF','DEFAULT'):
             raise ValueError('Invalid/missing aperture name')
@@ -480,6 +491,8 @@ class Dataset(object):
         xoff = np.array(table['CENTROID_X'][ok]- table['LOCATION_X'][ok])
         yoff = np.array(table['CENTROID_Y'][ok]- table['LOCATION_Y'][ok])
         roll_angle = np.array(table['ROLL_ANGLE'][ok])
+        bg = np.array(table['BACKGROUND'][ok])
+        contam = np.array(table['CONTA_LC'][ok])
         ap_rad = hdr['AP_RADI']
         self.bjd_ref = bjd_ref
         self.ap_rad = ap_rad
@@ -496,6 +509,8 @@ class Dataset(object):
             xoff = xoff[ok]
             yoff = yoff[ok]
             roll_angle = roll_angle[ok]
+            bg = bg[ok]
+            contam = contam[ok]
             N_cut = len(bjd) - len(time)
         if verbose:
             if reject_highpoints:
@@ -506,13 +521,17 @@ class Dataset(object):
             print('RMS counts = {:0.1f} [{:0.0f} ppm]'.format(np.std(flux), 
                 1e6*np.std(flux)/fluxmed))
             print('Median standard error = {:0.1f} [{:0.0f} ppm]'.format(
-                fluxmed, 1e6*np.nanmedian(flux_err)/fluxmed))
+                np.nanmedian(flux_err), 1e6*np.nanmedian(flux_err)/fluxmed))
 
+        self.flux_mean = flux.mean()
+        self.flux_median = fluxmed
+        self.flux_rms = np.std(flux)
+        self.flux_mse = np.nanmedian(flux_err)
         flux = flux/fluxmed
         flux_err = flux_err/fluxmed
         self.lc = {'time':time, 'flux':flux, 'flux_err':flux_err,
                 'bjd_ref':bjd_ref, 'table':table, 'header':hdr,
-                'xoff':xoff, 'yoff':yoff,
+                'xoff':xoff, 'yoff':yoff, 'bg':bg, 'contam':contam,
                 'centroid_x':np.array(table['CENTROID_X'][ok]),
                 'centroid_y':np.array(table['CENTROID_Y'][ok]),
                 'roll_angle':roll_angle, 'aperture':aperture}
@@ -528,9 +547,10 @@ class Dataset(object):
     def lmfit_transit(self, 
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
             h_1=None, h_2=None,
-            c=None, dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
+            c=None, dfdbg=None, dfdcontam=None, 
+            dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
-            dfdt=None, d2fdt2=None, 
+            dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None, 
             logrhoprior=None):
 
         def _chisq_prior(params, *args):
@@ -596,18 +616,22 @@ class Dataset(object):
             params.add(name='c', value=1, min=min(flux)/2,max=2*max(flux))
         else:
             params['c'] = _kw_to_Parameter('c', c)
+        if dfdbg is not None:
+            params['dfdbg'] = _kw_to_Parameter('dfdbg', dfdbg)
+        if dfdcontam is not None:
+            params['dfdcontam'] = _kw_to_Parameter('dfdcontam', dfdcontam)
         if dfdx is not None:
             params['dfdx'] = _kw_to_Parameter('dfdx', dfdx)
         if dfdy is not None:
             params['dfdy'] = _kw_to_Parameter('dfdy', dfdy)
         if d2fdx2 is not None:
-            params['d2fdx2'] = _kw_to_Parameter('d2fdx2', dfdx)
+            params['d2fdx2'] = _kw_to_Parameter('d2fdx2', d2fdx2)
         if d2fdy2 is not None:
-            params['d2fdy2'] = _kw_to_Parameter('d2fdy2', dfdy)
+            params['d2fdy2'] = _kw_to_Parameter('d2fdy2', d2fdy2)
         if dfdt is not None:
             params['dfdt'] = _kw_to_Parameter('dfdt', dfdt)
         if d2fdt2 is not None:
-            params['d2fdt2'] = _kw_to_Parameter('d2fdt2', dfdt)
+            params['d2fdt2'] = _kw_to_Parameter('d2fdt2', d2fdt2)
         if dfdsinphi is not None:
             params['dfdsinphi'] = _kw_to_Parameter('dfdsinphi', dfdsinphi)
         if dfdcosphi is not None:
@@ -616,6 +640,10 @@ class Dataset(object):
             params['dfdsin2phi'] = _kw_to_Parameter('dfdsin2phi', dfdsin2phi)
         if dfdcos2phi is not None:
             params['dfdcos2phi'] = _kw_to_Parameter('dfdcos2phi', dfdcos2phi)
+        if dfdsin3phi is not None:
+            params['dfdsin3phi'] = _kw_to_Parameter('dfdsin3phi', dfdsin3phi)
+        if dfdcos3phi is not None:
+            params['dfdcos3phi'] = _kw_to_Parameter('dfdcos3phi', dfdcos3phi)
 
         params.add('k',expr='sqrt(D)',min=0,max=1)
         params.add('aR',expr='sqrt((1+k)**2-b**2)/W/pi',min=1)
@@ -642,10 +670,10 @@ class Dataset(object):
     # ----------------------------------------------------------------
     def lmfit_eclipse(self, 
             T_0=None, P=None, D=None, W=None, b=None, L=None, 
-            f_c=None, f_s=None, a_c=None, 
+            f_c=None, f_s=None, a_c=None, dfdbg=None, dfdcontam=None, 
             c=None, dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
-            dfdt=None, d2fdt2=None):
+            dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None):
 
         def _chisq_prior(params, *args):
             r =  (flux - model.eval(params, t=time))/flux_err
@@ -710,18 +738,22 @@ class Dataset(object):
             params.add(name='a_c', value=0, vary=False)
         else:
             params['a_c'] = _kw_to_Parameter('a_c', a_c)
+        if dfdbg is not None:
+            params['dfdbg'] = _kw_to_Parameter('dfdbg', dfdbg)
+        if dfdcontam is not None:
+            params['dfdcontam'] = _kw_to_Parameter('dfdcontam', dfdcontam)
         if dfdx is not None:
             params['dfdx'] = _kw_to_Parameter('dfdx', dfdx)
         if dfdy is not None:
             params['dfdy'] = _kw_to_Parameter('dfdy', dfdy)
         if d2fdx2 is not None:
-            params['d2fdx2'] = _kw_to_Parameter('d2fdx2', dfdx)
+            params['d2fdx2'] = _kw_to_Parameter('d2fdx2', df2dx2)
         if d2fdy2 is not None:
-            params['d2fdy2'] = _kw_to_Parameter('d2fdy2', dfdy)
+            params['d2fdy2'] = _kw_to_Parameter('d2fdy2', df2dy2)
         if dfdt is not None:
             params['dfdt'] = _kw_to_Parameter('dfdt', dfdt)
         if d2fdt2 is not None:
-            params['d2fdt2'] = _kw_to_Parameter('d2fdt2', dfdt)
+            params['d2fdt2'] = _kw_to_Parameter('d2fdt2', df2dt2)
         if dfdsinphi is not None:
             params['dfdsinphi'] = _kw_to_Parameter('dfdsinphi', dfdsinphi)
         if dfdcosphi is not None:
@@ -730,6 +762,10 @@ class Dataset(object):
             params['dfdsin2phi'] = _kw_to_Parameter('dfdsin2phi', dfdsin2phi)
         if dfdcos2phi is not None:
             params['dfdcos2phi'] = _kw_to_Parameter('dfdcos2phi', dfdcos2phi)
+        if dfdsin3phi is not None:
+            params['dfdsin3phi'] = _kw_to_Parameter('dfdsin3phi', dfdsin3phi)
+        if dfdcos3phi is not None:
+            params['dfdcos3phi'] = _kw_to_Parameter('dfdcos3phi', dfdcos3phi)
 
         params.add('k',expr='sqrt(D)',min=0,max=1)
         params.add('aR',expr='sqrt((1+k)**2-b**2)/W/pi',min=1)
@@ -763,6 +799,8 @@ class Dataset(object):
                     noPriors = False
                 report += "    %s:%s" % (p, ' '*(namelen-len(p)))
                 report += '%s +/-%s\n' % (gformat(u.n), gformat(u.s))
+        report += 'pycheops version %s\n' % __version__
+        report += 'CHEOPS DRP version %s\n' % self.pipe_ver
         return(report)
 
     # ----------------------------------------------------------------
@@ -881,18 +919,18 @@ class Dataset(object):
             pos.append(pos_i)
 
         sampler = EnsembleSampler(nwalkers, n_varys, log_posterior_func,
-                args=args)
+            args=args)
         if progress:
             print('Running burn-in ..')
             stdout.flush()
         pos, _, _ = sampler.run_mcmc(pos, burn, store=False, 
-                skip_initial_state_check=True, progress=progress)
+            skip_initial_state_check=True, progress=progress)
         sampler.reset()
         if progress:
             print('Running sampler ..')
             stdout.flush()
         state = sampler.run_mcmc(pos, steps, thin_by=thin,
-                skip_initial_state_check=True, progress=progress)
+            skip_initial_state_check=True, progress=progress)
 
         flatchain = sampler.get_chain(flat=True).reshape((-1, len(vn)))
         pos_i = flatchain[np.argmax(sampler.get_log_prob()),:]
@@ -956,6 +994,8 @@ class Dataset(object):
                     noPriors = False
                 report += "    %s:%s" % (p, ' '*(namelen-len(p)))
                 report += '%s +/-%s\n' % (gformat(u.n), gformat(u.s))
+        report += 'pycheops version %s\n' % __version__
+        report += 'CHEOPS DRP version %s\n' % self.pipe_ver
         return(report)
 
     # ----------------------------------------------------------------
@@ -978,6 +1018,10 @@ class Dataset(object):
                 xs.append(chain[:,varkeys.index(key)])
                 if key == 'T_0':
                     labels.append(r'T$_0-{}$'.format(self.lc['bjd_ref']))
+                elif key == 'dfdbg':
+                    labels.append(r'$df/d{\rm (bg)}$')
+                elif key == 'dfdcontam':
+                    labels.append(r'$df/d{\rm (contam)}$')
                 elif key == 'dfdx':
                     labels.append(r'$df/dx$')
                 elif key == 'd2fdx2':
@@ -998,6 +1042,10 @@ class Dataset(object):
                     labels.append(r'$df/d\sin(2\phi)$')
                 elif key == 'dfdcos2phi':
                     labels.append(r'$df/d\cos(2\phi)$')
+                elif key == 'dfdsin3phi':
+                    labels.append(r'$df/d\sin(3\phi)$')
+                elif key == 'dfdcos3phi':
+                    labels.append(r'$df/d\cos(3\phi)$')
                 elif key == 'log_sigma':
                     labels.append(r'$\log\sigma$')
                 elif key == 'log_omega0':
@@ -1200,9 +1248,11 @@ class Dataset(object):
             ax[0].set_ylabel('Flux/trend')
         else:
             ax[0].set_ylabel('Flux')
-        ax[1].errorbar(time,res,yerr=flux_err,fmt='bo',ms=3,zorder=0)
+        # SHOTerm sometimes offset from 0 - fix that here
+        off = res.mean()
+        ax[1].errorbar(time,res-off,yerr=flux_err,fmt='bo',ms=3,zorder=0)
         if self.gp is not None:
-            ax[1].plot(tp,mu0,c='orange', zorder=1)
+            ax[1].plot(tp,mu0-off,c='orange', zorder=1)
         ax[1].plot([tmin,tmax],[0,0],ls=':',c='orange', zorder=1)
         ax[1].set_xlabel('BJD-{}'.format(self.lc['bjd_ref']))
         ax[1].set_ylabel('Residual')
@@ -1216,7 +1266,7 @@ class Dataset(object):
 
     def transit_noise_plot(self, width=3, steps=500,
             fname=None, figsize=(6,4), fontsize=11,
-            requirement=None, verbose=True):
+            requirement=None, local=False, verbose=True):
 
         try:
             time = np.array(self.lc['time'])
@@ -1224,22 +1274,29 @@ class Dataset(object):
             flux_err = np.array(self.lc['flux_err'])
         except AttributeError:
             raise AttributeError("Use get_lightcurve() to load data first.")
-        T = np.linspace(np.min(time)+width/48,np.max(time)-width/48 , steps)
 
+        T = np.linspace(np.min(time)+width/48,np.max(time)-width/48 , steps)
         Nsc = np.zeros_like(T)
         Fsc = np.zeros_like(T)
         Nmn = np.zeros_like(T)
 
         for i,_t in enumerate(T):
-            _n,_f = transit_noise(time, flux, flux_err, T_0=_t,
+            if local:
+                j = (np.abs(time-_t) < (width/48)).nonzero()[0]
+                _n,_f = transit_noise(time[j], flux[j], flux_err[j], T_0=_t,
                               width=width, method='scaled')
+                _m = transit_noise(time[j], flux[j], flux_err[j], T_0=_t,
+                           width=width, method='minerr')
+            else:
+                _n,_f = transit_noise(time, flux, flux_err, T_0=_t,
+                              width=width, method='scaled')
+                _m = transit_noise(time, flux, flux_err, T_0=_t,
+                           width=width, method='minerr')
             if np.isfinite(_n):
                 Nsc[i] = _n
                 Fsc[i] = _f
-            _n = transit_noise(time, flux, flux_err, T_0=_t,
-                           width=width, method='minerr')
-            if np.isfinite(_n):
-                Nmn[i] = _n
+            if np.isfinite(_m):
+                Nmn[i] = _m
 
         msk = (Nsc > 0) 
         Tsc = T[msk]
@@ -1289,6 +1346,64 @@ class Dataset(object):
         else:
             plt.savefig(fname)
         
+
+    #------
+
+    def flatten(self, mask_centre, mask_width, npoly=2):
+        """
+        Renormalize using a polynomial fit excluding a section of the data
+     
+        The position and width of the mask to exclude the transit/eclipse is
+        specified on the same time scale as the light curve data.
+
+        :param mask_centre: time at the centre of the mask
+        :param mask_width: full width of the mask
+        :param npoly: number of terms in the normalizing polynomial
+
+        :returns: time, flux, flux_err
+
+        """
+        time = self.lc['time']
+        flux = self.lc['flux']
+        flux_err = self.lc['flux_err']
+        mask = abs(time-mask_centre) > mask_width/2
+        n = np.polyval(np.polyfit(time[mask],flux[mask],npoly-1),time)
+        self.lc['flux'] /= n
+        self.lc['flux_err'] /= n
+
+        return self.lc['time'], self.lc['flux'], self.lc['flux_err']
+
+    #------
+
+    def clip_outliers(self, clip=5, width=11, verbose=True):
+        """
+        Remove outliers from the light curve.
+
+        Data more than clip*mad from a smoothed version of the light curve are
+        removed where mad is the mean absolute deviation from the
+        median-smoothed light curve.
+
+        :param clip: tolerance on clipping
+        :param width: width of window for median-smoothing filter
+
+        :returns: time, flux, flux_err
+
+        """
+        flux = self.lc['flux']
+        d = abs(flux - medfilt(flux, width))
+        mad = d.mean()
+        ok = d < clip*mad
+        self.lc = {'time':self.lc['time'][ok], 'flux':flux[ok],
+                'flux_err':self.lc['flux_err'][ok], 'xoff':self.lc['xoff'][ok],
+                'yoff':self.lc['yoff'][ok], 'bjd_ref':self.lc['bjd_ref'],
+                'table':self.lc['table'], 'header':self.lc['header'],
+                'centroid_x':self.lc['centroid_x'],
+                'centroid_y':self.lc['centroid_y'],
+                'roll_angle':self.lc['roll_angle'][ok]}
+        if verbose:
+            print('\nRejected {} points more than {:0.1f} x MAD = {:0.0f} ppm '
+                    'from the median'.format(sum(~ok),clip,1e6*mad*clip))
+        return self.lc['time'], self.lc['flux'], self.lc['flux_err']
 
     #------
 

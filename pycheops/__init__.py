@@ -43,9 +43,8 @@ from .core import load_config
 try:
     config = load_config()
 except ValueError:
-    from .core import setup_config
-    setup_config()
-    config = load_config()
+    print(' ** Run pycheops.core.setup_config **')
+    raise ValueError
 
 data_path = path.join(here,'data','instrument')
 cache_path = config['DEFAULT']['data_cache_path']
@@ -71,18 +70,8 @@ if not path.isfile(pfile):
         apertures = CircularAperture(pos, r=radius)
         photTable = aperture_photometry(data, apertures)
         contam[i+1] = max(photTable['aperture_sum'])/target_flux
+    contam = np.array(contam)  # convert to numpy array else sphinx complains
     I = interp1d(rad, contam,fill_value=min(contam),bounds_error=False)
-    with open(pfile,'wb') as fp:
-        pickle.dump(I,fp)
-
-# Exposure time calculator for instrument.py and make_xml_files
-pfile = path.join(cache_path,'log_exposure_time.p')
-if not path.isfile(pfile):
-    tfile = path.join(data_path,'TexpTable.csv')
-    TexpTable = Table.read(tfile)
-    G_ = np.array(TexpTable['V']) - 0.153
-    I = interp1d(G_,[np.log10(TexpTable['min']),np.log10(TexpTable['max'])],
-            kind='linear', bounds_error=False,assume_sorted=True)
     with open(pfile,'wb') as fp:
         pickle.dump(I,fp)
 
@@ -107,11 +96,24 @@ if not path.isfile(pfile):
             'EEM_dwarf_UBVIJHK_colors_Teff.txt')
     T = Table.read(fT,format='ascii',header_start=-1,
             fill_values=('...',np.nan))
-    I = interp1d(T['Bp-Rp'],T['Teff'],bounds_error=False,
+    b_p = np.array(T['Bp-Rp']) # convert to numpy array else sphinx complains
+    Teff = np.array(T['Teff'])  # convert to numpy array else sphinx complains
+    I = interp1d(b_p,Teff,bounds_error=False,
             fill_value='extrapolate')
     with open(pfile,'wb') as fp:
         pickle.dump(I,fp)
 
+# CHEOPS magnitude - Gaia G magnitude v. T_eff
+# From ImageETCc1.4 exposure time calculator spreadsheet
+pfile = path.join(cache_path,'C_G_Teff_interpolator.p')
+if not path.isfile(pfile):
+    fT = path.join(here,'data','instrument', 'C_G_Teff.csv')
+    T = Table.read(fT,format='csv')
+    Teff = np.array(T['Teff'])  # convert to numpy array else sphinx complains
+    C_G = np.array(T['C-G']) # convert to numpy array else sphinx complains
+    I = interp1d(Teff,C_G,bounds_error=False, fill_value='extrapolate')
+    with open(pfile,'wb') as fp:
+        pickle.dump(I,fp)
 
 from .dataset import Dataset
 from .starproperties import StarProperties

@@ -79,10 +79,10 @@ setup(
     install_requires=[
             'numpy>=1.17.2',
             'scipy',
-            'astropy',
+            'astropy>=3.2.2',
             'emcee>=3.0.0',
             'astroquery',
-            'numba',
+            'numba>=0.44.1',
             'lmfit>=0.9.14', 
             'corner', 
             'photutils',

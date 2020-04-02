@@ -30,57 +30,68 @@ Functions
 from __future__ import (absolute_import, division, print_function,
                                 unicode_literals)
 import numpy as np
-from .models import TransitModel, scaled_transit_fit, minerr_transit_fit
-import warnings 
-
-
-__all__ = [ 'response', 'visibility', 'exposure_time', 'transit_noise',
-        'count_rate']
 
 from os.path import join,abspath,dirname,isfile
 import pickle 
 from numpy import int as np_int 
-from numpy import round
 from astropy.table import Table
 from .core import load_config
+from .models import TransitModel, scaled_transit_fit, minerr_transit_fit
+import warnings 
+
+__all__ = [ 'response', 'visibility', 'exposure_time', 'transit_noise',
+        'count_rate', 'cadence']
 
 _data_path = join(dirname(abspath(__file__)),'data')
 config = load_config()
 _cache_path = config['DEFAULT']['data_cache_path']
 
+# Parameters from spreadsheet ImageETCv1.4, 2020-04-01
+FLUX_0 = 1851840480 
+PSF_R90 = 16.2
+PSF_HP = 0.0046
+FWC = 114000
+
 with open(join(_cache_path,'log_exposure_time.p'),'rb') as fp:
     _log_exposure_time_interpolator = pickle.load(fp)
 
-with open(join(_cache_path,'Teff_BP_RP_interpolator.p'),'rb') as fp:
-    _Teff_BP_RP_interpolator = pickle.load(fp)
+with open(join(_cache_path,'C_G_Teff_interpolator.p'),'rb') as fp:
+    _C_G_Teff_interpolator = pickle.load(fp)
 
 with open(join(_cache_path,'visibility_interpolator.p'),'rb') as fp:
     _visibility_interpolator = pickle.load(fp)
 
-def count_rate(gmag, bp_rp):
+_cadence_Table = Table.read(join(_data_path,'instrument','cadence.csv'),
+        format='ascii.csv', header_start=1)
+
+#-----------------------------
+
+def count_rate(G, Teff=6000):
     """
-    Predicted count rate
+    Predicted count rates, c_tot, c_av, c_max 
 
-    The count rate in e-/s based on the star's Gaia G magnitude and G_BP-R_BP
-    colour. This value returned is suitable for use in the CHEOPS exposure
-    time calculator using the option "Expected flux in CHEOPS passband"
+    The count rates in e-/s based on the star's Gaia G magnitude and effective
+    temperature, Teff. 
 
-    ** Currently based on stellar models convolved with throughout and QE
-    curves measured pre-launch.
+    * c_tot = total count rate
+    * c_av  = average count rate
+    * c_max = count rate in the brightest pixel
+
+    :param G: Gaia G-band magnitude
+
+    :param Teff: target effective temperature in K
+
+    :returns: c_tot, c_av, c_max 
 
     """
-    # Convert G_BP-G_RP colour to T_eff 
-    T_eff = _Teff_BP_RP_interpolator(bp_rp)
-    # From fit to results using models from 
-    #  http://svo2.cab.inta-csic.es/theory/newov/index.php?model=coelho_sed
-    # and the following throughput and QE curves plus re-scaled aperure
-    # diameter of 30 cm
-    #  CH_TU2019-12-17T00-00-00_REF_APP_QE_V0100.fits
-    #  CH_TU2018-01-01T00-00-00_REF_APP_Throughput-BeginOfLife_V0100.fits
-    # Correction to G-magnitude from Casagrande et al., 2018 has already 
-    # been applied so DR2 phot_g_mean_mag can be used directly. 
-    zp_G = 23.310 - 0.0036*(T_eff-5777)/1000
-    return 10**(0.4*(zp_G - gmag))
+
+    c_tot = round(FLUX_0*10**(-0.4*(G+_C_G_Teff_interpolator(Teff))))
+    c_av  = round(0.90*c_tot/(np.pi*PSF_R90**2))
+    c_max = round(PSF_HP*c_tot)
+    return c_tot, c_av, c_max
+
+
+#-----------------------------
 
 def visibility(ra, dec):
     """
@@ -100,6 +111,9 @@ def visibility(ra, dec):
 
     return (_visibility_interpolator(ra, dec)*100).astype(np_int)
 
+
+#-----------------------------
+
 def response(passband='CHEOPS'):
     """
      Instrument response functions.
@@ -109,7 +123,7 @@ def response(passband='CHEOPS'):
 
      The available passband names are 'CHEOPS', 'MOST', 
      'Kepler', 'CoRoT', 'Gaia', 'B', 'V', 'R', 'I',
-     u_','g_','r_','i_','z_', and 'NGTS'
+     'u\_','g\_','r\_','i\_','z\_', and 'NGTS'
 
      :param passband: instrument/passband names (case sensitive).
 
@@ -121,23 +135,78 @@ def response(passband='CHEOPS'):
     T.rename_column(passband,'Response')
     return T['Wavelength','Response']
 
-def exposure_time(G):
+#------------------
+
+def exposure_time(G, Teff=6000, frac=0.85):
     """
-    Recommended minimum/maximum exposure times
+    Recommended exposure time.
 
-    The function returns the exposure times that are estimated to provide 
-    10% and 98% of the detector full well capacity in the brightest image
-    pixel of the target. 
+    By default, calculates the exposure time required to obtain 85% of the
+    full-well capacity in the brightest pixel for a star of a given Gaia
+    G-band magnitude, G, and effective temperature, Teff in Kelvin.
 
-     :param G: Gaia G-band magnitude
+    The value returned is restricted to the range  0.1 s < t_exp < 60 s.
 
-     :returns: min,max recommended exposure time
+    The exposure time can be adjusted by selecting a different value of frac,
+    the fraction of the full-well capacity (FWC) in the brightest pixel. It is
+    strongly recommended not to exceed frac=0.95 for CHEOPS observations.
+
+    :param G: Gaia G-band magnitude
+
+    :frac: target fraction of the FWC in the brightest pixel.
+
+    :returns: t_exp
 
     """
 
-    r =  10**_log_exposure_time_interpolator(G)
-    return round(r[0],2),round(r[1],2)
+    c_tot, c_av, c_max = count_rate(G, Teff)
 
+    t_exp = round(np.clip(frac*FWC/c_max,0.1,60),2)
+
+    return t_exp
+
+#------------------
+
+
+def cadence(exptime, G, Teff=6000):
+    """
+    Cadence and other observing informtion for a given exposure time.
+
+    For a star of the specified Gaia G-band magnitude and effective
+    temperature, return the following parameters for an exposure time of the
+    specified length.
+
+    * img  = image stacking order
+    * igt  = imagette stacking order
+    * cad  = stacked image cadence (in seconds)
+    * duty = duty cycle (%) 
+    * frac = maximim counts as a fraction of the full-well capacity 
+
+    :param exptime: exposure time in seconds (0.1 .. 60)
+
+    :param G: Gaia G-band magnitude
+
+    :Teff: target effective temperature in Kelvin
+
+    :returns: img, igt, cad, duty, frac
+
+    """
+
+    if exptime < 0.1 or exptime > 60:
+        return int(np.nan), int(np.nan), np.nan, np.nan, np.nan
+
+    R = _cadence_Table[np.searchsorted(_cadence_Table['t_hi'],exptime)]
+    img = R['img']
+    igt = R['igt']
+    w = (R['t_hi']-exptime)/(R['t_hi']-R['t_lo'])  # interpolating weight
+    duty = round(w*R['duty_lo'] + (1-w)*R['duty_hi'],2)
+    cad = round(w*R['cad_lo'] + (1-w)*R['cad_hi'],2)
+    c_tot, c_av, c_max = count_rate(G, Teff)
+    frac = round(exptime*c_max/FWC,2)
+
+    return img, igt, cad, duty, frac
+
+#------------------
 
 def transit_noise(time, flux, flux_err, T_0=None, width=3,
                   h_1=0.7224, h_2=0.6713, tol=0.1, 
@@ -171,25 +240,25 @@ def transit_noise(time, flux, flux_err, T_0=None, width=3,
     If there are insufficient data for the calculation the function returns
     values returned are np.nan, np.nan
 
-     :param time: Array of observed times (days)
+    :param time: Array of observed times (days)
 
-     :param flux: Array of normalised flux measurements
+    :param flux: Array of normalised flux measurements
 
-     :param flux_err: Standard error estimate(s) for flux - array of scalar
+    :param flux_err: Standard error estimate(s) for flux - array of scalar
 
-     :param T_0: Centre of time window for noise estimate
+    :param T_0: Centre of time window for noise estimate
 
-     :param width: Width of time window for noise estimate in hours
+    :param width: Width of time window for noise estimate in hours
 
-     :param h_1: Limb darkening parameter
+    :param h_1: Limb darkening parameter
 
-     :param h_2: Limb darkening parameter
+    :param h_2: Limb darkening parameter
 
-     :param tol: Tolerance criterion for convergence (ppm)
+    :param tol: Tolerance criterion for convergence (ppm)
 
-     :param method: 'scaled' or 'minerr'
+    :param method: 'scaled' or 'minerr'
 
-     :returns: noise in ppm and, if method is 'scaled', noise scaling factor, f
+    :returns: noise in ppm and, if method is 'scaled', noise scaling factor, f
 
     """
 

@@ -1,0 +1,784 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>models &#8212; pycheops 0.0.16 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <script async="async" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/latest.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="quantities" href="quantities.html" />
+    <link rel="prev" title="ld" href="ld.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="toctree-wrapper compound">
+</div>
+<span class="target" id="module-pycheops.models"></span><div class="section" id="models">
+<h1>models<a class="headerlink" href="#models" title="Permalink to this headline">¶</a></h1>
+<p>Models and likelihood functions for use with lmfit</p>
+<dl class="attribute">
+<dt id="pycheops.models.qpower2">
+<code class="sig-prename descclassname">pycheops.models.</code><code class="sig-name descname">qpower2</code><a class="headerlink" href="#pycheops.models.qpower2" title="Permalink to this definition">¶</a></dt>
+<dd><p>Fast and accurate transit light curves for the power-2 limb-darkening law</p>
+<p>The power-2 limb-darkening law is</p>
+<div class="math notranslate nohighlight">
+\[I(\mu) = 1 - c (1 - \mu^\alpha)\]</div>
+<p>Light curves are calculated using the qpower2 approximation <a class="footnote-reference brackets" href="#id2" id="id1">2</a>. The
+approximation is accurate to better than 100ppm for radius ratio k &lt; 0.1.</p>
+<p><strong>N.B.</strong> qpower2 is untested/inaccurate for values of k &gt; 0.2</p>
+<dl class="footnote brackets">
+<dt class="label" id="id2"><span class="brackets"><a class="fn-backref" href="#id1">2</a></span></dt>
+<dd><p>Maxted, P.F.L. &amp; Gill, S., 2019A&amp;A…622A..33M</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>z</strong> – star-planet separation on the sky cf. star radius (array)</p></li>
+<li><p><strong>k</strong> – planet-star radius ratio (scalar, k&lt;1)</p></li>
+<li><p><strong>c</strong> – power-2 limb darkening coefficient</p></li>
+<li><p><strong>a</strong> – power-2 limb darkening exponent</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>light curve (observed flux)</p>
+</dd>
+<dt class="field-odd">Example</dt>
+<dd class="field-odd"><p></p></dd>
+</dl>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pycheops.models</span> <span class="kn">import</span> <span class="n">qpower2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pycheops.funcs</span> <span class="kn">import</span> <span class="n">t2z</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">numpy</span> <span class="kn">import</span> <span class="n">linspace</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">t</span> <span class="o">=</span> <span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mf">0.025</span><span class="p">,</span><span class="mf">0.025</span><span class="p">,</span><span class="mi">1000</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">sini</span> <span class="o">=</span> <span class="mf">0.999</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">rstar</span> <span class="o">=</span> <span class="mf">0.05</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ecc</span> <span class="o">=</span> <span class="mf">0.2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">om</span> <span class="o">=</span> <span class="mi">120</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">tzero</span> <span class="o">=</span> <span class="mf">0.0</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P</span> <span class="o">=</span> <span class="mf">0.1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">z</span><span class="o">=</span><span class="n">t2z</span><span class="p">(</span><span class="n">t</span><span class="p">,</span><span class="n">tzero</span><span class="p">,</span><span class="n">P</span><span class="p">,</span><span class="n">sini</span><span class="p">,</span><span class="n">rstar</span><span class="p">,</span><span class="n">ecc</span><span class="p">,</span><span class="n">om</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="mf">0.5</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">a</span> <span class="o">=</span> <span class="mf">0.7</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">k</span> <span class="o">=</span> <span class="mf">0.1</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">f</span> <span class="o">=</span> <span class="n">qpower2</span><span class="p">(</span><span class="n">z</span><span class="p">,</span><span class="n">k</span><span class="p">,</span><span class="n">c</span><span class="p">,</span><span class="n">a</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">t</span><span class="p">,</span><span class="n">f</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pycheops.models.ueclipse">
+<code class="sig-prename descclassname">pycheops.models.</code><code class="sig-name descname">ueclipse</code><a class="headerlink" href="#pycheops.models.ueclipse" title="Permalink to this definition">¶</a></dt>
+<dd><p>Eclipse light curve for a planet with uniform surface brightness by a star</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>z</strong> – star-planet separation on the sky cf. star radius (array)</p></li>
+<li><p><strong>k</strong> – planet-star radius ratio (scalar, k&lt;1)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>light curve (observed flux from eclipsed source)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="class">
+<dt id="pycheops.models.TransitModel">
+<em class="property">class </em><code class="sig-prename descclassname">pycheops.models.</code><code class="sig-name descname">TransitModel</code><span class="sig-paren">(</span><em class="sig-param">independent_vars=['t'], prefix='', nan_policy='raise', **kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.models.TransitModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Light curve model for the transit of a spherical star by an opaque
+spherical body (planet).</p>
+<p>Limb-darkening is described by the power-2 law:</p>
+<div class="math notranslate nohighlight">
+\[I(\mu) = 1 - c (1 - \mu^\alpha)\]</div>
+<p>The transit depth, width shape are parameterised by D, W and b. These
+parameters are defined below in terms of the radius of the star and
+planet, R_s and R_p, respectively, the semi-major axis, a, and the orbital
+inclination, i. The eccentricy and longitude of periastron for the star’s
+orbit are e and omega, respectively.</p>
+<p>The following parameters are defined for convenience:</p>
+<ul class="simple">
+<li><p>k = R_p/R_s;</p></li>
+<li><p>aR = a/R_s;</p></li>
+<li><p>rho = 0.013418*aR**3/(P/d)**2.</p></li>
+</ul>
+<p><strong>N.B.</strong> the mean stellar density in solar units is rho, but only if the 
+mass ratio q = M_planet/M_star is q &lt;&lt; 1.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>t</strong> – <ul>
+<li><p>independent variable (time)</p></li>
+</ul>
+</p></li>
+<li><p><strong>T_0</strong> – <ul>
+<li><p>time of mid-transit</p></li>
+</ul>
+</p></li>
+<li><p><strong>P</strong> – <ul>
+<li><p>orbital period</p></li>
+</ul>
+</p></li>
+<li><p><strong>D</strong> – <ul>
+<li><p>(R_p/R_s)**2 = k**2</p></li>
+</ul>
+</p></li>
+<li><p><strong>W</strong> – <ul>
+<li><p>(R_s/a)*sqrt((1+k)**2 - b**2)/pi</p></li>
+</ul>
+</p></li>
+<li><p><strong>b</strong> – <ul>
+<li><p>a*cos(i)/R_s</p></li>
+</ul>
+</p></li>
+<li><p><strong>f_c</strong> – <ul>
+<li><p>sqrt(ecc)*cos(omega)</p></li>
+</ul>
+</p></li>
+<li><p><strong>f_s</strong> – <ul>
+<li><p>sqrt(ecc)*sin(omega)</p></li>
+</ul>
+</p></li>
+<li><p><strong>h_1</strong> – <ul>
+<li><p>I(0.5) = 1 - c*(1-0.5**alpha)</p></li>
+</ul>
+</p></li>
+<li><p><strong>h_2</strong> – <ul>
+<li><p>I(0.5) - I(0) = c*0.5**alpha</p></li>
+</ul>
+</p></li>
+</ul>
+</dd>
+</dl>
+<p>The flux value outside of transit is 1. The light curve is calculated using
+the qpower2 algorithm, which is fast but only accurate for k &lt; ~0.3.</p>
+<p>If the input parameters are invalid or k&gt;0.5 the model is returned as an
+array of value 1 everywhere.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="pycheops.models.EclipseModel">
+<em class="property">class </em><code class="sig-prename descclassname">pycheops.models.</code><code class="sig-name descname">EclipseModel</code><span class="sig-paren">(</span><em class="sig-param">independent_vars=['t'], prefix='', nan_policy='raise', **kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.models.EclipseModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Light curve model for the eclipse by a spherical star of a spherical
+body (planet) with no limb darkening.</p>
+<p>The transit depth, width shape are parameterised by D, W and b. These
+parameters are defined below in terms of the radius of the star and
+planet, R_s and R_p, respectively, the semi-major axis, a, and the orbital
+inclination, i. The eccentricy and longitude of periastron for the star’s
+orbit are e and omega, respectively. These are the same parameters used in
+TransitModel. The flux level outside of eclipse is 1 and inside eclipse is
+(1-L). The apparent time of mid-eclipse includes the correction a_c for
+the light travel time across the orbit, i.e., for a circular orbit the
+time of mid-eclipse is (T_0 + 0.5*P) + a_c.</p>
+<p><strong>N.B.</strong> a_c must have the same units as P.</p>
+<p>The following parameters are defined for convenience:</p>
+<ul class="simple">
+<li><p>k = R_p/R_s;</p></li>
+<li><p>aR = a/R_s;</p></li>
+<li><p>rho = 0.013418*aR**3/(P/d)**2.</p></li>
+</ul>
+<p><strong>N.B.</strong> the mean stellar density in solar units is rho, but only if the
+mass ratio q = M_planet/M_star is q &lt;&lt; 1.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>t</strong> – <ul>
+<li><p>independent variable (time)</p></li>
+</ul>
+</p></li>
+<li><p><strong>T_0</strong> – <ul>
+<li><p>time of mid-transit</p></li>
+</ul>
+</p></li>
+<li><p><strong>P</strong> – <ul>
+<li><p>orbital period</p></li>
+</ul>
+</p></li>
+<li><p><strong>D</strong> – <ul>
+<li><p>(R_p/R_s)**2 = k**2</p></li>
+</ul>
+</p></li>
+<li><p><strong>W</strong> – <ul>
+<li><p>(R_s/a)*sqrt((1+k)**2 - b**2)/pi</p></li>
+</ul>
+</p></li>
+<li><p><strong>b</strong> – <ul>
+<li><p>a*cos(i)/R_s</p></li>
+</ul>
+</p></li>
+<li><p><strong>L</strong> – <ul>
+<li><p>Depth of eclipse</p></li>
+</ul>
+</p></li>
+<li><p><strong>f_c</strong> – <ul>
+<li><p>sqrt(ecc).cos(omega)</p></li>
+</ul>
+</p></li>
+<li><p><strong>f_s</strong> – <ul>
+<li><p>sqrt(ecc).sin(omega)</p></li>
+</ul>
+</p></li>
+<li><p><strong>a_c</strong> – <ul>
+<li><p>correction for light travel time across the orbit</p></li>
+</ul>
+</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="class">
+<dt id="pycheops.models.FactorModel">
+<em class="property">class </em><code class="sig-prename descclassname">pycheops.models.</code><code class="sig-name descname">FactorModel</code><span class="sig-paren">(</span><em class="sig-param">independent_vars=['t'], prefix='', nan_policy='raise', dx=None, dy=None, sinphi=None, cosphi=None, bg=None, **kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.models.FactorModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Flux scaling and trend factor model</p>
+<dl class="simple">
+<dt>f = c*(1 + dfdt*dt + d2fdt2*dt**2 + dfdbg*bg(t)  + </dt><dd><p>dfdx*dx(t) + dfdy*dy(t) +
+d2fdx2*dx(t)**2 + d2f2y2*dy(t)**2 + d2fdxdy*x(t)*dy(t) +
+dfdsinphi*sin(phi(t)) + dfdcosphi*cos(phi(t)) +
+dfdsin2phi*sin(2.phi(t)) + dfdcos2phi*cos(2.phi(t)) + 
+dfdsin3phi*sin(3.phi(t)) + dfdcos3phi*cos(3.phi(t)) )</p>
+</dd>
+</dl>
+<p>The detrending coefficients dfdx, etc. are 0 and fixed by default. If
+any of the coefficients dfdx, d2fdxdy or d2f2x2 is not 0, a function to
+calculate the x-position offset as a function of time, dx(t), must be
+passed as a keyword argument, and similarly for the y-position offset,
+dy(t). For detrending against the spacecraft roll angle, phi(t), the
+functions to be provided as keywords arguments are sinphi(t) and
+cosphi(t). The linear trend dfdbg is proportional to the estimated
+background flux in the aperture, bg(t). The time trend decribed by dfdt
+and d2fdt2 is calculated using the variable dt = t - median(t).</p>
+<dl class="method">
+<dt id="pycheops.models.FactorModel.guess">
+<code class="sig-name descname">guess</code><span class="sig-paren">(</span><em class="sig-param">data</em>, <em class="sig-param">**kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.models.FactorModel.guess" title="Permalink to this definition">¶</a></dt>
+<dd><p>Estimate initial model parameter values from data.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="pycheops.models.ThermalPhaseModel">
+<em class="property">class </em><code class="sig-prename descclassname">pycheops.models.</code><code class="sig-name descname">ThermalPhaseModel</code><span class="sig-paren">(</span><em class="sig-param">independent_vars=['t'], prefix='', nan_policy='raise', **kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.models.ThermalPhaseModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Thermal phase model for a tidally-locked planet</p>
+<div class="math notranslate nohighlight">
+\[a_{th}[1-\cos(\phi))/2 + b_{th}*(1+\sin(\phi)/2 + c_{th},\]</div>
+<p>where <span class="math notranslate nohighlight">\(\phi = 2\pi(t-T_0)/P\)</span></p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>t</strong> – <ul>
+<li><p>independent variable (time)</p></li>
+</ul>
+</p></li>
+<li><p><strong>T_0</strong> – <ul>
+<li><p>time of inferior conjunction (mid-transit)</p></li>
+</ul>
+</p></li>
+<li><p><strong>P</strong> – <ul>
+<li><p>orbital period</p></li>
+</ul>
+</p></li>
+<li><p><strong>a_th</strong> – <ul>
+<li><p>coefficient of cosine-like term</p></li>
+</ul>
+</p></li>
+<li><p><strong>b_th</strong> – <ul>
+<li><p>coefficient of sine-like term</p></li>
+</ul>
+</p></li>
+<li><p><strong>c_th</strong> – <ul>
+<li><p>constant term (minimum flux)</p></li>
+</ul>
+</p></li>
+</ul>
+</dd>
+</dl>
+<p>The following parameters are defined for convenience.</p>
+<ul class="simple">
+<li><p>A = sqrt(a_th**2 + b_th**2), peak-to-trough amplitude of the phase curve</p></li>
+<li><p>F = c_th + (a_th + b_th + A)/2, flux at the maximum of the phase curve</p></li>
+<li><p>ph_max = arctan2(b_th,-a_th)/(2*pi) = phase at maximum flux</p></li>
+</ul>
+</dd></dl>
+
+<dl class="class">
+<dt id="pycheops.models.ReflectionModel">
+<em class="property">class </em><code class="sig-prename descclassname">pycheops.models.</code><code class="sig-name descname">ReflectionModel</code><span class="sig-paren">(</span><em class="sig-param">independent_vars=['t'], prefix='', nan_policy='raise', **kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.models.ReflectionModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reflected stellar light from a planet with a Lambertian phase function.</p>
+<p>The fraction of the stellar flux reflected from the planet of radius
+<span class="math notranslate nohighlight">\(R_p\)</span> at a distance <span class="math notranslate nohighlight">\(r\)</span> from the star and viewed at phase
+angle <span class="math notranslate nohighlight">\(\beta\)</span> is</p>
+<div class="math notranslate nohighlight">
+\[A_g(R_p/r)^2  \times  [\sin(\beta) + (\pi-\beta)*\cos(\beta) ]/\pi\]</div>
+<p>The eccentricity and longitude of periastron for the planet’s orbit are
+ecc and omega, respectively.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>t</strong> – <ul>
+<li><p>independent variable (time)</p></li>
+</ul>
+</p></li>
+<li><p><strong>T_0</strong> – <ul>
+<li><p>time of inferior conjunction (mid-transit)</p></li>
+</ul>
+</p></li>
+<li><p><strong>P</strong> – <ul>
+<li><p>orbital period</p></li>
+</ul>
+</p></li>
+<li><p><strong>A_g</strong> – <ul>
+<li><p>geometric albedo</p></li>
+</ul>
+</p></li>
+<li><p><strong>r_p</strong> – <ul>
+<li><p>R_p/a, where a is the semi-major axis.</p></li>
+</ul>
+</p></li>
+<li><p><strong>f_c</strong> – <ul>
+<li><p>sqrt(ecc).cos(omega)</p></li>
+</ul>
+</p></li>
+<li><p><strong>f_s</strong> – <ul>
+<li><p>sqrt(ecc).sin(omega)</p></li>
+</ul>
+</p></li>
+<li><p><strong>sini</strong> – <ul>
+<li><p>sin(inclination)</p></li>
+</ul>
+</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="class">
+<dt id="pycheops.models.RVModel">
+<em class="property">class </em><code class="sig-prename descclassname">pycheops.models.</code><code class="sig-name descname">RVModel</code><span class="sig-paren">(</span><em class="sig-param">independent_vars=['t'], prefix='', nan_policy='raise', **kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.models.RVModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Radial velocity in a Keplerian orbit</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>t</strong> – <ul>
+<li><p>independent variable (time)</p></li>
+</ul>
+</p></li>
+<li><p><strong>T_0</strong> – <ul>
+<li><p>time of inferior conjunction for the companion (mid-transit)</p></li>
+</ul>
+</p></li>
+<li><p><strong>P</strong> – <ul>
+<li><p>orbital period</p></li>
+</ul>
+</p></li>
+<li><p><strong>V_0</strong> – <ul>
+<li><p>radial velocity of the centre-of-mass</p></li>
+</ul>
+</p></li>
+<li><p><strong>K</strong> – <ul>
+<li><p>semi-amplitude of spectroscopic orbit</p></li>
+</ul>
+</p></li>
+<li><p><strong>f_c</strong> – <ul>
+<li><p>sqrt(ecc).cos(omega)</p></li>
+</ul>
+</p></li>
+<li><p><strong>f_s</strong> – <ul>
+<li><p>sqrt(ecc).sin(omega)</p></li>
+</ul>
+</p></li>
+<li><p><strong>sini</strong> – <ul>
+<li><p>sine of the orbital inclination</p></li>
+</ul>
+</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="class">
+<dt id="pycheops.models.RVCompanion">
+<em class="property">class </em><code class="sig-prename descclassname">pycheops.models.</code><code class="sig-name descname">RVCompanion</code><span class="sig-paren">(</span><em class="sig-param">independent_vars=['t'], prefix='', nan_policy='raise', **kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.models.RVCompanion" title="Permalink to this definition">¶</a></dt>
+<dd><p>Radial velocity in a Keplerian orbit for the companion</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>t</strong> – <ul>
+<li><p>independent variable (time)</p></li>
+</ul>
+</p></li>
+<li><p><strong>T_0</strong> – <ul>
+<li><p>time of inferior conjunction for the companion (mid-transit)</p></li>
+</ul>
+</p></li>
+<li><p><strong>P</strong> – <ul>
+<li><p>orbital period</p></li>
+</ul>
+</p></li>
+<li><p><strong>V_0</strong> – <ul>
+<li><p>radial velocity of the centre-of-mass</p></li>
+</ul>
+</p></li>
+<li><p><strong>K</strong> – <ul>
+<li><p>semi-amplitude of spectroscopic orbit</p></li>
+</ul>
+</p></li>
+<li><p><strong>f_c</strong> – <ul>
+<li><p>sqrt(ecc).cos(omega)</p></li>
+</ul>
+</p></li>
+<li><p><strong>f_s</strong> – <ul>
+<li><p>sqrt(ecc).sin(omega)</p></li>
+</ul>
+</p></li>
+<li><p><strong>sini</strong> – <ul>
+<li><p>sine of the orbital inclination</p></li>
+</ul>
+</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="class">
+<dt id="pycheops.models.EBLMModel">
+<em class="property">class </em><code class="sig-prename descclassname">pycheops.models.</code><code class="sig-name descname">EBLMModel</code><span class="sig-paren">(</span><em class="sig-param">independent_vars=['t'], prefix='', nan_policy='raise', **kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.models.EBLMModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Light curve model for the mutual eclipses by spherical stars in an
+eclipsing binary with one low-mass companion, e.g., F/G-star + M-dwarf.</p>
+<p>The transit depth, width shape are parameterised by D, W and b. These
+parameters are defined below in terms of the radii of the stars,  R_1 and
+R_2, the semi-major axis, a, and the orbital inclination, i. This model
+assumes R_1 &gt;&gt; R_2, i.e., k=R_2/R_1 &lt;~0.2.  The eccentricy and longitude
+of periastron for the star’s orbit are e and omega, respectively. These
+are the same parameters used in TransitModel. The flux level outside of
+eclipse is 1 and inside eclipse is (1-L). The apparent time of mid-eclipse
+includes the correction a_c for the light travel time across the orbit,
+i.e., for a circular orbit the time of mid-eclipse is (T_0 + 0.5*P) + a_c.</p>
+<p><strong>N.B.</strong> a_c must have the same units as P. The power-2 law is used to model
+the limb-darkening of star 1. Limb-darkening on star 2 is ignored.</p>
+<p>The following parameters are defined for convenience:</p>
+<ul class="simple">
+<li><p>k = R_2/R_1;</p></li>
+<li><p>aR = a/R_1;</p></li>
+<li><p>J = L/D (surface brightness ratio).</p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>t</strong> – <ul>
+<li><p>independent variable (time)</p></li>
+</ul>
+</p></li>
+<li><p><strong>T_0</strong> – <ul>
+<li><p>time of mid-transit</p></li>
+</ul>
+</p></li>
+<li><p><strong>P</strong> – <ul>
+<li><p>orbital period</p></li>
+</ul>
+</p></li>
+<li><p><strong>D</strong> – <ul>
+<li><p>(R_2/R_1)**2 = k**2</p></li>
+</ul>
+</p></li>
+<li><p><strong>W</strong> – <ul>
+<li><p>(R_1/a)*sqrt((1+k)**2 - b**2)/pi</p></li>
+</ul>
+</p></li>
+<li><p><strong>b</strong> – <ul>
+<li><p>a*cos(i)/R_1</p></li>
+</ul>
+</p></li>
+<li><p><strong>L</strong> – <ul>
+<li><p>Depth of eclipse</p></li>
+</ul>
+</p></li>
+<li><p><strong>f_c</strong> – <ul>
+<li><p>sqrt(ecc).cos(omega)</p></li>
+</ul>
+</p></li>
+<li><p><strong>f_s</strong> – <ul>
+<li><p>sqrt(ecc).sin(omega)</p></li>
+</ul>
+</p></li>
+<li><p><strong>h_1</strong> – <ul>
+<li><p>I(0.5) = 1 - c*(1-0.5**alpha)</p></li>
+</ul>
+</p></li>
+<li><p><strong>h_2</strong> – <ul>
+<li><p>I(0.5) - I(0) = c*0.5**alpha</p></li>
+</ul>
+</p></li>
+<li><p><strong>a_c</strong> – <ul>
+<li><p>correction for light travel time across the orbit</p></li>
+</ul>
+</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="class">
+<dt id="pycheops.models.PlanetModel">
+<em class="property">class </em><code class="sig-prename descclassname">pycheops.models.</code><code class="sig-name descname">PlanetModel</code><span class="sig-paren">(</span><em class="sig-param">independent_vars=['t'], prefix='', nan_policy='raise', **kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.models.PlanetModel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Light curve model for a transiting exoplanet including transits,
+eclipses, and a thermal phase curve for the planet with an offset.</p>
+<p>The flux level from the star is 1 and is assumed to be constant.</p>
+<p>The thermal phase curve from the planet is approximated by a cosine
+function with amplitude A=F_max-F_min plus the minimum flux, F_min, i.e.,
+the maximum flux is F_max = F_min+A, and this occurs at phase (ph_off+0.5)
+relative to the time of mid-transit, i.e.,</p>
+<div class="math notranslate nohighlight">
+\[f_{\rm th} = F_{\rm min} + A[1-\cos(\phi-\phi_{\rm off})]/2\]</div>
+<p>where <span class="math notranslate nohighlight">\(\phi = 2\pi(t-T_0)/P\)</span> and 
+<span class="math notranslate nohighlight">\(\phi_{\rm off} = 2\pi\,{\rm ph\_off}\)</span>.</p>
+<p>The transit depth, width shape are parameterised by D, W and b. These
+parameters are defined below in terms of the radius of the star,  R_1 and
+R_2, the semi-major axis, a, and the orbital inclination, i. This model
+assumes R_1 &gt;&gt; R_2, i.e., k=R_2/R_1 &lt;~0.2.  The eccentricy and longitude
+of periastron for the star’s orbit are e and omega, respectively. These
+are the same parameters used in TransitModel. The eclipse of the planet
+assumes a uniform flux distribution.</p>
+<p>The apparent time of mid-eclipse includes the correction a_c for the
+light travel time across the orbit, i.e., for a circular orbit the time of
+mid-eclipse is (T_0 + 0.5*P) + a_c.</p>
+<p><strong>N.B.</strong> a_c must have the same units as P.</p>
+<p>Stellar limb-darkening is described by the power-2 law:</p>
+<div class="math notranslate nohighlight">
+\[I(\mu) = 1 - c (1 - \mu^\alpha)\]</div>
+<p>The following parameters are defined for convenience:</p>
+<ul class="simple">
+<li><p>k = R_2/R_1;</p></li>
+<li><p>aR = a/R_1;</p></li>
+<li><p>A = F_max - F_min = amplitude of thermal phase effect.</p></li>
+<li><p>rho = 0.013418*aR**3/(P/d)**2.</p></li>
+</ul>
+<p><strong>N.B.</strong> the mean stellar density in solar units is rho, but only if the
+mass ratio q = M_planet/M_star is q &lt;&lt; 1.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>t</strong> – <ul>
+<li><p>independent variable (time)</p></li>
+</ul>
+</p></li>
+<li><p><strong>T_0</strong> – <ul>
+<li><p>time of mid-transit</p></li>
+</ul>
+</p></li>
+<li><p><strong>P</strong> – <ul>
+<li><p>orbital period</p></li>
+</ul>
+</p></li>
+<li><p><strong>D</strong> – <ul>
+<li><p>(R_2/R_1)**2 = k**2</p></li>
+</ul>
+</p></li>
+<li><p><strong>W</strong> – <ul>
+<li><p>(R_1/a)*sqrt((1+k)**2 - b**2)/pi</p></li>
+</ul>
+</p></li>
+<li><p><strong>b</strong> – <ul>
+<li><p>a*cos(i)/R_1</p></li>
+</ul>
+</p></li>
+<li><p><strong>F_min</strong> – <ul>
+<li><p>minimum flux in the thermal phase model</p></li>
+</ul>
+</p></li>
+<li><p><strong>F_max</strong> – <ul>
+<li><p>maximum flux in the thermal phase model</p></li>
+</ul>
+</p></li>
+<li><p><strong>ph_off</strong> – <ul>
+<li><p>offset phase in the thermal phase model</p></li>
+</ul>
+</p></li>
+<li><p><strong>f_c</strong> – <ul>
+<li><p>sqrt(ecc).cos(omega)</p></li>
+</ul>
+</p></li>
+<li><p><strong>f_s</strong> – <ul>
+<li><p>sqrt(ecc).sin(omega)</p></li>
+</ul>
+</p></li>
+<li><p><strong>h_1</strong> – <ul>
+<li><p>I(0.5) = 1 - c*(1-0.5**alpha)</p></li>
+</ul>
+</p></li>
+<li><p><strong>h_2</strong> – <ul>
+<li><p>I(0.5) - I(0) = c*0.5**alpha</p></li>
+</ul>
+</p></li>
+<li><p><strong>a_c</strong> – <ul>
+<li><p>correction for light travel time across the orbit</p></li>
+</ul>
+</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pycheops.models.scaled_transit_fit">
+<code class="sig-prename descclassname">pycheops.models.</code><code class="sig-name descname">scaled_transit_fit</code><a class="headerlink" href="#pycheops.models.scaled_transit_fit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Optimum scaled transit depth for data with scaled errors</p>
+<p>Find the value of the scaling factor s that provides the best fit of the
+model m = 1 + s*(model-1) to the normalised input fluxes. It is assumed
+that the true standard errors on the flux measurements are a factor f
+times the nominal standard error(s) provided in sigma. Also returns
+standard error estimates for s and f, sigma_s and sigma_f, respectively.</p>
+<blockquote>
+<div><dl class="field-list simple">
+<dt class="field-odd">param flux</dt>
+<dd class="field-odd"><p>Array of normalised flux measurements</p>
+</dd>
+<dt class="field-even">param sigma</dt>
+<dd class="field-even"><p>Standard error estimate(s) for flux - array or scalar</p>
+</dd>
+<dt class="field-odd">param model</dt>
+<dd class="field-odd"><p>Transit model to be scaled</p>
+</dd>
+<dt class="field-even">returns</dt>
+<dd class="field-even"><p>s, b, sigma_s, sigma_b</p>
+</dd>
+</dl>
+</div></blockquote>
+</dd></dl>
+
+<dl class="function">
+<dt id="pycheops.models.minerr_transit_fit">
+<code class="sig-prename descclassname">pycheops.models.</code><code class="sig-name descname">minerr_transit_fit</code><span class="sig-paren">(</span><em class="sig-param">flux</em>, <em class="sig-param">sigma</em>, <em class="sig-param">model</em><span class="sig-paren">)</span><a class="headerlink" href="#pycheops.models.minerr_transit_fit" title="Permalink to this definition">¶</a></dt>
+<dd><blockquote>
+<div><p>Optimum scaled transit depth for data with lower bounds on errors</p>
+<p>Find the value of the scaling factor s that provides the best fit of the
+model m = 1 + s*(model-1) to the normalised input fluxes. It is assumed
+that the nominal standard error(s) provided in sigma are lower bounds to
+the true standard errors on the flux measurements. <a class="footnote-reference brackets" href="#id4" id="id3">1</a> The probability
+distribution for the true standard errors is assumed to be</p>
+<div class="math notranslate nohighlight">
+\[P(\sigma_{\rm true} | \sigma) = \sigma/\sigma_{\rm true}^2 \]</div>
+<dl class="field-list simple">
+<dt class="field-odd">param flux</dt>
+<dd class="field-odd"><p>Array of normalised flux measurements</p>
+</dd>
+<dt class="field-even">param sigma</dt>
+<dd class="field-even"><p>Lower bound(s) on standard error for flux - array or scalar</p>
+</dd>
+<dt class="field-odd">param model</dt>
+<dd class="field-odd"><p>Transit model to be scaled</p>
+</dd>
+<dt class="field-even">returns</dt>
+<dd class="field-even"><p>s, sigma_s</p>
+</dd>
+</dl>
+</div></blockquote>
+<dl class="footnote brackets">
+<dt class="label" id="id4"><span class="brackets"><a class="fn-backref" href="#id3">1</a></span></dt>
+<dd><p>Sivia, D.S. &amp; Skilling, J., Data Analysis - A Bayesian Tutorial, 2nd
+ed., section 8.3.1</p>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">pycheops</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="constants.html">constants</a></li>
+<li class="toctree-l1"><a class="reference internal" href="funcs.html">funcs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="instrument.html">instrument</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ld.html">ld</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quantities.html">quantities</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="ld.html" title="previous chapter">ld</a></li>
+      <li>Next: <a href="quantities.html" title="next chapter">quantities</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2018, p.maxted@keele.ac.uk.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 2.4.0</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/models.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

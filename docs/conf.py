@@ -159,23 +159,10 @@ texinfo_documents = [
 ]
 
 
-
+autodoc_mock_imports = ["astropy", "photutils"]
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {'https://docs.python.org/': None}
 
-import sys
-from unittest.mock import MagicMock
+html_static_path = []
 
-class Mock(MagicMock):
-    @classmethod
-    def __getattr__(cls, name):
-        return MagicMock()
-
-MOCK_MODULES = ['numba',  'ellc', 
-        'numpy',
-        'scipy', 'scipy.optimize','scipy.interpolate',
-        'scipy.interpolate.ndgriddata',
-        'celerite','celerite.modeling',
-        'astropy', 'astropy.table', 'astropy.units' ]
-sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)

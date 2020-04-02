@@ -20,7 +20,7 @@
 """
 quantities
 ==========
-Nominal values of solar and planetary constants from IAU Resolution B3 [1] 
+Nominal values of solar and planetary constants from IAU Resolution B3 [1]_
 plus related constants as astropy quantities.
 
 Masses in SI units are derived using the 2014 CODATA value for the Newtonian
@@ -57,13 +57,13 @@ Planetary conversion constants
 Related constants
 -----------------
 * G_2014          - 2014 CODATA value for the Newtonian constant
-* mean_solar_day  - 86,400.002 seconds [2] 
-* au              - IAU 2009 value for astronomical constant in metres. [3]
+* mean_solar_day  - 86,400.002 seconds [2]_ 
+* au              - IAU 2009 value for astronomical constant in metres. [3]_
 * pc              - 1 parsec = 3600*au*180/pi
 
 Fundamental constants
 ---------------------
-* c               - speed of light in m.s-1 [3]
+* c               - speed of light in m.s-1 [3]_
 
 Example
 -------
@@ -102,23 +102,37 @@ __all__ = [ 'G_2014',
         'mean_solar_day','au','pc']
 
 from math import pi
+m = u.m
+s = u.s
+kg = u.kg
+W = u.W
+K = u.K
+# Work-around for generation of documents using sphinx
+try:
+    _ = 1*m
+except:
+    m = 1
+    s = 1
+    kg = 1
+    W = 1
+    K = 1
 
-G_2014 = 6.67408E-11* u.m**3/u.kg/u.s**2   # 2014 CODATA value
+G_2014 = 6.67408E-11 *kg*m**3/s**2       # 2014 CODATA value
                             
-R_SunN    = 6.957E8  *u.m                # Solar radius
-S_SunN    = 1361 *u.W/u.m**2             # Total solar irradiance
-L_SunN    = 3.828E26 *u.W                # Solar luminosity
-Teff_SunN = 5772 *u.K                    # Solar effective temperature
-GM_SunN   = 1.3271244E20 *u.m**3/u.s**2 # Solar mass parameter
+R_SunN    = 6.957E8  *m                  # Solar radius
+S_SunN    = 1361   *W/m**2               # Total solar irradiance
+L_SunN    = 3.828E26 *W                  # Solar luminosity
+Teff_SunN = 5772 *K                      # Solar effective temperature
+GM_SunN   = 1.3271244E20 *m**3/s**2      # Solar mass parameter
 M_SunN    = GM_SunN/G_2014               # Solar mass 
 V_SunN    = 4*pi*R_SunN**3/3             # Solar volume 
 
-R_eEarthN  = 6.3781E6 *u.m               # Equatorial radius of the Earth
-R_pEarthN  = 6.3568E6 *u.m               # Polar radius of the Earth
-R_eJupN    = 7.1492E7 *u.m               # Equatorial radius of Jupiter
-R_pJupN    = 6.6854E7 *u.m               # Polar radius of Jupiter
-GM_EarthN  = 3.986004E14  *u.m**3/u.s**2 # Terrestrial mass parameter
-GM_JupN    = 1.2668653E17 *u.m**3/u.s**2 # Jovian mass parameter
+R_eEarthN  = 6.3781E6 *m                 # Equatorial radius of the Earth
+R_pEarthN  = 6.3568E6 *m                 # Polar radius of the Earth
+R_eJupN    = 7.1492E7 *m                 # Equatorial radius of Jupiter
+R_pJupN    = 6.6854E7 *m                 # Polar radius of Jupiter
+GM_EarthN  = 3.986004E14  *m**3/s**2     # Terrestrial mass parameter
+GM_JupN    = 1.2668653E17 *m**3/s**2     # Jovian mass parameter
 M_EarthN   = GM_EarthN/G_2014            # Earth mass
 M_JupN     = GM_JupN/G_2014              # Jupiter mass
 V_EarthN   = 4*pi*R_eEarthN**2*R_pEarthN/3 # Volume of the Earth 
@@ -126,9 +140,9 @@ V_JupN     = 4*pi*R_eJupN**2*R_pJupN/3     # Volume of Jupiter
 R_EarthN   = (R_eEarthN**2*R_pEarthN)**(1/3) # Mean radius of the Earth  
 R_JupN     = (R_eJupN**2*R_pJupN)**(1/3)     # Mean radius of Jupiter
 
-mean_solar_day = 86400.002 *u.s  # seconds
+mean_solar_day = 86400.002 *s    # seconds
 
-au =  1.49597870700E11 *u.m  # IAU 2009 Astronomical unit
+au =  1.49597870700E11 *m    # IAU 2009 Astronomical unit
 pc =  3600*au*180/pi         # parsec
 
-c = 2.99792458e8 *u.m/u.s     #  Speed of light
+c = 2.99792458e8 *m/s         #  Speed of light
