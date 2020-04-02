@@ -52,9 +52,6 @@ PSF_R90 = 16.2
 PSF_HP = 0.0046
 FWC = 114000
 
-with open(join(_cache_path,'log_exposure_time.p'),'rb') as fp:
-    _log_exposure_time_interpolator = pickle.load(fp)
-
 with open(join(_cache_path,'C_G_Teff_interpolator.p'),'rb') as fp:
     _C_G_Teff_interpolator = pickle.load(fp)
 

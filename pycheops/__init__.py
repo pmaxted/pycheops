@@ -43,8 +43,9 @@ from .core import load_config
 try:
     config = load_config()
 except ValueError:
-    print(' ** Run pycheops.core.setup_config **')
-    raise ValueError
+    from .core import setup_config
+    setup_config()
+    config = load_config()
 
 data_path = path.join(here,'data','instrument')
 cache_path = config['DEFAULT']['data_cache_path']
