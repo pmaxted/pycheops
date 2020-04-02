@@ -1,8 +1,15 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-0.6.7
-~~~~~
+0.6.8 (2020-04-02)
+~~~~~~~~~~~~~~~~~~
+
+* Fixed bug for new users - not possible to run setup_config()
+* Fixed bug in instrument.py - log_exposure_time.p not used anymore
+
+0.6.7 (2020-04-02)
+~~~~~~~~~~~~~~~~~~
+
 * Set vary=False default for f_c and f_s in TransitModel.
 * Replaced vectorize in func/m_comp() with map.
 * Fixed bug in dataset.lmfit_transit() and dataset.lmfit_eclipse() for fitting 
