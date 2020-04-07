@@ -40,7 +40,7 @@ from ftplib import FTP
 from .models import TransitModel, FactorModel, EclipseModel
 from uncertainties import UFloat
 from lmfit import Parameter, Parameters, minimize, Minimizer,fit_report
-from scipy.interpolate import InterpolatedUnivariateSpline
+from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 from emcee import EnsembleSampler
 import corner
@@ -568,6 +568,8 @@ class Dataset(object):
             xoff = self.lc['xoff']
             yoff = self.lc['xoff']
             phi = self.lc['roll_angle']*np.pi/180
+            bg = self.lc['bg']
+            contam = self.lc['contam']
         except AttributeError:
             raise AttributeError("Use get_lightcurve() to load data first.")
 
@@ -656,10 +658,12 @@ class Dataset(object):
         params.add('q_2',min=0,max=1,expr='(h_1-h_2)/(1-h_2)')
 
         model = TransitModel()*FactorModel(
-            dx = InterpolatedUnivariateSpline(time, xoff),
-            dy = InterpolatedUnivariateSpline(time, yoff),
-            sinphi = InterpolatedUnivariateSpline(time,np.sin(phi)),
-            cosphi = InterpolatedUnivariateSpline(time,np.cos(phi)) )
+            dx = interp1d(time, xoff, bounds_error=False),
+            dy = interp1d(time, yoff, bounds_error=False),
+            sinphi = interp1d(time,np.sin(phi), bounds_error=False),
+            cosphi = interp1d(time,np.cos(phi), bounds_error=False),
+            bg = interp1d(time,bg,bounds_error=False), 
+            contam = interp1d(time,contam,bounds_error=False))
 
         result = minimize(_chisq_prior, params,nan_policy='propagate',
                 args=(model, time, flux, flux_err))
@@ -690,6 +694,8 @@ class Dataset(object):
             xoff = self.lc['xoff']
             yoff = self.lc['xoff']
             phi = self.lc['roll_angle']*np.pi/180
+            bg = self.lc['bg']
+            contam = self.lc['contam']
         except AttributeError:
             raise AttributeError("Use get_lightcurve() to load data first.")
 
@@ -772,10 +778,12 @@ class Dataset(object):
         params.add('e',min=0,max=1,expr='f_c**2 + f_s**2')
 
         model = EclipseModel()*FactorModel(
-            dx = InterpolatedUnivariateSpline(time, xoff),
-            dy = InterpolatedUnivariateSpline(time, yoff),
-            sinphi = InterpolatedUnivariateSpline(time,np.sin(phi)),
-            cosphi = InterpolatedUnivariateSpline(time,np.cos(phi)) )
+            dx = interp1d(time, xoff, bounds_error=False),
+            dy = interp1d(time, yoff, bounds_error=False),
+            sinphi = interp1d(time,np.sin(phi), bounds_error=False),
+            cosphi = interp1d(time,np.cos(phi), bounds_error=False),
+            bg = interp1d(time, bg, bounds_error=False),
+            contam = interp1d(time, contam, bounds_error=False))
 
         result = minimize(_chisq_prior, params,nan_policy='propagate',
                 args=(model, time, flux, flux_err))
@@ -799,7 +807,7 @@ class Dataset(object):
                     noPriors = False
                 report += "    %s:%s" % (p, ' '*(namelen-len(p)))
                 report += '%s +/-%s\n' % (gformat(u.n), gformat(u.s))
-        report += 'pycheops version %s\n' % __version__
+        report += '\npycheops version %s\n' % __version__
         report += 'CHEOPS DRP version %s\n' % self.pipe_ver
         return(report)
 
@@ -994,7 +1002,7 @@ class Dataset(object):
                     noPriors = False
                 report += "    %s:%s" % (p, ' '*(namelen-len(p)))
                 report += '%s +/-%s\n' % (gformat(u.n), gformat(u.s))
-        report += 'pycheops version %s\n' % __version__
+        report += '\npycheops version %s\n' % __version__
         report += 'CHEOPS DRP version %s\n' % self.pipe_ver
         return(report)
 
@@ -1399,7 +1407,8 @@ class Dataset(object):
                 'table':self.lc['table'], 'header':self.lc['header'],
                 'centroid_x':self.lc['centroid_x'],
                 'centroid_y':self.lc['centroid_y'],
-                'roll_angle':self.lc['roll_angle'][ok]}
+                'roll_angle':self.lc['roll_angle'][ok],
+                'bg':self.lc['bg'][ok], 'contam':self.lc['contam'][ok]}
         if verbose:
             print('\nRejected {} points more than {:0.1f} x MAD = {:0.0f} ppm '
                     'from the median'.format(sum(~ok),clip,1e6*mad*clip))
@@ -1525,13 +1534,14 @@ class Dataset(object):
         flux = np.array(self.lc['flux'])
         flux_err = np.array(self.lc['flux_err'])
         phi = self.lc['roll_angle']*np.pi/180
-        sinphi = InterpolatedUnivariateSpline(time,np.sin(phi))
-        cosphi = InterpolatedUnivariateSpline(time,np.cos(phi))
+        sinphi = interp1d(time,np.sin(phi), bounds_error=False)
+        cosphi = interp1d(time,np.cos(phi), bounds_error=False)
 
-        dx = InterpolatedUnivariateSpline(time,self.lc['xoff'])
-        dy = InterpolatedUnivariateSpline(time,self.lc['yoff'])
+        dx = interp1d(time,self.lc['xoff'], bounds_error=False)
+        dy = interp1d(time,self.lc['yoff'], bounds_error=False)
 
-        model = FactorModel(sinphi=sinphi, cosphi=cosphi, dx=dx, dy=dy)
+        model = FactorModel(sinphi=sinphi, cosphi=cosphi, dx=dx, dy=dy,
+                bg=bg, contam=contam)
         params = model.make_params()
         params.add('dfdt', value=0, vary=dfdt)
         params.add('d2fdt2', value=0, vary=d2fdt2)
@@ -1570,26 +1580,29 @@ class Dataset(object):
         fig.tight_layout()
         fig.subplots_adjust(top=0.88)
         
+#-----------------------------------
 
     def should_I_decorr(self,cut=20,compare=False):
-        
+
         cut_val = cut
         time = np.array(self.lc['time'])
         flux = np.array(self.lc['flux'])
         flux_err = np.array(self.lc['flux_err'])
         phi = self.lc['roll_angle']*np.pi/180
-        sinphi = InterpolatedUnivariateSpline(time,np.sin(phi))
-        cosphi = InterpolatedUnivariateSpline(time,np.cos(phi))
-        dx = InterpolatedUnivariateSpline(time,self.lc['xoff'])
-        dy = InterpolatedUnivariateSpline(time,self.lc['yoff'])
+        sinphi = interp1d(time,np.sin(phi), bounds_error=False)
+        cosphi = interp1d(time,np.cos(phi), bounds_error=False)
+        bg = interp1d(time,self.lc['bg'], bounds_error=False)
+        contam = interp1d(time,self.lc['contam'], bounds_error=False)
+        dx = interp1d(time,self.lc['xoff'], bounds_error=False)
+        dy = interp1d(time,self.lc['yoff'], bounds_error=False)
 
         dfdx_bad, dfdy_bad, dfdsinphi_bad, dfdcosphi_bad = np.array([]), np.array([]), np.array([]), np.array([])
         for dfdx in [False, True]:
             for dfdy in [False, True]:
                 for dfdsinphi in [False, True]:
                     for dfdcosphi in [False, True]:
-                
-                        model = FactorModel(sinphi=sinphi, cosphi=cosphi, dx=dx, dy=dy)
+
+                        model = FactorModel(sinphi=sinphi, cosphi=cosphi, dx=dx, dy=dy, bg=bg, contam=contam)
                         params = model.make_params()
                         params.add('dfdt', value=0, vary=False)
                         params.add('d2fdt2', value=0, vary=False)
@@ -1602,8 +1615,12 @@ class Dataset(object):
                         params.add('dfdcosphi', value=0, vary=dfdcosphi)
                         params.add('dfdsin2phi', value=0, vary=False)
                         params.add('dfdcos2phi', value=0, vary=False)
+                        params.add('dfdsin3phi', value=0, vary=False)
+                        params.add('dfdcos3phi', value=0, vary=False)
+                        params.add('dfdg', value=0, vary=False)
+                        params.add('dfdcontam', value=0, vary=False)
 
-                        result = model.fit(flux, params, t=time)        
+                        result = model.fit(flux, params, t=time)
 
                         if result.params['dfdx'].vary == True:
                             if abs(100*result.params['dfdx'].stderr/result.params['dfdx'].value) < cut_val:
@@ -1618,27 +1635,27 @@ class Dataset(object):
                             if abs(100*result.params['dfdcosphi'].stderr/result.params['dfdcosphi'].value) < cut_val:
                                 dfdcosphi_bad = np.append(dfdcosphi_bad,
                                         abs(100*result.params['dfdcosphi'].stderr/result.params['dfdcosphi'].value))
-            
+
         if len(dfdx_bad) == 0 and len(dfdy_bad) == 0 and len(dfdsinphi_bad) == 0 and len(dfdcosphi_bad) == 0:
             print("No! You don't need to decorrelate.")
         else:
             if len(dfdx_bad) > 0:
                 print("Yes! Check flux against centroid x.")
-                
+
             if len(dfdy_bad) > 0:
                 print("Yes! Check flux against centroid y.")
-                
+
             if len(dfdsinphi_bad) > 0 or len(dfdcosphi_bad) > 0:
                 print("Yes! Check flux against roll angle.")
-            
+
             self.diagnostic_plot(fontsize=9,compare=compare)
-            
+
             decorr_check = input('Do you want to decorrelate? ')
             if decorr_check.lower()[0] == "y":
                 which_decorr = input('Which to you wish to decorrelate? Please enter from the follow: centroid_x, centroid_y, and/or roll_angle. Multiple entries should be comma separated. ')
                 dfdx_arg, dfdy_arg, dfdsinphi_arg, dfdcosphi_arg = False, False, False, False
                 which_decorr = which_decorr.split(",")
-                
+
                 for index, i in enumerate(which_decorr):
                     which_decorr[index] = i.lower().replace(' ', '')
                 if "centroid_x" in which_decorr:
@@ -1649,11 +1666,11 @@ class Dataset(object):
                     dfdsinphi_arg, dfdcosphi_arg = True, True
                 self.decorr(dfdx=dfdx_arg, dfdy=dfdy_arg,
                         dfdsinphi=dfdsinphi_arg, dfdcosphi=dfdcosphi_arg)
-                
+
             elif "centroid_x" in decorr_check or "centroid_y" in decorr_check or "roll_angle" in decorr_check:
                 dfdx_arg, dfdy_arg, dfdsinphi_arg, dfdcosphi_arg = False, False, False, False
                 decorr_check = decorr_check.split(",")
-                
+
                 for index, i in enumerate(decorr_check):
                     decorr_check[index] = i.lower().replace(' ', '')
                 if "centroid_x" in decorr_check:
@@ -1664,11 +1681,8 @@ class Dataset(object):
                     dfdsinphi_arg, dfdcosphi_arg = True, True
                 self.decorr(dfdx=dfdx_arg, dfdy=dfdy_arg,
                         dfdsinphi=dfdsinphi_arg, dfdcosphi=dfdcosphi_arg)
-                
+
             else:
                 print("Ok then")
-        print('\n')    
-            
-            
-            
+        print('\n')
 
