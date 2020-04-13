@@ -52,8 +52,8 @@ PSF_R90 = 16.2
 PSF_HP = 0.0046
 FWC = 114000
 
-# Measured from roll angle in dataset CH_PR300005_TG000201_V0101 4/1/2020
-CHEOPS_ORBIT_MINUTES = 98.91
+# From PHT2, 8 April 2020
+CHEOPS_ORBIT_MINUTES = 98.77
 
 with open(join(_cache_path,'C_G_Teff_interpolator.p'),'rb') as fp:
     _C_G_Teff_interpolator = pickle.load(fp)

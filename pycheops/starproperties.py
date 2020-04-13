@@ -36,13 +36,33 @@ from pathlib import Path
 from os.path import getmtime
 from time import localtime, mktime
 from uncertainties import ufloat, UFloat
-from .ld import stagger_power2_interpolator
+from .ld import stagger_power2_interpolator, atlas_h1h2_interpolator
+from .ld import phoenix_h1h2_interpolator
 from numpy.random import normal
 
 
 class StarProperties(object):
     """
     CHEOPS StarProperties object
+
+    The observed properties T_eff, log_g and [Fe/H] are obtained from
+    SWEET-Cat, or can be specified by the user. 
+
+    The stellar density is estimated using an linear relation between log(rho)
+    and log(g) derived using the method of Moya et al. (2018ApJS..237...21M)
+
+    Limb darkening parameters in the CHEOPS band are interpolated from Table 2
+    of Maxted (2018A&A...616A..39M). The error on these parameters is
+    propogated from the errors in Teff, log_g and [Fe/H] plus an additional
+    error of 0.01 for h_1 and 0.05 for h_2, as recommended in Maxted (2018).
+    If [Fe/H] for the star is not specified, the value 0.0 +/- 0.3 is assumed.
+
+    If the stellar parameters are outside the range covered by Table 2 of
+    Maxted (2018), then the results from ATLAS model from Table 10 of Claret
+    (2019RNAAS...3...17C) are used instead. For stars cooler than 3500K the
+    PHOENIX models for solar metalicity  from Table 5 of Claret (2019) are
+    used. The parameters h_1 and h_2 are both given nominal errors of 0.1 for
+    both ATLAS model, and 0.15 for PHOENIX models.
 
     """
 
@@ -93,40 +113,36 @@ class StarProperties(object):
             raise ValueError('No matching star in SWEET-Cat')
 
         entry = sweetCat[idx]
-        ld_data_missing = False
         try:
             self.teff = ufloat(float(entry['teff']),float(entry['e_teff']))
             self.teff_note = "SWEET-Cat"
         except:
             self.teff = None
-            ld_data_missing = True
         try:
             self.logg = ufloat(float(entry['logg']),float(entry['e_logg']))
             self.logg_note = "SWEET-Cat"
         except:
             self.logg = None
-            ld_data_missing = True
         try:
             self.metal = ufloat(float(entry['metal']),float(entry['e_metal']))
             self.metal_note = "SWEET-Cat"
         except:
             self.metal = None
-            ld_data_missing = True
 
         # User defined values
-        if teff is not None:
+        if teff:
            if  isinstance(teff, UFloat):
                self.teff = teff
                self.teff_note = "User"
            else:
                raise ValueError("teff keyword is not ufloat")
-        if logg is not None:
+        if logg:
            if  isinstance(logg, UFloat):
                self.logg = logg
                self.logg_note = "User"
            else:
                raise ValueError("logg keyword is not ufloat")
-        if metal is not None:
+        if metal:
            if  isinstance(metal, UFloat):
                self.metal = metal
                self.metal_note = "User"
@@ -136,50 +152,64 @@ class StarProperties(object):
         # log rho from log g using method of Moya et al.
         # (2018ApJS..237...21M). Accuracy is 4.4%
         self.logrho = None
-        if self.logg is not None:
+        if self.logg:
             if (self.logg.n > 3.697) and (self.logg.n < 4.65):
                 logrho = -7.352 + 1.6580*self.logg
                 self.logrho = ufloat(logrho.n, np.hypot(logrho.s, 0.044))
 
         self.h_1 = None
         self.h_2 = None
-        if not ld_data_missing:
+        self.ld_ref = None
+        if self.teff and self.logg:
+            metal = self.metal if self.metal else ufloat(0,0.3)
             power2 = stagger_power2_interpolator()
-            _,_,h_1,h_2 = power2(self.teff.n,self.logg.n,self.metal.n)
+            _,_,h_1,h_2 = power2(self.teff.n,self.logg.n,metal.n)
             if not np.isnan(h_1):
+                self.ld_ref = 'Stagger'
                 Xteff = normal(self.teff.n, self.teff.s, 256)
                 Xlogg = normal(self.logg.n, self.logg.s, 256)
-                Xmetal = normal(self.metal.n, self.metal.s, 256)
+                Xmetal = normal(metal.n, metal.s, 256)
                 X = power2(Xteff,Xlogg,Xmetal)
-                # Additinal error derived in Maxted, 2019
+                # Additional error derived in Maxted, 2019
                 e_h_1 = np.hypot(0.01,np.sqrt(np.nanmean((X[:,2]-h_1)**2)))
                 e_h_2 = np.hypot(0.05,np.sqrt(np.nanmean((X[:,3]-h_2)**2)))
                 self.h_1 = ufloat(round(h_1,3),round(e_h_1,3))
                 self.h_2 = ufloat(round(h_2,3),round(e_h_2,3))
-
-
+            if self.ld_ref is None:
+                atlas = atlas_h1h2_interpolator()
+                h_1,h_2 = atlas(self.teff.n,self.logg.n,metal.n)
+                if not np.isnan(h_1): 
+                    self.h_1 = ufloat(round(h_1,3),0.1)
+                    self.h_2 = ufloat(round(h_2,3),0.1)
+                    self.ld_ref = 'ATLAS'
+        if self.ld_ref is None:
+            phoenix = phoenix_h1h2_interpolator()
+            h_1,h_2 = phoenix(self.teff.n,self.logg.n)
+            if not np.isnan(h_1): 
+                self.h_1 = ufloat(round(h_1,3),0.15)
+                self.h_2 = ufloat(round(h_2,3),0.15)
+                self.ld_ref = 'PHOENIX-COND'
 
     def __repr__(self):
         s =  'Identifier : {}\n'.format(self.identifier)
         s +=  'Coordinates: {} {}\n'.format(self.ra, self.dec)
-        if self.teff is not None:
-            s += 'T_eff : {:5.0f} +/- {:0.0f} K    [{}]\n'.format(
+        if self.teff:
+            s += 'T_eff : {:5.0f} +/- {:0.0f} K   [{}]\n'.format(
                     self.teff.n, self.teff.s,self.teff_note)
-        if self.logg is not None:
+        if self.logg:
             s += 'log g : {:5.2f} +/- {:0.2f}    [{}]\n'.format(
                     self.logg.n, self.logg.s, self.logg_note)
-        if self.metal is not None:
+        if self.metal:
             s += '[M/H] : {:+5.2f} +/- {:0.2f}    [{}]\n'.format(
                     self.metal.n, self.metal.s, self.metal_note)
-        if self.logrho is not None:
-            s += 'log rho : {:5.2f} +/- {:0.2f} [solar]\n'.format(
+        if self.logrho:
+            s += 'log rho : {:5.2f} +/- {:0.2f}  (solar units)\n'.format(
                     self.logrho.n, self.logrho.s)
-        if self.h_1 is not None:
-            s += 'h_1 : {:5.3f} +/- {:0.3f}\n'.format(
-                    self.h_1.n, self.h_1.s)
-        if self.h_2 is not None:
-            s += 'h_2 : {:5.3f} +/- {:0.3f}\n'.format(
-                    self.h_2.n, self.h_2.s)
+        if self.ld_ref:
+            s += 'h_1 : {:5.3f} +/- {:0.3f}     [{}]\n'.format(
+                    self.h_1.n, self.h_1.s,self.ld_ref)
+            s += 'h_2 : {:5.3f} +/- {:0.3f}     [{}]\n'.format(
+                    self.h_2.n, self.h_2.s,self.ld_ref)
         return s
 
 
