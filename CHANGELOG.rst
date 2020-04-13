@@ -1,15 +1,49 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.7.0 
+~~~~~~~~~~~~~~~~~~
+* Added kwargs to dataset.corner_plot
+* Added binned data points to dataset.plot_lmfit and dataset.plot_emcee
+* Added utils.lcbin and utils.parprint
+* Moved priors appended to dataset.lmfit.residual to their own object
+  dataset.lmfit.prior_residual and added dataset.npriors
+* Fixed bug on models.FactorModel for dfdsin3phi and dfdcos3phi
+* Tidied-up/improved interpolation of dependent variables in dataset
+* Fixed bug with xoff being assigned to yoff in dataset.lmfit_transit() and
+  dataset.lmfit_eclipse()
+* Added dataset.rollangle_plot()
+* Set stderr and correl values for dataset.emcee.params_best - breaks printing
+  otherwise.
+* Changed logic in dataset.emcee_sampler() so add_shoterm works if param
+  keyword is specified.
+* Enabled show_priors option in dataset.corner_plot()
+* Added kwargs to dataset.lmfit_report() and dataset.emcee_report
+* Added RMS residual to dataset.lmfit_report() and dataset.emcee_report()
+* Added dataset.mask_data()
+* Added dataset.plot_fft()
+* Added dataset.trail_plot()
+* Updated dataset examples in pycheops/examples/Notebooks
+* Removed bug in dataset when setting h_1, h_2 from tuple.
+* Removed bug when plotting GPs in dataset that caused an offset ("flux0=flux
+  is not a copy" issue).
+* Added ld.atlas_h1h2_interpolator and used it in starproperties
+* Added ld.phoenix_h1h2_interpolator and used it in starproperties
+* Moved pickle files used in ld.py to user's cache directory instead of the
+  installation data directory.
+
+0.6.9 (2020-04-02)
+~~~~~~~~~~~~~~~~~~
+* Bug fix for use of bg and contam in dataset.py 
+* Changed to interp1d from InterpolatedUnivariateSpline in dataset.py
+
 0.6.8 (2020-04-02)
 ~~~~~~~~~~~~~~~~~~
-
 * Fixed bug for new users - not possible to run setup_config()
 * Fixed bug in instrument.py - log_exposure_time.p not used anymore
 
 0.6.7 (2020-04-02)
 ~~~~~~~~~~~~~~~~~~
-
 * Set vary=False default for f_c and f_s in TransitModel.
 * Replaced vectorize in func/m_comp() with map.
 * Fixed bug in dataset.lmfit_transit() and dataset.lmfit_eclipse() for fitting 

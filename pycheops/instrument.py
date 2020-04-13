@@ -40,7 +40,7 @@ from .models import TransitModel, scaled_transit_fit, minerr_transit_fit
 import warnings 
 
 __all__ = [ 'response', 'visibility', 'exposure_time', 'transit_noise',
-        'count_rate', 'cadence']
+        'count_rate', 'cadence', 'CHEOPS_ORBIT_MINUTES']
 
 _data_path = join(dirname(abspath(__file__)),'data')
 config = load_config()
@@ -51,6 +51,9 @@ FLUX_0 = 1851840480
 PSF_R90 = 16.2
 PSF_HP = 0.0046
 FWC = 114000
+
+# From PHT2, 8 April 2020
+CHEOPS_ORBIT_MINUTES = 98.77
 
 with open(join(_cache_path,'C_G_Teff_interpolator.p'),'rb') as fp:
     _C_G_Teff_interpolator = pickle.load(fp)

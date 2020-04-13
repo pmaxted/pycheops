@@ -510,22 +510,20 @@ class FactorModel(Model):
                 trend += dfdy*self.dy(t) + d2fdy2*self.dy(t)**2
             if d2fdxdy != 0 :
                 trend += d2fdxdy*self.dx(t)*self.dy(t)
-            if dfdsinphi != 0 :
-                trend += dfdsinphi*self.sinphi(t)
-            if dfdcosphi != 0 :
-                trend += dfdcosphi*self.cosphi(t)
-            if dfdsin2phi != 0 :
-                sin2phi = 2*self.sinphi(t)*self.cosphi(t)
-                trend += dfdsin2phi*sin2phi
-            if dfdcos2phi != 0 :
-                cos2phi = self.sinphi(t)**2 - self.cosphi(t)**2
-                trend += dfdcos2phi*cos2phi
-            if dfdsin3phi != 0 :
-                sin3phi = 3*self.sinphi(t)*self.cosphi(t)
-                trend += dfdsin3phi*sin3phi
-            if dfdcos3phi != 0 :
-                cos3phi = self.sinphi(t)**3 - self.cosphi(t)**3
-                trend += dfdcos3phi*cos3phi
+            if (dfdsinphi != 0 or dfdsin2phi != 0 or dfdsin3phi != 0 or
+                dfdcosphi != 0 or dfdcos2phi != 0 or dfdcos3phi != 0):
+                sinphit = self.sinphi(t)
+                cosphit = self.cosphi(t)
+                trend += dfdsinphi*sinphit + dfdcosphi*cosphit
+                if dfdsin2phi != 0:
+                    trend += dfdsin2phi*(2*sinphit*cosphit)
+                if dfdcos2phi != 0:
+                    trend += dfdcos2phi*(2*cosphit**2 - 1)
+                if dfdsin3phi != 0:
+                    trend += dfdsin3phi*(3*sinphit - 4* sinphit**3)
+                if dfdcos3phi != 0:
+                    trend += dfdcos3phi*(4*cosphit**3 - 3*cosphit)
+
             return c*trend
 
         super(FactorModel, self).__init__(factor, **kwargs)

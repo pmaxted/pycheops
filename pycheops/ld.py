@@ -74,6 +74,7 @@ import pickle
 from astropy.table import Table
 from scipy.interpolate import pchip_interpolate, LinearNDInterpolator
 from scipy.optimize import minimize
+from .core import load_config
 from .funcs import transit_width
 try:
     from ellc import lc
@@ -81,9 +82,12 @@ except:
     pass
 
 __all__ = ['ld_power2', 'ld_claret', 'stagger_power2_interpolator',
+        'atlas_h1h2_interpolator', 'phoenix_h1h2_interpolator',
         'ca_to_h1h2', 'h1h2_to_ca' , 'q1q2_to_h1h2', 'h1h2_to_q1q2' ]
 
-data_path = join(dirname(abspath(__file__)),'data','limbdarkening')
+_data_path_ = join(dirname(abspath(__file__)),'data','limbdarkening')
+config = load_config()
+_cache_path_ = config['DEFAULT']['data_cache_path']
 
 def ld_power2(mu, a):
     """
@@ -190,7 +194,7 @@ class _coefficient_optimizer:
 
         """
 
-        pfile = join(data_path,passband+'_stagger_mugrid_interpolator.p')
+        pfile = join(_cache_path_,passband+'_stagger_mugrid_interpolator.p')
         with open(pfile, 'rb') as fp:
             self._interpolator = pickle.load(fp)
 
@@ -322,9 +326,9 @@ class stagger_power2_interpolator:
         :param passband: instrument/passband names (case sensitive).
 
         """
-        pfile = join(data_path, passband+'_stagger_power2_interpolator.p')
+        pfile = join(_cache_path_, passband+'_stagger_power2_interpolator.p')
         if not isfile(pfile):
-            datfile = join(data_path, 'power2.dat')
+            datfile = join(_data_path_, 'power2.dat')
             Tpower2 = Table.read(datfile,format='ascii',
                 names=['Tag','T_eff','log_g','Fe_H','c','alpha','h1','h2'])
             tag = passband[0:min(len(passband),2)]
@@ -351,5 +355,97 @@ class stagger_power2_interpolator:
        
         """
         return self._interpolator(T_eff, log_g, Fe_H)
+
+#-----
+
+class atlas_h1h2_interpolator:
+    """
+    
+    Parameters  (h1,h2) of a power-2 limb-darkening law interpolated from
+    Table 10 of Claret (2019RNAAS...3...17C).
+
+    The transformation from the coefficients a1..a4 from Table 10 to h1, h2
+    was done using least-squares fit to the intensity profile as a function of
+    r=sqrt(1-mu**2) for r<0.99.
+
+    The Gaia G passband is used here as a close approximation to the CHEOPS
+    band.
+
+    """
+
+    def __init__(self):
+        pfile = join(_cache_path_, 'atlas_h1h2_interpolator.p')
+        if not isfile(pfile):
+            csvfile = join(_data_path_, 'atlas_h1h2.csv')
+            T = Table.read(csvfile,format='csv')
+            p = np.array([T['T_eff'],T['log_g'],T['Fe_H']]).T
+            v = np.array((T.as_array()).tolist())[:,3:]
+            mLNDI = LinearNDInterpolator(p,v)
+            with open(os.open(pfile, os.O_CREAT|os.O_WRONLY, 0o644),'wb') as fp:
+                pickle.dump(mLNDI,fp)
+
+        with open(pfile, 'rb') as fp:
+            self._interpolator = pickle.load(fp)
+
+    def __call__(self, T_eff, log_g, Fe_H):
+        """
+
+        :parameter T_eff: effective temperature in Kelvin
+        
+        :parameter log_g: log of the surface gravity in cgs units
+       
+        :parameter Fe/H: [Fe/H] in dex
+       
+        :returns:  h_1, h_2
+       
+        """
+        return self._interpolator(T_eff, log_g, Fe_H)
+
+
+#-----
+
+class phoenix_h1h2_interpolator:
+    """
+    
+    Parameters  (h1,h2) of a power-2 limb-darkening law interpolated from
+    Table 5 of Claret (2019RNAAS...3...17C).
+
+    The transformation from the coefficients a1..a4 from Table 10 to h1, h2
+    was done using least-squares fit to the intensity profile as a function of
+    r=sqrt(1-mu**2) for r<0.99.
+
+    N.B. only solar-metalicity models available in this table.
+
+    The Gaia G passband is used here as a close approximation to the CHEOPS
+    band.
+
+    """
+
+    def __init__(self):
+        pfile = join(_cache_path_, 'phoenix_h1h2_interpolator.p')
+        if not isfile(pfile):
+            csvfile = join(_data_path_, 'phoenix_h1h2.csv')
+            T = Table.read(csvfile,format='csv')
+            p = np.array([T['T_eff'],T['log_g']]).T
+            v = np.array((T.as_array()).tolist())[:,2:]
+            mLNDI = LinearNDInterpolator(p,v)
+            with open(os.open(pfile, os.O_CREAT|os.O_WRONLY, 0o644),'wb') as fp:
+                pickle.dump(mLNDI,fp)
+
+        with open(pfile, 'rb') as fp:
+            self._interpolator = pickle.load(fp)
+
+    def __call__(self, T_eff, log_g):
+        """
+
+        :parameter T_eff: effective temperature in Kelvin
+        
+        :parameter log_g: log of the surface gravity in cgs units
+       
+        :returns:  h_1, h_2
+       
+        """
+        return self._interpolator(T_eff, log_g)
+
 
 
