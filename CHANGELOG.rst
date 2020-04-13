@@ -1,7 +1,7 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-0.7.0 
+0.7.0 (13-04-2020)
 ~~~~~~~~~~~~~~~~~~
 * Added kwargs to dataset.corner_plot
 * Added binned data points to dataset.plot_lmfit and dataset.plot_emcee
