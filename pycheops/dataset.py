@@ -595,7 +595,7 @@ class Dataset(object):
             if reject_highpoints:
                 print('C_cut = {:0.0f}'.format(C_cut))
                 print('N(C > C_cut) = {}'.format(N_cut))
-            print('Mean counts = {:0.1f}'.format(flux.nanmean()))
+            print('Mean counts = {:0.1f}'.format(flux.mean()))
             print('Median counts = {:0.1f}'.format(fluxmed))
             print('RMS counts = {:0.1f} [{:0.0f} ppm]'.format(np.nanstd(flux), 
                 1e6*np.nanstd(flux)/fluxmed))
