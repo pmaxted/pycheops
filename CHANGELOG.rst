@@ -1,6 +1,10 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.7.1 (14-04-2020)
+~~~~~~~~~~~~~~~~~~
+* Fixed dataset flux.nanmean issue caused by merge on github.
+
 0.7.0 (13-04-2020)
 ~~~~~~~~~~~~~~~~~~
 * Added kwargs to dataset.corner_plot
