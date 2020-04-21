@@ -343,6 +343,7 @@ class TransitModel(Model):
             if q <= 0: return np.ones_like(t)
             sini = np.sqrt(q)
             ecc = f_c**2 + f_s**2
+            if ecc > 0.999: return np.ones_like(t)
             om = np.arctan2(f_s, f_c)*180/np.pi
             c2 = 1 - h_1 + h_2
             a2 = np.log2(c2/h_2)
@@ -433,6 +434,7 @@ class EclipseModel(Model):
             if q <= 0: return np.ones_like(t)
             sini = np.sqrt(q)
             ecc = f_c**2 + f_s**2
+            if ecc > 0.999: return np.ones_like(t)
             om = np.arctan2(f_s, f_c)*180/np.pi
             z,m = t2z(t-a_c, T_0, P, sini, r_star, ecc, om, returnMask=True)
             # Set z values where star is behind planet to a large nominal value
@@ -644,6 +646,7 @@ class ReflectionModel(Model):
 
         def _reflection(t, T_0, P, A_g, r_p, f_c, f_s, sini):
             ecc = f_c**2 + f_s**2
+            if ecc > 0.999: return np.zeros_like(t)
             om = np.arctan2(f_s, f_c)*180/np.pi
             x,y,z = xyz_planet(t, T_0, P, sini, ecc, om)
             r = np.sqrt(x**2+y**2+z**2)
@@ -688,6 +691,7 @@ class RVModel(Model):
 
         def _rv(t, T_0, P, V_0, K, f_c, f_s, sini):
             ecc = f_c**2 + f_s**2
+            if ecc > 0.999: return np.zeros_like(t)
             om = np.arctan2(f_s, f_c)*180/np.pi
             return V_0 + vrad(t, T_0, P, K, ecc, om, sini, primary=True)
 
@@ -734,6 +738,7 @@ class RVCompanion(Model):
 
         def _rv(t, T_0, P, V_0, K, f_c, f_s, sini):
             ecc = f_c**2 + f_s**2
+            if ecc > 0.999: return np.zeros_like(t)
             om = np.arctan2(f_s, f_c)*180/np.pi
             return V_0 + vrad(t, T_0, P, K, ecc, om, sini, primary=False)
 
@@ -849,6 +854,7 @@ class PlanetModel(Model):
             if q <= 0: return np.ones_like(t)
             sini = np.sqrt(q)
             ecc = f_c**2 + f_s**2
+            if ecc > 0.999: return np.ones_like(t)
             om = np.arctan2(f_s, f_c)*180/np.pi
             # Star-planet apparent separation and mask eclipses/transits
             z,m = t2z(t, T_0, P, sini, r_star, ecc, om, returnMask=True)
@@ -949,9 +955,14 @@ class EBLMModel(Model):
             c2 = 1 - h_1 + h_2
             a2 = np.log2(c2/h_2)
             k = np.sqrt(D)
-            r_star = np.pi*W/np.sqrt((1+k)**2 - b**2)
-            sini = np.sqrt(1-b**2*r_star**2)
+            q = (1+k)**2 - b**2
+            if q <= 0: return np.ones_like(t)
+            r_star = np.pi*W/np.sqrt(q)
+            q = 1-b**2*r_star**2
+            if q <= 0: return np.ones_like(t)
+            sini = np.sqrt(q)
             ecc = f_c**2 + f_s**2
+            if ecc > 0.999: return np.ones_like(t)
             om = np.arctan2(f_s, f_c)*180/np.pi
             z,m = t2z(t, T_0, P, sini, r_star, ecc, om, returnMask=True)
             # Set z values where star 2 is behind star  1 to a large nominal

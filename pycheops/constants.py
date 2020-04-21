@@ -79,7 +79,6 @@ radius for Jupiter in this case::
  Planet radius  = 0.995 R_Jup
  Planet density = 1.063 rho_Jup
 
-
 .. rubric:: References
 .. [1] https://www.iau.org/static/resolutions/IAU2015_English.pdf
 .. [2] http://tycho.usno.navy.mil/leapsec.html
@@ -89,7 +88,6 @@ radius for Jupiter in this case::
 
 from __future__ import (absolute_import, division, print_function,
                                 unicode_literals)
-
 __all__ = [ 'G_2014', 
         'R_SunN','S_SunN','L_SunN','Teff_SunN','GM_SunN','M_SunN','V_SunN',
         'R_eEarthN','R_pEarthN','GM_EarthN','M_EarthN','V_EarthN','R_EarthN',

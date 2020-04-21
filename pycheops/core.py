@@ -95,9 +95,14 @@ def setup_config(configFile=None, overwrite=False, mode=0o600):
     c['DEFAULT'] = {'data_cache_path': data_cache_path}
             #'archive_username': username,
             #'archive_password': password}
+
     # SweetCat location and update interval in seconds
     url = 'https://www.astro.up.pt/resources/sweet-cat/download.php' 
     c['SWEET-Cat'] = {'update_interval': 86400, 'download_url': url}
+    
+    # TEPCat location and update interval in seconds
+    url = 'https://www.astro.keele.ac.uk/jkt/tepcat/allplanets-csv.csv' 
+    c['TEPCat'] = {'update_interval': 86400, 'download_url': url}
 
     #N.B. The archive username and password are stored in plain text so the
     #default mode value is 0o600 = user read/write permission only.

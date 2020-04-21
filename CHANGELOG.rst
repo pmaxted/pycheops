@@ -1,6 +1,17 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.7.2 (21-04-2021)
+~~~~~~~~~~~~~~~~~~
+* Improved edge behaviour of dataset.clip_outliers
+* Added option in starproperties to not raise error if star not in SWEET-Cat
+* Added plot_model to dataset.plot_lmfit
+* Fixed offset problem for transit model in dataset.plot_emcee
+* Added sini to derived parameters listed in dataset
+* Improved funcs.m_comp using closed-form solution of cubic polynomials.
+* Added funcs.massradius and dataset.massradius
+* Added catch for e>0.999 in models
+
 0.7.1 (14-04-2020)
 ~~~~~~~~~~~~~~~~~~
 * Fixed dataset flux.nanmean issue caused by merge on github.

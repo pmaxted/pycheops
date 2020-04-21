@@ -1,0 +1,28 @@
+Title: Mass-Radius Relation for Rocky Planets based on PREM  
+Authors: Zeng L., Sasselov D., Jacobsen S. 
+Table: Mass-Radius Table
+================================================================================
+Byte-by-byte Description of file: apj522803t2_mrt.txt
+--------------------------------------------------------------------------------
+   Bytes Format Units Label    Explanations
+--------------------------------------------------------------------------------
+   1-  6 F6.3   Mgeo  Mass     Mass in Earth masses
+   8- 12 F5.3   Rgeo  R100Fe   Radius of 100% Fe planet in Earth radii
+  14- 18 F5.3   Rgeo  R50Fe    Radius of 50% Fe planet in Earth radii
+  20- 24 F5.3   Rgeo  R30Fe    Radius of 30% Fe planet in Earth radii
+  26- 30 F5.3   Rgeo  R25Fe    Radius of 25% Fe planet in Earth radii
+  32- 36 F5.3   Rgeo  R20Fe    Radius of 20% Fe planet in Earth radii
+  38- 42 F5.3   Rgeo  Rrock    Radius of rocky planet in Earth radii
+  44- 48 F5.3   Rgeo  R25H2O   Radius of 25% water planet in Earth radii
+  50- 54 F5.3   Rgeo  R50H2O   Radius of 50% water planet in Earth radii
+  56- 61 F6.4   Rgeo  R100H2O  Radius of 100% water planet in Earth radii
+--------------------------------------------------------------------------------
+ 0.125 0.445 0.523 0.547 0.553 0.558 0.58  0.649 0.697 0.776  
+ 0.25  0.55  0.645 0.672 0.679 0.685 0.711 0.793 0.851 0.952  
+ 0.5   0.676 0.789 0.823 0.832 0.84  0.872 0.969 1.039 1.163  
+ 1.    0.823 0.961 1.005 1.016 1.026 1.067 1.182 1.27  1.41   
+ 2.    0.99  1.164 1.22  1.23  1.25  1.3   1.44  1.54  1.71   
+ 4.    1.176 1.4   1.47  1.49  1.5   1.57  1.74  1.85  2.05   
+ 8.    1.38  1.66  1.75  1.77  1.79  1.88  2.07  2.21  2.45   
+16.    1.59  1.94  2.06  2.08  2.11  2.22  2.45  2.61  2.9    
+32.    1.82  2.25  2.38  2.42  2.45  2.58  2.85  3.04  3.36   

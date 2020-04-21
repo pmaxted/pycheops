@@ -52,13 +52,18 @@ from sys import stdout
 from astropy.coordinates import SkyCoord
 from lmfit.printfuncs import gformat
 from scipy.signal import medfilt
-from .utils import lcbin
+from .utils import lcbin, mode
 import astropy.units as u
+from uncertainties import ufloat, UFloat
 from uncertainties.umath import sqrt as usqrt
 from astropy.timeseries import LombScargle
 from astropy.convolution import convolve, Gaussian1DKernel
 from .instrument import CHEOPS_ORBIT_MINUTES
+from scipy.stats import skewnorm
+from scipy.optimize import minimize as scipy_minimize
 from . import __version__
+from .funcs import rhostar, massradius
+
 try:
     from dace.cheops import Cheops
 except ModuleNotFoundError: 
@@ -253,6 +258,8 @@ def _make_labels(plotkeys, bjd_ref):
             labels.append(r'$\log\rho_{\star}$')
         elif key == 'aR':
             labels.append(r'a\,/\,R$_{\star}$')
+        elif key == 'sini':
+            labels.append(r'\sin i')
         else:
             labels.append(key)
     return labels
@@ -754,6 +761,7 @@ class Dataset(object):
 
         params.add('k',expr='sqrt(D)',min=0,max=1)
         params.add('aR',expr='sqrt((1+k)**2-b**2)/W/pi',min=1)
+        params.add('sini',expr='sqrt(1 - (b/aR)**2)')
         # Avoid use of aR in this expr for logrho - breaks error propogation.
         expr = 'log10(4.3275e-4*((1+k)**2-b**2)**1.5/W**3/P**2)'
         params.add('logrho',expr=expr,min=-9,max=6)
@@ -1001,6 +1009,7 @@ class Dataset(object):
 
         params.add('k',expr='sqrt(D)',min=0,max=1)
         params.add('aR',expr='sqrt((1+k)**2-b**2)/W/pi',min=1)
+        params.add('sini',expr='sqrt(1 - (b/aR)**2)')
         params.add('e',min=0,max=1,expr='f_c**2 + f_s**2')
 
         model = EclipseModel()*FactorModel(
@@ -1154,7 +1163,7 @@ class Dataset(object):
 
         result.var_names = vn
         result.init_vals = vv
-        result.init_values = dict()
+        result.init_values = {}
         for n,v in zip(vn, vv):
             result.init_values[n] = v
 
@@ -1377,6 +1386,10 @@ class Dataset(object):
             if key == 'aR':
                 xs.append(aR)
 
+            sini = np.sqrt(1 - (b/aR)**2)
+            if key == 'sini':
+                xs.append(sini)
+
             if 'P' in varkeys:
                 P = chain[:,varkeys.index('P')]
             else:
@@ -1482,7 +1495,7 @@ class Dataset(object):
     # ------------------------------------------------------------
     
     def plot_lmfit(self, figsize=(6,4), fontsize=11, title=None, 
-            binwidth=0.01, detrend=False):
+             show_model=True, binwidth=0.01, detrend=False):
         try:
             time = np.array(self.lc['time'])
             flux = np.array(self.lc['flux'])
@@ -1512,18 +1525,28 @@ class Dataset(object):
                 flux /= model.left.right.eval(params, t=time) # de-trend
                 fp /= model.left.right.eval(params, t=tp) # de-trend
             else: 
-                flux /=  model.right.eval(params, t=time) 
+                flux /= model.right.eval(params, t=time) 
                 fp /= model.right.eval(params, t=tp) 
+
+        # Transit model only 
+        if glint:
+            ft = model.left.left.eval(params, t=tp)
+        else:
+            ft = model.left.eval(params, t=tp)
+        if not detrend:
+            ft *= params['c'].value
 
         plt.rc('font', size=fontsize)    
         fig,ax=plt.subplots(nrows=2,sharex=True, figsize=figsize,
                 gridspec_kw={'height_ratios':[2,1]})
         ax[0].plot(time,flux,'o',c='skyblue',ms=2,zorder=0)
-        ax[0].plot(tp,fp,c='saddlebrown',zorder=1)
+        ax[0].plot(tp,fp,c='saddlebrown',zorder=2)
         if binwidth:
             t_, f_, e_, n_ = lcbin(time, flux, binwidth=binwidth)
             ax[0].errorbar(t_,f_,yerr=e_,fmt='o',c='midnightblue',ms=5,zorder=2,
                     capsize=2)
+        if show_model:
+            ax[0].plot(tp,ft,c='forestgreen',zorder=1, lw=2)
         ax[0].set_xlim(tmin, tmax)
         ymin = np.min(flux-flux_err)-0.05*np.ptp(flux)
         ymax = np.max(flux+flux_err)+0.05*np.ptp(flux)
@@ -1604,8 +1627,8 @@ class Dataset(object):
         ax[0].plot(tp,fp,c='saddlebrown',zorder=1)
         if binwidth:
             t_, f_, e_, n_ = lcbin(time, flux, binwidth=binwidth)
-            ax[0].errorbar(t_,f_,yerr=e_,fmt='o',c='midnightblue',ms=5,zorder=2,
-                    capsize=2)
+            ax[0].errorbar(t_,f_,yerr=e_,fmt='o',c='midnightblue',ms=5,
+                    zorder=2, capsize=2)
         if show_model:
             ax[0].plot(tp,ft,c='forestgreen',zorder=1, lw=2)
 
@@ -1693,6 +1716,138 @@ class Dataset(object):
         fig.tight_layout()
         return fig
         
+    # ------------------------------------------------------------
+    def massradius(self, m_star=None, r_star=None, K=None, q=0, 
+            jovian=True, plot_kws=None, verbose=True):
+        '''
+        Use the results from the previous emcee/lmfit transit light curve fit
+        to estimate the mass and/or radius of the planet.
+
+        Requires that stellar properties are supplied using the keywords
+        m_star and/or r_star. If only one parameter is supplied then the other
+        is estimated using the stellar density derived from the transit light
+        curve analysis. The planet mass can only be estimated if the the
+        semi-amplitude of its orbit (in m/s) is supplied using the keyword
+        argument K. See pycheops.funcs.massradius for valid formats to specify
+        these parameters.
+
+        N.B. by default, the mean stellar density calculated from the light
+        curve fit is an uses the approximation q->0, where  q=m_p/m_star is
+        the mass ratio. If this approximation is not valid then supply an
+        estimate of the mass ratio using the keyword argment q.
+        
+        Output units are selected using the keyword argument jovian=True
+        (Jupiter mass/radius) or jovian=False (Earth mass/radius).
+
+        See pycheops.funcs.massradius for options available using the plot_kws
+        keyword argument.
+        '''
+
+        # Generate value(s) from previous emcee sampler run
+        def _v(p):
+            vn = self.emcee.var_names
+            chain = self.emcee.chain
+            pars = self.emcee.params
+            if (p in vn):
+                v = chain[:,vn.index(p)]
+            elif p in pars.valuesdict().keys():
+                v = pars[p].value
+            else:
+                raise AttributeError(
+                        'Parameter {} missing from dataset'.format(p))
+            return v
+    
+        # Generate ufloat  from previous lmfit run 
+        def _u(p):
+            vn = self.lmfit.var_names
+            pars = self.lmfit.params
+            if (p in vn):
+                u = ufloat(pars[p].value, pars[p].stderr)
+            elif p in pars.valuesdict().keys():
+                u = pars[p].value
+            else:
+                raise AttributeError(
+                        'Parameter {} missing from dataset'.format(p))
+            return u
+    
+        # Generate a sample of values for a parameter
+        def _s(x, nm=100_000):
+            if isinstance(x,float) or isinstance(x,int):
+                return np.full(nm, x, dtype=np.float)
+            elif isinstance(x, UFloat):
+                return np.random.normal(x.n, x.s, nm)
+            elif isinstance(x, np.ndarray):
+                if len(x) == nm:
+                    return x
+                elif len(x) > nm:
+                    return x[random_sample(range(len(x)), nm)]
+                else:
+                    return x[(np.random.random(nm)*len(x+1)).astype(int)]
+            elif isinstance(x, tuple):
+                if len(x) == 2:
+                    return np.random.normal(x[0], x[1], nm)
+                elif len(x) == 3:
+                    raise NotImplementedError
+            raise ValueError("Unrecognised type for parameter values")
+
+    
+        # If last fit was emcee then generate samples for derived parameters
+        # not specified by the user from the chain rather than the summary
+        # statistics 
+        if self.__lastfit__ == 'emcee':
+            k = np.sqrt(_v('D'))
+            b = _v('b')
+            W = _v('W')
+            P = _v('P')
+            aR = np.sqrt((1+k)**2-b**2)/W/np.pi
+            sini = np.sqrt(1 - (b/aR)**2)
+            f_c = _v('f_c')
+            f_s = _v('f_s')
+            ecc = f_c**2 + f_s**2
+            _q = _s(q, len(self.emcee.chain))
+            rho_star = rhostar(1/aR,P,_q)
+            if r_star is None and m_star is not None:
+                _m = _s(m_star, len(self.emcee.chain))
+                r_star = (_m/rho_star)**(1/3)
+            if m_star is None and r_star is not None:
+                _r = _s(r_star, len(self.emcee.chain))
+                m_star = rho_star*_r**3
+    
+        # If last fit was lmfit then extract parameter values as ufloats or, for
+        # fixed parameters, as floats 
+        if self.__lastfit__ == 'lmfit':
+            k = usqrt(_u('D'))
+            b = _u('b')
+            W = _u('W')
+            P = _u('P')
+            aR = usqrt((1+k)**2-b**2)/W/np.pi
+            sini = usqrt(1 - (b/aR)**2)
+            ecc = _u('e')
+            _q = ufloat(q[0], q[1]) if isinstance(q, tuple) else q
+            rho_star = rhostar(1/aR, P, _q)
+            if r_star is None and m_star is not None:
+                if isinstance(m_star, tuple):
+                    _m = ufloat(m_star[0], m_star[1])
+                else:
+                    _m = m_star
+                r_star = (_m/rho_star)**(1/3)
+
+        if m_star is None and r_star is not None:
+            if isinstance(r_star, tuple):
+                _r = ufloat(r_star[0], r_star[1])
+            else:
+                _r = r_star
+            m_star = rho_star*_r**3
+        if verbose:
+            print('[[Mass/radius]]')
+       
+        if plot_kws is None:
+            plot_kws = {}
+       
+        return massradius(P=P, k=k, sini=sini, ecc=ecc,
+                m_star=m_star, r_star=r_star, K=K, aR=aR,
+                jovian=jovian, verbose=verbose, **plot_kws)
+    
     # ------------------------------------------------------------
 
     def rollangle_plot(self, angle0=None, gapmax=30, binwidth=15, 
@@ -1818,8 +1973,8 @@ class Dataset(object):
             ylim = np.max(np.abs(res))+0.05*np.ptp(res)
             ax[1].set_ylim(-ylim,ylim)
         return fig
-        
-#----------------------------------------------------------------------------
+    
+# ------------------------------------------------------------
     
 # Data display and diagnostics
 
@@ -1949,8 +2104,6 @@ class Dataset(object):
             print('\nMasked {} points'.format(sum(mask)))
         return self.lc['time'], self.lc['flux'], self.lc['flux_err']
 
-    #------
-
     def clip_outliers(self, clip=5, width=11, verbose=True):
         """
         Remove outliers from the light curve.
@@ -1966,7 +2119,9 @@ class Dataset(object):
 
         """
         flux = self.lc['flux']
-        d = abs(flux - medfilt(flux, width))
+        # medfilt pads the array to be filtered with zeros, so edge behaviour
+        # is better if we filter flux-1 rather than flux.
+        d = abs(medfilt(flux-1, width)+1-flux)
         mad = d.mean()
         ok = d < clip*mad
         for k in self.lc:
