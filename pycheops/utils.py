@@ -33,7 +33,7 @@ import numpy as np
 
 __all__ = [ 'parprint', 'lcbin']
 
-def parprint(x,n, w=8, sf=2, wn=None, short=False):
+def parprint(x,n, w=8, sf=2, wn=None, indent=4, short=False, asym=True):
     """
     Print the value and error of a parameter based on a sample
 
@@ -43,11 +43,13 @@ def parprint(x,n, w=8, sf=2, wn=None, short=False):
     The parameter value is set to the sample median and the error is based on
     the 15.87% and 84.13% percentiles of the sample.
 
-    :param x:  input sample for probability distribution of the parameter
-    :param n:  parameter name
-    :param w:  field width for values
-    :param wn:  field width for name
-    :param sf: number of sig. fig. in the error
+    :param x:      input sample for probability distribution of the parameter
+    :param n:      parameter name
+    :param w:      field width for values
+    :param wn:     field width for name
+    :param sf:     number of sig. fig. in the error
+    :param indent: number of spaces before text
+    :param asym:   also print asymmetric error bars 
 
     :returns: formatted string
 
@@ -76,12 +78,21 @@ def parprint(x,n, w=8, sf=2, wn=None, short=False):
         err = round(err,ndp)*b
         e_lo = round(e_lo,ndp)*b
         e_hi = round(e_hi,ndp)*b
-        f='{:{wn}s} = {:{w}.{ndp}f} ({:{sf}.0f}) (-{:{sf}.0f},+{:{sf}.0f})'
-        s = f.format(n, val,err,e_lo,e_hi,ndp=ndp,w=w,wn=wn,sf=sf)
+        f='{:{wn}s} = {:{w}.{ndp}f} ({:{sf}.0f})'
+        if asym:
+            f+=' (-{:{sf}.0f},+{:{sf}.0f})'
+            s = f.format(n, val,err,e_lo,e_hi,ndp=ndp,w=w,wn=wn,sf=sf)
+        else:
+            s = f.format(n, val,err,ndp=ndp,w=w,wn=wn,sf=sf)
     else:
-        f='{:{wn}s} = {:{w}.{ndp}f} +/- {:{w}.{ndp}f} (-{:.{ndp}f},+{:.{ndp}f})'
-        s = f.format(n, val,err,e_lo,e_hi,ndp=ndp,w=w,wn=wn)
-    return s
+        f='{:{wn}s} = {:{w}.{ndp}f} +/- {:{w}.{ndp}f}'
+        if asym:
+            f+=' ({:+{w}.{ndp}f},{:+{w}.{ndp}f})'
+            s = f.format(n, val,err,-e_lo,e_hi,ndp=ndp,w=w,wn=wn)
+        else:
+            s = f.format(n, val,err,ndp=ndp,w=w,wn=wn)
+
+    return " "*indent+s
 
 #----------
 
@@ -158,3 +169,79 @@ def lcbin(time, flux, binwidth=0.06859, nmin=4, time0=None,
 
     j = (n_bin >= nmin)
     return t_bin[j], f_bin[j], e_bin[j], n_bin[j]
+
+
+#-----------
+
+def ellpar(x, y, nstd=2):
+    """
+    Error ellipse  for a joint probability distribution 
+
+    :param x: input sample x values
+    :param y: input sample y values
+    :param nstd: number of standard deviations contained by the ellipse
+
+    :returns: xy, w, h, theta as defined for matplotlib.patches.Ellipse
+
+    """
+    xy=(np.mean(x), np.mean(y))
+    cov = np.cov(x, y)
+    vals, vecs = np.linalg.eigh(cov)
+    order = vals.argsort()[::-1]
+    vals, vecs =  vals[order], vecs[:,order]
+    theta = np.degrees(np.arctan2(*vecs[:,0][::-1]))
+    w, h = 2 * nstd * np.sqrt(vals)
+    return xy, w, h, theta
+
+#-----------
+
+def mode(x):
+    """
+    Estimate the mode of a sample
+
+    This robust estimate of the mode is made using the half-sample method.
+
+    Adapted from function provided in robust.py - 
+    "Small collection of robust statistical estimators based on functions from
+    Henry Freudenriech (Hughes STX) statistics library (called ROBLIB) that have
+    been incorporated into the AstroIDL User's Library."
+
+    """
+    
+    # Create the function that we can use for the half-sample mode
+    def _hsm(data):
+        j = None
+        if data.size == 1:
+            return data[0]
+        elif data.size == 2:
+            return data.mean()
+        elif data.size == 3:
+            i1 = data[1] - data[0]
+            i2 = data[2] - data[1]
+            if i1 < i2:
+                return data[:2].mean()
+            elif i2 > i1:
+                return data[1:].mean()
+            else:
+                return data[1]
+        else:
+            wMin = data[-1] - data[0]
+            if wMin == 0.0:
+                return data[0]
+            N = data.size // 2 + data.size % 2 
+            for i in range(0, N):
+                w = data[i+N-1] - data[i] 
+                if w < wMin:
+                    wMin = w
+                    j = i
+            if j is None:
+                return data[data.size // 2]
+            return _hsm(data[j:j+N])
+            
+    # The data need to be sorted for this to work
+    data = np.sort(x)
+    
+    # Find the mode
+    dataMode = _hsm(data)
+        
+    return dataMode

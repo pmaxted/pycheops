@@ -64,6 +64,8 @@ class StarProperties(object):
     used. The parameters h_1 and h_2 are both given nominal errors of 0.1 for
     both ATLAS model, and 0.15 for PHOENIX models.
 
+    Set match_arcsec=None to skip extraction of parameters from SWEET-Cat.
+
     """
 
     def __init__(self, identifier, force_download=False, 
@@ -107,12 +109,15 @@ class StarProperties(object):
                 delimiter="\t", fast_reader=False, names=names,
                 encoding='utf-8')
 
-        catalog_c = SkyCoord(sweetCat['ra'],sweetCat['dec'],unit='hour,degree')
-        idx, sep, _ = coords.match_to_catalog_sky(catalog_c)
-        if sep.arcsec[0] > match_arcsec:
-            raise ValueError('No matching star in SWEET-Cat')
+        if match_arcsec is None:
+            entry = None
+        else:
+            cat_c = SkyCoord(sweetCat['ra'],sweetCat['dec'],unit='hour,degree')
+            idx, sep, _ = coords.match_to_catalog_sky(cat_c)
+            if sep.arcsec[0] > match_arcsec:
+                raise ValueError('No matching star in SWEET-Cat')
+            entry = sweetCat[idx]
 
-        entry = sweetCat[idx]
         try:
             self.teff = ufloat(float(entry['teff']),float(entry['e_teff']))
             self.teff_note = "SWEET-Cat"
@@ -124,7 +129,7 @@ class StarProperties(object):
         except:
             self.logg = None
         try:
-            self.metal = ufloat(float(entry['metal']),float(entry['e_metal']))
+            self.metal=ufloat(float(entry['metal']),float(entry['e_metal']))
             self.metal_note = "SWEET-Cat"
         except:
             self.metal = None
