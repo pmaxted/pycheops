@@ -2259,12 +2259,12 @@ class Dataset(object):
         dy = interp1d(time,self.lc['yoff'], fill_value=0, bounds_error=False)
 
         model = FactorModel(
-            dx = _make_interp(time, xoff, scale='range'),
-            dy = _make_interp(time, yoff, scale='range'),
+            dx = _make_interp(time, self.lc['xoff'], scale='range'),
+            dy = _make_interp(time, self.lc['yoff'], scale='range'),
             sinphi = _make_interp(time,np.sin(phi)),
             cosphi = _make_interp(time,np.cos(phi)),
-            bg = _make_interp(time,bg, scale='max'),
-            contam = _make_interp(time,contam, scale='max') )
+            bg = _make_interp(time,self.lc['bg'], scale='max'),
+            contam = _make_interp(time,self.lc['contam'], scale='max'))
         params = model.make_params()
         params.add('dfdt', value=0, vary=dfdt)
         params.add('d2fdt2', value=0, vary=d2fdt2)
@@ -2326,12 +2326,12 @@ class Dataset(object):
                     for dfdcosphi in [False, True]:
 
                         model = FactorModel(
-                            dx = _make_interp(time, xoff, scale='range'),
-                            dy = _make_interp(time, yoff, scale='range'),
+                            dx = _make_interp(time, self.lc['xoff'], scale='range'),
+                            dy = _make_interp(time, self.lc['yoff'], scale='range'),
                             sinphi = _make_interp(time,np.sin(phi)),
                             cosphi = _make_interp(time,np.cos(phi)),
-                            bg = _make_interp(time,bg, scale='max'),
-                            contam = _make_interp(time,contam, scale='max') )
+                            bg = _make_interp(time,self.lc['bg'], scale='max'),
+                            contam = _make_interp(time,self.lc['contam'], scale='max'))
                         params = model.make_params()
                         params.add('dfdt', value=0, vary=False)
                         params.add('d2fdt2', value=0, vary=False)
