@@ -1,6 +1,11 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.7.3 
+~~~~~~~~~~~~~~~~~~
+* Documentation update for funcs.massradius
+* Bug fix in decorr and should_I_decorr (#73)
+
 0.7.2 (21-04-2021)
 ~~~~~~~~~~~~~~~~~~
 * Improved edge behaviour of dataset.clip_outliers
