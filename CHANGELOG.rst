@@ -6,7 +6,8 @@ Changes since 0.6.0 onwards.
 * Added dataset.planet_check
 * Added moon option to add_glint
 * Dropped angle0 option from dataset.rollangle_plot
-  
+* Bug fix in funcs.massradius for calls without m_star or r_star
+
 0.7.3 (2020-04-22)
 ~~~~~~~~~~~~~~~~~~
 * Documentation update for funcs.massradius
