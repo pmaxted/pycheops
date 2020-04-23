@@ -1,7 +1,14 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-0.7.3 
+0.7.4 (2020-04-23)
+~~~~~~~~~~~~~~~~~~
+* Added dataset.planet_check
+* Added moon option to add_glint
+* Dropped angle0 option from dataset.rollangle_plot
+* Bug fix in funcs.massradius for calls without m_star or r_star
+
+0.7.3 (2020-04-22)
 ~~~~~~~~~~~~~~~~~~
 * Documentation update for funcs.massradius
 * Bug fix in decorr and should_I_decorr (#73)
@@ -51,6 +58,7 @@ Changes since 0.6.0 onwards.
 * Added ld.phoenix_h1h2_interpolator and used it in starproperties
 * Moved pickle files used in ld.py to user's cache directory instead of the
   installation data directory.
+* Added dataset.add_glint() and scaled glint correction to lmfit/emcee fits
 
 0.6.9 (2020-04-02)
 ~~~~~~~~~~~~~~~~~~

@@ -732,11 +732,15 @@ def massradius(P=None, k=None, sini=None, ecc=None,
         mstr = ' M_Earth'
         rstr = ' R_Earth'
 
-    for p in ['m_star','r_star']:
-        if  ps[p] is not None:
-            result[p] = _d(ps[p])
-            if verbose:
-                print(parprint(ps[p],p,wn=8,w=10) + rstr)
+    if ps['m_star'] is not None:
+        result['m_star'] = _d(ps['m_star'])
+        if verbose:
+                print(parprint(ps['m_star'],'m_star',wn=8,w=10) + mstr)
+
+    if ps['r_star'] is not None:
+        result['r_star'] = _d(ps['r_star'])
+        if verbose:
+                print(parprint(ps['r_star'],'r_star',wn=8,w=10) + rstr)
 
     # Calculations start here. Intermediate variables names in result
     # dictionary start with "_" so we can remove/ignore them later.
@@ -798,7 +802,7 @@ def massradius(P=None, k=None, sini=None, ecc=None,
         for k in result.keys():
             result[k]['sample'] = ps[k]
 
-    if plot is False or result['m_p'] is None or result['r_p'] is None:
+    if plot is False or not 'm_p' in result or not 'r_p' in result:
         return result
         
     # Plotting starts here

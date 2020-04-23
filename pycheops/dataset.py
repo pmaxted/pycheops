@@ -49,7 +49,7 @@ import corner
 import copy
 from celerite import terms, GP
 from sys import stdout 
-from astropy.coordinates import SkyCoord
+from astropy.coordinates import SkyCoord, get_body, Angle
 from lmfit.printfuncs import gformat
 from scipy.signal import medfilt
 from .utils import lcbin, mode
@@ -57,6 +57,7 @@ import astropy.units as u
 from uncertainties import ufloat, UFloat
 from uncertainties.umath import sqrt as usqrt
 from astropy.timeseries import LombScargle
+from astropy.time import Time
 from astropy.convolution import convolve, Gaussian1DKernel
 from .instrument import CHEOPS_ORBIT_MINUTES
 from scipy.stats import skewnorm
@@ -811,7 +812,7 @@ class Dataset(object):
     # ----------------------------------------------------------------
     
     def add_glint(self, nspline=8, mask=None, fit_flux=False,
-            angle0=None, gapmax=30,
+            moon=False, angle0=None, gapmax=30, 
             show_plot=True, binwidth=15,  figsize=(6,3), fontsize=11):
         """
         Adds a glint model to the current dataset.
@@ -819,12 +820,17 @@ class Dataset(object):
         The glint model is a smooth function v. roll angle that can be scaled
         to account for artefacts in the data caused by internal reflections.
 
+        If moon=True the roll angle is measured relative to the apparent
+        direction of the Moon, i.e., assume that the glint is due to
+        moonlight.
+
         To use this model, include the the parameter glint_scale in the
         lmfit least-squares fit.
 
         * nspline - number of splines in the fit
         * mask - fit only data for which mask array is False
         * fit_flux - fit flux rather than residuals from pervious fit
+        * moon - use roll-angle relative to apparent Moon direction
         * angle0 = dependent variable is (roll angle - angle0)
         * gapmax = parameter to identify large gaps in data - used to
           calculate angle0 of not specified by the user.
@@ -833,7 +839,7 @@ class Dataset(object):
         * figsize  -
         * fontsize -
 
-        Returns the glint function as a function of roll angle.
+        Returns the glint function as a function of roll angle/moon angle.
 
         """
         try:
@@ -843,6 +849,18 @@ class Dataset(object):
         except AttributeError:
             raise AttributeError("Use get_lightcurve() to load data first.")
 
+        if moon:
+            bjd = Time(self.bjd_ref+self.lc['time'],format='jd',scale='tdb')
+            moon_coo = get_body('moon', bjd)
+            target_coo = SkyCoord(self.ra,self.dec,unit=('hour','degree'))
+            v_moon = target_coo.position_angle(moon_coo).radian
+            ra_m = moon_coo.ra.radian
+            ra_s = target_coo.ra.radian
+            dec_m = moon_coo.dec.radian
+            dec_s = target_coo.dec.radian
+            dv_rot = np.degrees(np.arcsin(np.sin(ra_m-ra_s)*np.cos(dec_m)/
+                np.sin(v_moon)))
+            angle -= dv_rot
 
         if fit_flux:
             y = flux - 1
@@ -859,25 +877,35 @@ class Dataset(object):
             else:
                 angle0 = 0 
         if abs(angle0) < 0.01:
-            xlab = r'Roll angle [$^{\circ}$]'
+            if moon:
+                xlab = r'Moon angle [$^{\circ}$]'
+            else:
+                xlab = r'Roll angle [$^{\circ}$]'
             xlim = (0,360)
             theta = angle
         else:
-            xlab = r'Roll angle - {:0.0f}$^{{\circ}}$'.format(angle0)
+            if moon:
+                xlab = r'Moon angle - {:0.0f}$^{{\circ}}$'.format(angle0)
+            else:
+                xlab = r'Roll angle - {:0.0f}$^{{\circ}}$'.format(angle0)
             theta = (360 + angle - angle0) % 360
             xlim = (min(theta),max(theta))
+
         f_theta = _make_interp(time, theta)
 
-        if not mask is None:
+        if mask is not None:
             time = time[~mask]
             theta = theta[~mask]
             y = y[~mask]
 
+
+        y = y - np.nanmedian(y)
         y = y[np.argsort(theta)]
         theta.sort()
         t = np.linspace(min(theta),max(theta),1+nspline,endpoint=False)[1:]
         f_glint = LSQUnivariateSpline(theta,y,t,ext='const')
 
+        self.glint_moon = moon
         self.glint_angle0 = angle0
         self.f_theta = f_theta
         self.f_glint = f_glint
@@ -1850,23 +1878,40 @@ class Dataset(object):
     
     # ------------------------------------------------------------
 
-    def rollangle_plot(self, angle0=None, gapmax=30, binwidth=15, 
-            figsize=(6,3), fontsize=11, title=None):
+    def planet_check(self):
+        bjd = Time(self.bjd_ref+self.lc['time'][0],format='jd',scale='tdb')
+        target_coo = SkyCoord(self.ra,self.dec,unit=('hour','degree'))
+        print(f'BJD = {bjd}')
+        print('Body     R.A.         Declination  Sep(deg)')
+        print('-------------------------------------------')
+        for p in ('moon','mars','jupiter','saturn','uranus','neptune'):
+            c = get_body(p, bjd)
+            ra = c.ra.to_string(precision=2,unit='hour',sep=':',pad=True)
+            dec = c.dec.to_string(precision=1,sep=':',unit='degree',
+                    alwayssign=True,pad=True)
+            sep = target_coo.separation(c).degree
+            print(f'{p.capitalize():8s} {ra:12s} {dec:12s} {sep:8.1f}')
+        
+    
+    # ------------------------------------------------------------
+
+    def rollangle_plot(self, binwidth=15, figsize=None, fontsize=11,
+            title=None):
         '''
         Plot of residuals from last fit v. roll angle
 
         The upper panel shows the fit to the glint and/or trends v. roll angle
 
         The lower panel shows the residuals from the best fit.
-        
-        If angle0=None this routine will offset the angle plotted to avoid
-        large gaps (greater than gapmax degrees)  in the plot. This parameter
-        can be used to set your own value for this offset (in degrees).
 
+        If a glint correction v. moon angle has been applied, this is shown in
+        the middle panel.
+        
         '''
 
         try:
             flux = np.array(self.lc['flux'])
+            time = np.array(self.lc['time'])
             angle = np.array(self.lc['roll_angle'])
         except AttributeError:
             raise AttributeError("Use get_lightcurve() to load data first.")
@@ -1877,17 +1922,24 @@ class Dataset(object):
             raise AttributeError(
                     "Use lmfit_transit() to get best-fit parameters first.")
 
+        # Residuals from last fit and trends due to glint and roll angle
         fit = self.emcee.bestfit if l == 'emcee' else self.lmfit.bestfit
         res = flux - fit
         params = self.emcee.params_best if l == 'emcee' else self.lmfit.params
         rolltrend = np.zeros_like(angle)
-        tang = np.linspace(0,360,3600)
-        tphi = tang*np.pi/180
-        tr = np.zeros_like(tang)
+        glint = np.zeros_like(angle)
+        phi = angle*np.pi/180           # radians for calculation
+
+        # Grid of angle values for plotting smooth version of trends
+        tang = np.linspace(0,360,3600)  # degrees
+        tphi = tang*np.pi/180           # radians for calculation
+        tr = np.zeros_like(tang)        # roll angle trend
+        tg = np.zeros_like(tang)        # glint
+
         vd = params.valuesdict()
         vk = vd.keys()
-        phi = angle*np.pi/180
         notrend = True
+        # Roll angle trend
         for n in range(1,4):
             p = "dfdsinphi" if n==1 else "dfdsin{}phi".format(n)
             if p in vk:
@@ -1900,78 +1952,101 @@ class Dataset(object):
                 rolltrend += vd[p] * np.cos(n*phi)
                 tr += vd[p] * np.cos(n*tphi)
 
-        # Need to be careful here because angle0 may not be the same offset
-        # angle used to define the glint function.
         if 'glint_scale' in vk:
             notrend = False
-            glint_theta = (360 + angle - self.glint_angle0) % 360
-            glint = vd['glint_scale']*self.f_glint(glint_theta)
-            gt = (360 + tang - self.glint_angle0) % 360
-            tg = vd['glint_scale']*self.f_glint(gt)
-        else:
-            glint = np.zeros_like(angle)
-            tg = np.zeros_like(tang) 
-
-        if angle0 is None:
-            x = np.sort(angle)
-            gap = np.hstack((x[0], x[1:]-x[:-1]))
-            if max(gap) > gapmax:
-                angle0 = x[np.argmax(gap)]
+            if self.glint_moon:
+                glint_theta = self.f_theta(time)
+                glint = vd['glint_scale']*self.f_glint(glint_theta)
+                tg = vd['glint_scale']*self.f_glint(tang)
             else:
-                angle0 = 0 
-        if abs(angle0) < 0.01:
-            xlab = r'Roll angle [$^{\circ}$]'
-            xlim = (0,360)
-            theta = angle
-            tt = tang
-        else:
-            xlab = r'Roll angle - {:0.0f}$^{{\circ}}$'.format(angle0)
-            theta = (360 + angle - angle0) % 360
-            tt = (360 + tang - angle0) % 360 
-            j = np.argsort(tt)
-            tt = tt[j]
-            tr = tr[j]
-            tg = tg[j]
-            xlim = (min(theta),max(theta))
-
+                glint_theta = (360 + angle - self.glint_angle0) % 360
+                glint = vd['glint_scale']*self.f_glint(glint_theta)
+                gt = (360 + tang - self.glint_angle0) % 360
+                tg = vd['glint_scale']*self.f_glint(gt)
 
         plt.rc('font', size=fontsize)
         if notrend:
+            figsize = (9,4) if figsize is None else figsize
             fig,ax=plt.subplots(nrows=1, figsize=figsize, sharex=True)
-            ax.plot(theta, res, 'o',c='skyblue',ms=2)
+            ax.plot(angle, res, 'o',c='skyblue',ms=2)
             if binwidth:
-                r_, f_, e_, n_ = lcbin(theta, res, binwidth=binwidth)
+                r_, f_, e_, n_ = lcbin(angle, res, binwidth=binwidth)
                 ax.errorbar(r_,f_,yerr=e_,fmt='o',c='midnightblue',ms=5,
                     capsize=2)
-            ax.set_xlim(xlim)
+            ax.set_xlim(0, 360)
             ylim = np.max(np.abs(res))+0.05*np.ptp(res)
             ax.set_ylim(-ylim,ylim)
             ax.axhline(0, color='saddlebrown',ls=':')
-            ax.set_xlabel(xlab)
+            ax.set_xlabel(r'Roll angle [$^{\circ}$]')
             ax.set_ylabel('Residual')
-        else:
-            fig,ax=plt.subplots(nrows=2, figsize=figsize, sharex=True)
-            y = res + rolltrend + glint 
-            ax[0].plot(theta, y, 'o',c='skyblue',ms=2)
-            ax[0].plot(tt, tr+tg, c='saddlebrown')
+
+        elif 'glint_scale' in vk and self.glint_moon:
+            figsize = (9,8) if figsize is None else figsize
+            fig,ax=plt.subplots(nrows=3, figsize=figsize)
+            y = res + rolltrend 
+            ax[0].plot(angle, y, 'o',c='skyblue',ms=2)
+            ax[0].plot(tang, tr, c='saddlebrown')
             if binwidth:
-                r_, f_, e_, n_ = lcbin(theta, y, binwidth=binwidth)
+                r_, f_, e_, n_ = lcbin(angle, y, binwidth=binwidth)
                 ax[0].errorbar(r_,f_,yerr=e_,fmt='o',c='midnightblue',ms=5,
                     capsize=2)
+            ax[0].set_xlabel(r'Roll angle [$^{\circ}$] (Sky)')
             ax[0].set_ylabel('Roll angle trend')
             ylim = np.max(np.abs(y))+0.05*np.ptp(y)
+            ax[0].set_xlim(0, 360)
             ax[0].set_ylim(-ylim,ylim)
-            ax[1].plot(theta, res, 'o',c='skyblue',ms=2)
+
+            y = res + glint
+            ax[1].plot(glint_theta, y, 'o',c='skyblue',ms=2)
+            ax[1].plot(tang, tg, c='saddlebrown')
             if binwidth:
-                r_, f_, e_, n_ = lcbin(theta, res, binwidth=binwidth)
+                r_, f_, e_, n_ = lcbin(glint_theta, y, binwidth=binwidth)
+                ax[1].errorbar(r_,f_,yerr=e_,fmt='o',c='midnightblue',ms=5,
+                    capsize=2)
+            ylim = np.max(np.abs(y))+0.05*np.ptp(y)
+            ax[1].set_xlim(0, 360)
+            ax[1].set_ylim(-ylim,ylim)
+            ax[1].set_xlabel(r'Roll angle [$^{\circ}$] (Moon)')
+            ax[1].set_ylabel('Moon glint')
+
+            ax[2].plot(angle, res, 'o',c='skyblue',ms=2)
+            if binwidth:
+                r_, f_, e_, n_ = lcbin(angle, res, binwidth=binwidth)
+                ax[2].errorbar(r_,f_,yerr=e_,fmt='o',c='midnightblue',ms=5,
+                    capsize=2)
+            ax[2].axhline(0, color='saddlebrown',ls=':')
+            ax[2].set_xlim(0, 360)
+            ylim = np.max(np.abs(res))+0.05*np.ptp(res)
+            ax[2].set_ylim(-ylim,ylim)
+            ax[2].set_xlabel(r'Roll angle [$^{\circ}$] (Sky)')
+            ax[2].set_ylabel('Residuals')
+
+        else:
+
+            figsize = (8,6) if figsize is None else figsize
+            fig,ax=plt.subplots(nrows=2, figsize=figsize, sharex=True)
+            y = res + rolltrend + glint 
+            ax[0].plot(angle, y, 'o',c='skyblue',ms=2)
+            ax[0].plot(tang, tr+tg, c='saddlebrown')
+            if binwidth:
+                r_, f_, e_, n_ = lcbin(angle, y, binwidth=binwidth)
+                ax[0].errorbar(r_,f_,yerr=e_,fmt='o',c='midnightblue',ms=5,
+                    capsize=2)
+            ax[0].set_ylabel('Roll angle trend + glint')
+            ylim = np.max(np.abs(y))+0.05*np.ptp(y)
+            ax[0].set_ylim(-ylim,ylim)
+            ax[1].plot(angle, res, 'o',c='skyblue',ms=2)
+            if binwidth:
+                r_, f_, e_, n_ = lcbin(angle, res, binwidth=binwidth)
                 ax[1].errorbar(r_,f_,yerr=e_,fmt='o',c='midnightblue',ms=5,
                     capsize=2)
             ax[1].axhline(0, color='saddlebrown',ls=':')
-            ax[1].set_xlabel(xlab)
-            ax[1].set_ylabel('Residuals')
-            ax[1].set_xlim(xlim)
+            ax[1].set_xlim(0, 360)
             ylim = np.max(np.abs(res))+0.05*np.ptp(res)
             ax[1].set_ylim(-ylim,ylim)
+            ax[1].set_xlabel(r'Roll angle [$^{\circ}$]')
+            ax[1].set_ylabel('Residuals')
+        fig.tight_layout()
         return fig
     
 # ------------------------------------------------------------
