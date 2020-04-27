@@ -553,7 +553,7 @@ def massradius(P=None, k=None, sini=None, ecc=None,
     Parameters can be specified in one of the following ways.
     - single value (zero error assumed)
     - ufloat values, i.e., m_star=ufloat(1.1, 0.05)
-    - 2-tuple with value and standard deviation,  e.g., m_star=(1.1, 0.05)
+    - 2-tuple with value and standard deviation, e.g., m_star=(1.1, 0.05)
     - a numpy array of values sampled from the parameter's probability
       distribution
 
@@ -569,14 +569,14 @@ def massradius(P=None, k=None, sini=None, ecc=None,
     - sini = sine of orbital inclination
     - ecc = orbital eccentricity
     - K = semi-amplitude of star's spectroscopic orbit in m/s
-    - aR = r_star/a
+    - aR = a/r_star
     - r_pl = planet radius
     - m_pl = planet mass
     - a = semi-major axis of the planet's orbit in solar radii
     - q = mass ratio = m_pl/m_star
-    - g_p = planet's surface gravity (m/s/s)
+    - g_p = planet's surface gravity (m.s-2)
     - rho_p = planet's mean density 
-    - rho_star =  mean stellar density in solar units
+    - rho_star = mean stellar density in solar units
 
     +----------------------------+---------------+
     | Input                      | Output        |
@@ -588,7 +588,7 @@ def massradius(P=None, k=None, sini=None, ecc=None,
     | aR, P, m_star, K, sini     | rho_star      |
     +----------------------------+---------------+
 
-    The planet surface gravity, g_p,  is calculated directly from k and aR
+    The planet surface gravity, g_p, is calculated directly from k and aR
     using equation (4) from Southworth et al., MNRAS 2007MNRAS.379L..11S. The
     mean stellar density, rho_star, is calculated directly from aR using
     the equation from section 2.2 of Maxted et al. 2015A&A...575A..36M.
@@ -602,7 +602,7 @@ def massradius(P=None, k=None, sini=None, ecc=None,
     quantities and are returned as a python dict.  
     - mean
     - stderr (standard error)
-    - mode  (estimated using half-sample method)
+    - mode (estimated using half-sample method)
     - median
     _ e_hi (84.1%-ile - median)
     _ e_lo (median - 15.9%-ile)
@@ -614,14 +614,23 @@ def massradius(P=None, k=None, sini=None, ecc=None,
     and/or other known planets is generated if both the planet mass and
     radius can be calculated (unless plot=False is specified). Keyword options
     can be sent to ax.tick_params using the tick_kws option and similarly for
-    ax.set_xlabel and ax.set_ylabel with the lab_kws option.
+    ax.set_xlabel and ax.set_ylabel with the lab_kws option. The plot title
+    can be set with the title keyword.
 
-    The following models from  Zeng et al. (2016ApJ...819..127Z) can be
+    The following models from Zeng et al. (2016ApJ...819..127Z) can be
     selected using the zeng_models keyword. 
      R100Fe,R50Fe,R30Fe,R25Fe,R20Fe,Rrock,R25H2O,R50H2O,R100H2O
-    Set zeng_models=None to skip plotting of these models, or 'all' to plot them
-    all. Keyword argument to the plot command for these models can be added
-    using the zeng_kws option.
+    Set zeng_models=None to skip plotting of these models, or 'all' to plot
+    them all. Keyword argument to the plot command for these models can be
+    added using the zeng_kws option.
+
+    Models from Baraffe et al., (2008A&A...482..315B) are available for
+    metalicities Z=0.02, 0.10, 0.50 and 0.90, and ages 0.5Gyr, 1Gyr and 5Gyr.
+    Models can be selected using the baraffe_models option using model names
+    Z0.02_0.5Gyr, Z0.02_1Gyr, Z0.02_5Gyr, Z0.02_0.5Gyr, etc. Set
+    baraffe_models=None to skip plotting of these models, or 'all' to plot
+    them all. Keyword argument to the plot command for these models can be
+    added using the baraffe_kws option.
 
     The keyword show_legend can be used to include a legend for the models
     plotted with keyword arguments legend_kws. 
@@ -630,18 +639,15 @@ def massradius(P=None, k=None, sini=None, ecc=None,
     tepcat=True. The appearance of the points can be controlled using
     kws_tepcat keyword arguments that are passed to plt.scatter.
 
-    Models from Baraffe et al., (2008A&A...482..315B) are available for
-    metalicities Z=0.02, 0.10, 0.50 and 0.90, and ages 0.5Gyr, 1 Gyr and 5
-    Gyr. Models can be selected using the baraffe_models option using model
-    names Z0.02_0.5Gyr, Z0.02_1Gyr, Z0.02_5Gyr, Z0.02_0.5Gyr, etc. Set
-    baraffe_models=None to skip plotting of these models, or 'all' to plot
-    them all. Keyword argument to the plot command for these models can be
-    added using the baraffe_kws option.
-
     If errorbar=True the planet mass and radius are plotted as an error bar
     using plt.errorbar with optional keyword arguments err_kws. Logarithmic
     scales for the mass and radius axes can be selected with the logmass and
     logradius keywords.
+
+    If ellipse=True then the planet mass and radius are shown using ellipses
+    with semi-major axes set by the ell_sigma keyword. The appearance of these
+    ellipses can be specified using the ell_kws keyword. These options are
+    sent to the plt.add_patch command. 
 
     The return value of this function is "result, fig" or, if plot=False,
     "result",  where "result" is a python dict containing the statistics for
@@ -726,11 +732,15 @@ def massradius(P=None, k=None, sini=None, ecc=None,
         mstr = ' M_Earth'
         rstr = ' R_Earth'
 
-    for p in ['m_star','r_star']:
-        if  ps[p] is not None:
-            result[p] = _d(ps[p])
-            if verbose:
-                print(parprint(ps[p],p,wn=8,w=10) + rstr)
+    if ps['m_star'] is not None:
+        result['m_star'] = _d(ps['m_star'])
+        if verbose:
+                print(parprint(ps['m_star'],'m_star',wn=8,w=10) + mstr)
+
+    if ps['r_star'] is not None:
+        result['r_star'] = _d(ps['r_star'])
+        if verbose:
+                print(parprint(ps['r_star'],'r_star',wn=8,w=10) + rstr)
 
     # Calculations start here. Intermediate variables names in result
     # dictionary start with "_" so we can remove/ignore them later.
@@ -792,7 +802,7 @@ def massradius(P=None, k=None, sini=None, ecc=None,
         for k in result.keys():
             result[k]['sample'] = ps[k]
 
-    if plot is False or result['m_p'] is None or result['r_p'] is None:
+    if plot is False or not 'm_p' in result or not 'r_p' in result:
         return result
         
     # Plotting starts here
