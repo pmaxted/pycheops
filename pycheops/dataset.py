@@ -2321,7 +2321,8 @@ class Dataset(object):
 
     def decorr(self, dfdt=False, d2fdt2=False, dfdx=False, d2fdx2=False, 
                 dfdy=False, d2fdy2=False, d2fdxdy=False, dfdsinphi=False, 
-                dfdcosphi=False, dfdsin2phi=False, dfdcos2phi=False):
+                dfdcosphi=False, dfdsin2phi=False, dfdcos2phi=False,
+                dfdsin3phi=False, dfdcos3phi=False, dfdbg=False, dfdcontam=False):
 
         time = np.array(self.lc['time'])
         flux = np.array(self.lc['flux'])
@@ -2352,7 +2353,11 @@ class Dataset(object):
         params.add('dfdcosphi', value=0, vary=dfdcosphi)
         params.add('dfdsin2phi', value=0, vary=dfdsin2phi)
         params.add('dfdcos2phi', value=0, vary=dfdcos2phi)
-
+        params.add('dfdsin3phi', value=0, vary=dfdsin3phi)
+        params.add('dfdcos3phi', value=0, vary=dfdcos3phi)
+        params.add('dfdbg', value=0, vary=dfdbg)
+        params.add('dfdcontam', value=0, vary=dfdcontam)
+        
         result = model.fit(flux, params, t=time)
         print("Fit Report")
         print(result.fit_report())
