@@ -409,15 +409,17 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg):
     omrad = omdeg*np.pi/180
     theta = 0.5*np.pi-omrad
     if (1-sini**2) > np.finfo(0.).eps :
-        fa = _delta(theta-0.25*np.pi, sini**2, omrad, ecc)
-        fb = _delta(theta           , sini**2, omrad, ecc)
-        fc = _delta(theta+0.25*np.pi, sini**2, omrad, ecc)
+        ta = theta-0.125*np.pi
+        tb = theta
+        tc = theta+0.125*np.pi
+        fa = _delta(ta, sini**2, omrad, ecc)
+        fb = _delta(tb, sini**2, omrad, ecc)
+        fc = _delta(tc, sini**2, omrad, ecc)
         if ((fb>fa)|(fb>fc)):
-            print (theta-0.25*np.pi,theta,theta+0.25*np.pi)
+            print(tzero,P,sini,ecc,omdeg)
+            print (ta,tb,tc)
             print (fa,fb,fc)
-
-        theta = brent(_delta, args = (sini**2, omrad, ecc),
-                brack = (theta-0.25*np.pi,theta,theta+0.25*np.pi))
+        theta = brent(_delta, args=(sini**2, omrad, ecc), brack=(ta, tb, tc))
     if theta == np.pi:
         E = np.pi 
     else:
@@ -735,12 +737,16 @@ def massradius(P=None, k=None, sini=None, ecc=None,
     if ps['m_star'] is not None:
         result['m_star'] = _d(ps['m_star'])
         if verbose:
-                print(parprint(ps['m_star'],'m_star',wn=8,w=10) + mstr)
+                print(parprint(ps['m_star'],'m_star',wn=8,w=10) + ' M_Sun')
 
     if ps['r_star'] is not None:
         result['r_star'] = _d(ps['r_star'])
         if verbose:
-                print(parprint(ps['r_star'],'r_star',wn=8,w=10) + rstr)
+                print(parprint(ps['r_star'],'r_star',wn=8,w=10) + ' R_Sun')
+
+    result['e'] = _d(ps['ecc'])
+    if verbose:
+        print(parprint(ps['ecc'],'e',wn=8,w=10))
 
     # Calculations start here. Intermediate variables names in result
     # dictionary start with "_" so we can remove/ignore them later.

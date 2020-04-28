@@ -1,6 +1,14 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.7.5 (2020-04-27)
+~~~~~~~~~~~~~~~~~~
+* Bug fix in dataset for d2fdx2, d2fdy2, d2fdt2
+* Reduced size of initial bracketing interval in funcs.tzero2tperi
+* Wrong units on stellar mass/radius in funcs.massradius fixed
+* Fixed decorr with bg, contam, sin3phi, cos3phi bug (#80)
+* Added fallback in utils/parprint() if error is 0
+
 0.7.4 (2020-04-23)
 ~~~~~~~~~~~~~~~~~~
 * Added dataset.planet_check

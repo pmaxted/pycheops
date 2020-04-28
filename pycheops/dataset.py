@@ -88,6 +88,19 @@ def _kw_to_Parameter(name, kwarg):
     raise ValueError('Unrecognised type for keyword argument {}'.
         format(name))
 
+#----
+
+def _make_interp(t,x,scale=None):
+    if scale is None:
+        z = x
+    elif scale == 'max':
+        z = (x-min(x))/np.ptp(x) 
+    elif scale == 'range':
+        z = (x-np.median(x))/np.ptp(x)
+    else:
+        raise ValueError('scale must be None, max or range')
+    return interp1d(t,z,bounds_error=False, fill_value=(z[0],z[-1]))
+
 # Prior on (D, W, b) for transit/eclipse fitting.
 # This prior assumes uniform priors on cos(i), log(k) and log(aR). The
 # factor 2kW is the absolute value of the determinant of the Jacobian, 
@@ -143,19 +156,6 @@ def _log_posterior_jitter(pos, model, time, flux, flux_err,  params, vn,
     s2 =flux_err**2 + jitter**2
     lnlike = -0.5*(np.sum((flux-fit)**2/s2 + np.log(2*np.pi*s2)))
     return lnlike + lnprior
-
-#----
-
-def _make_interp(t,x,scale=None):
-    if scale is None:
-        z = x
-    elif scale == 'max':
-        z = (x-min(x))/np.ptp(x) 
-    elif scale == 'range':
-        z = (x-np.median(x))/np.ptp(x)
-    else:
-        raise ValueError('scale must be None, max or range')
-    return interp1d(t,z,bounds_error=False, fill_value=(z[0],z[-1]))
 
 #----
 
@@ -829,7 +829,7 @@ class Dataset(object):
 
         * nspline - number of splines in the fit
         * mask - fit only data for which mask array is False
-        * fit_flux - fit flux rather than residuals from pervious fit
+        * fit_flux - fit flux rather than residuals from previous fit
         * moon - use roll-angle relative to apparent Moon direction
         * angle0 = dependent variable is (roll angle - angle0)
         * gapmax = parameter to identify large gaps in data - used to
@@ -882,7 +882,7 @@ class Dataset(object):
             else:
                 xlab = r'Roll angle [$^{\circ}$]'
             xlim = (0,360)
-            theta = angle
+            theta = angle 
         else:
             if moon:
                 xlab = r'Moon angle - {:0.0f}$^{{\circ}}$'.format(angle0)
@@ -901,7 +901,7 @@ class Dataset(object):
 
         y = y - np.nanmedian(y)
         y = y[np.argsort(theta)]
-        theta.sort()
+        theta = np.sort(theta)
         t = np.linspace(min(theta),max(theta),1+nspline,endpoint=False)[1:]
         f_glint = LSQUnivariateSpline(theta,y,t,ext='const')
 
@@ -1013,13 +1013,13 @@ class Dataset(object):
         if dfdy is not None:
             params['dfdy'] = _kw_to_Parameter('dfdy', dfdy)
         if d2fdx2 is not None:
-            params['d2fdx2'] = _kw_to_Parameter('d2fdx2', df2dx2)
+            params['d2fdx2'] = _kw_to_Parameter('d2fdx2', d2fdx2)
         if d2fdy2 is not None:
-            params['d2fdy2'] = _kw_to_Parameter('d2fdy2', df2dy2)
+            params['d2fdy2'] = _kw_to_Parameter('d2fdy2', d2fdy2)
         if dfdt is not None:
             params['dfdt'] = _kw_to_Parameter('dfdt', dfdt)
         if d2fdt2 is not None:
-            params['d2fdt2'] = _kw_to_Parameter('d2fdt2', df2dt2)
+            params['d2fdt2'] = _kw_to_Parameter('d2fdt2', d2fdt2)
         if dfdsinphi is not None:
             params['dfdsinphi'] = _kw_to_Parameter('dfdsinphi', dfdsinphi)
         if dfdcosphi is not None:

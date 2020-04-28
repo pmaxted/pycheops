@@ -38,7 +38,8 @@ def parprint(x,n, w=8, sf=2, wn=None, indent=4, short=False, asym=True):
     Print the value and error of a parameter based on a sample
 
     The number of decimal places in the value and error are set such that the
-    error has the specified number of significant figures.
+    error has the specified number of significant figures. If the error is 0
+    the output will have sf decimal places. 
 
     The parameter value is set to the sample median and the error is based on
     the 15.87% and 84.13% percentiles of the sample.
@@ -60,7 +61,7 @@ def parprint(x,n, w=8, sf=2, wn=None, indent=4, short=False, asym=True):
     err = 0.5*(std_u-std_l)
     e_hi = std_u - val
     e_lo = val - std_l
-    ndp = sf - np.int(np.floor(np.log10(err))) - 1
+    ndp = sf if err == 0 else sf - np.int(np.floor(np.log10(err))) - 1
     if ndp < 0:
         ndp = -ndp
         b = 10**ndp
