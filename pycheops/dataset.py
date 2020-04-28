@@ -538,6 +538,39 @@ class Dataset(object):
 
         return cube
 
+    def get_subarrays(self, verbose=True):
+        subFile = "{}-SubArray.fits".format(self.file_key)
+        subPath = Path(self.tgzfile).parent / subFile
+        if subPath.is_file():
+            with fits.open(subPath) as hdul:
+                cube = hdul[1].data
+                hdr = hdul[1].header
+                meta = Table.read(hdul[2])
+            if verbose: print ('Subarray data loaded from ',subPath)
+        else:
+            if verbose: print ('Extracting subarray data from ',self.tgzfile)
+            r=re.compile('(.*SCI_COR_SubArray.*.fits)' )
+            datafile = list(filter(r.match, self.list))
+            if len(datafile) == 0:
+                raise Exception('Dataset does not contains subarray data.')
+            if len(datafile) > 1:
+                raise Exception('Multiple subarray data files in dataset')
+            tar = tarfile.open(self.tgzfile)
+            with tar.extractfile(datafile[0]) as fd:
+                hdul = fits.open(fd)
+                cube = hdul[1].data
+                hdr = hdul[1].header
+                meta = Table.read(hdul[2])
+                hdul.writeto(subPath)
+            tar.close()
+            if verbose: print('Saved subarray data to ',subPath)
+
+        self.subarrays = (cube, hdr, meta)
+        self.subarrays = {'data':cube, 'header':hdr, 'meta':meta}
+
+        return cube 
+       
+       
     def get_lightcurve(self, aperture=None,
             returnTable=False, reject_highpoints=False, verbose=True):
 
