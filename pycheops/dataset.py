@@ -1458,7 +1458,7 @@ class Dataset(object):
 
     # ------------------------------------------------------------
     def plot_fft(self, star=None, gsmooth=5, logxlim = (1.5,4.5),
-            fontsize=12, figsize=(8,5)):
+            title=None, fontsize=12, figsize=(8,5)):
         """ 
         
         Lomb-Scargle power-spectrum of the residuals. 
@@ -1517,6 +1517,7 @@ class Dataset(object):
         ax.set_xlim(10**logxlim[0],10**logxlim[1])
         ax.set_xlabel(r'Frequency [$\mu$Hz]')
         ax.set_ylabel('Power [ppm$^2$ $\mu$Hz$^{-1}$]');
+        ax.set_title(title)
         return fig
     
 
@@ -1939,6 +1940,7 @@ class Dataset(object):
         vd = params.valuesdict()
         vk = vd.keys()
         notrend = True
+        noglint = True
         # Roll angle trend
         for n in range(1,4):
             p = "dfdsinphi" if n==1 else "dfdsin{}phi".format(n)
@@ -1958,6 +1960,7 @@ class Dataset(object):
                 glint_theta = self.f_theta(time)
                 glint = vd['glint_scale']*self.f_glint(glint_theta)
                 tg = vd['glint_scale']*self.f_glint(tang)
+                noglint = False
             else:
                 glint_theta = (360 + angle - self.glint_angle0) % 360
                 glint = vd['glint_scale']*self.f_glint(glint_theta)
@@ -1979,6 +1982,7 @@ class Dataset(object):
             ax.axhline(0, color='saddlebrown',ls=':')
             ax.set_xlabel(r'Roll angle [$^{\circ}$]')
             ax.set_ylabel('Residual')
+            ax.set_title(title)
 
         elif 'glint_scale' in vk and self.glint_moon:
             figsize = (9,8) if figsize is None else figsize
@@ -1995,6 +1999,7 @@ class Dataset(object):
             ylim = np.max(np.abs(y))+0.05*np.ptp(y)
             ax[0].set_xlim(0, 360)
             ax[0].set_ylim(-ylim,ylim)
+            ax[0].set_title(title)
 
             y = res + glint
             ax[1].plot(glint_theta, y, 'o',c='skyblue',ms=2)
@@ -2032,9 +2037,14 @@ class Dataset(object):
                 r_, f_, e_, n_ = lcbin(angle, y, binwidth=binwidth)
                 ax[0].errorbar(r_,f_,yerr=e_,fmt='o',c='midnightblue',ms=5,
                     capsize=2)
-            ax[0].set_ylabel('Roll angle trend + glint')
+            if noglint:
+                ax[0].set_ylabel('Roll angle trend')
+            else:
+                ax[0].set_ylabel('Roll angle trend + glint')
             ylim = np.max(np.abs(y))+0.05*np.ptp(y)
             ax[0].set_ylim(-ylim,ylim)
+            ax[0].set_title(title)
+
             ax[1].plot(angle, res, 'o',c='skyblue',ms=2)
             if binwidth:
                 r_, f_, e_, n_ = lcbin(angle, res, binwidth=binwidth)

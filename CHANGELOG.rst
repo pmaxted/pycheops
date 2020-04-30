@@ -1,6 +1,11 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.7.6 (2020-04-30)
+~~~~~~~~~~~~~~~~~~
+* Fixed y-axis title bug in dataset.rollangle_plot (#85).
+* Added robust grid search to funcs.tzero2tperi for 
+
 0.7.5 (2020-04-27)
 ~~~~~~~~~~~~~~~~~~
 * Bug fix in dataset for d2fdx2, d2fdy2, d2fdt2
