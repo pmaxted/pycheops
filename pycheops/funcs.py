@@ -407,19 +407,27 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg):
                 np.sqrt(1-sin2i*np.sin(th+omrad)**2)/(1+ecc*np.cos(th)))
 
     omrad = omdeg*np.pi/180
+    sin2i = sini**2
     theta = 0.5*np.pi-omrad
-    if (1-sini**2) > np.finfo(0.).eps :
+    if (1-sin2i) > np.finfo(0.).eps :
         ta = theta-0.125*np.pi
         tb = theta
         tc = theta+0.125*np.pi
-        fa = _delta(ta, sini**2, omrad, ecc)
-        fb = _delta(tb, sini**2, omrad, ecc)
-        fc = _delta(tc, sini**2, omrad, ecc)
+        fa = _delta(ta, sin2i, omrad, ecc)
+        fb = _delta(tb, sin2i, omrad, ecc)
+        fc = _delta(tc, sin2i, omrad, ecc)
         if ((fb>fa)|(fb>fc)):
-            print(tzero,P,sini,ecc,omdeg)
-            print (ta,tb,tc)
-            print (fa,fb,fc)
-        theta = brent(_delta, args=(sini**2, omrad, ecc), brack=(ta, tb, tc))
+            t_ = np.linspace(ta-0.125*np.pi,tc+0.125*np.pi,512)
+            d_ = _delta(t_, sin2i, omrad, ecc)
+            i_ = np.argmin(d_)
+            try:
+                ta,tb,tc = t_[i_-1:i_+2]
+            except:
+                print(sin2i, omrad, ecc)
+                print(ta, tb, tc)
+                print(fa, fb, fc)
+                raise ValueError('tzero2tperi grid search fail')
+        theta = brent(_delta, args=(sin2i, omrad, ecc), brack=(ta, tb, tc))
     if theta == np.pi:
         E = np.pi 
     else:
