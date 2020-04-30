@@ -74,6 +74,8 @@ from time import localtime, mktime
 from os.path import getmtime
 from .core import load_config
 from matplotlib.patches import Ellipse
+from scipy.signal import argrelextrema
+
 
 
 __all__ = [ 'a_rsun','f_m','m1sin3i','m2sin3i','asini','rhostar','g_2',
@@ -419,7 +421,7 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg):
         if ((fb>fa)|(fb>fc)):
             t_ = np.linspace(ta-0.125*np.pi,tc+0.125*np.pi,512)
             d_ = _delta(t_, sin2i, omrad, ecc)
-            i_ = np.argmin(d_)
+            i_ = argrelextrema(d_, np.less)
             try:
                 ta,tb,tc = t_[i_-1:i_+2]
             except:
