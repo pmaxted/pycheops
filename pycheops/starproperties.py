@@ -199,7 +199,7 @@ class StarProperties(object):
         s =  'Identifier : {}\n'.format(self.identifier)
         s +=  'Coordinates: {} {}\n'.format(self.ra, self.dec)
         if self.teff:
-            s += 'T_eff : {:5.0f} +/- {:0.0f} K   [{}]\n'.format(
+            s += 'T_eff : {:5.0f} +/- {:0.0f} K    [{}]\n'.format(
                     self.teff.n, self.teff.s,self.teff_note)
         if self.logg:
             s += 'log g : {:5.2f} +/- {:0.2f}    [{}]\n'.format(
