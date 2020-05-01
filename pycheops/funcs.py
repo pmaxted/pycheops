@@ -74,6 +74,8 @@ from time import localtime, mktime
 from os.path import getmtime
 from .core import load_config
 from matplotlib.patches import Ellipse
+from scipy.signal import argrelextrema
+
 
 
 __all__ = [ 'a_rsun','f_m','m1sin3i','m2sin3i','asini','rhostar','g_2',
@@ -417,11 +419,15 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg):
         fb = _delta(tb, sin2i, omrad, ecc)
         fc = _delta(tc, sin2i, omrad, ecc)
         if ((fb>fa)|(fb>fc)):
-            t_ = np.linspace(ta-0.125*np.pi,tc+0.125*np.pi,512)
+            t_ = np.linspace(0,2*np.pi,1024)
             d_ = _delta(t_, sin2i, omrad, ecc)
-            i_ = np.argmin(d_)
             try:
-                ta,tb,tc = t_[i_-1:i_+2]
+                i_= argrelextrema(d_, np.less)[0]
+                t_ = t_[i_]
+                if len(t_)>1:
+                    i_ = (np.abs(t_ - tb)).argmin()
+                    t_ = t_[i_]
+                ta,tb,tc = (t_-0.01, t_, t_+0.01)
             except:
                 print(sin2i, omrad, ecc)
                 print(ta, tb, tc)
@@ -710,7 +716,7 @@ def massradius(P=None, k=None, sini=None, ecc=None,
     # Look for input values that are numpy arrays of the same length, in which
     # case sample these together.
     pv = [P, k, sini, _e, m_star, r_star, K, aR]
-    pn = ['P', 'k', 'sini', 'ecc', 'm_star', 'r_star', 'K', 'aR']
+    pn = ['P', 'k', 'sini', 'e', 'm_star', 'r_star', 'K', 'aR']
     ps = {}  # dictionary of samples for each input parameter
     _n = [len(p) if isinstance(p, np.ndarray) else 0 for p in pv]
     _u = np.unique(_n)
@@ -752,9 +758,9 @@ def massradius(P=None, k=None, sini=None, ecc=None,
         if verbose:
                 print(parprint(ps['r_star'],'r_star',wn=8,w=10) + ' R_Sun')
 
-    result['e'] = _d(ps['ecc'])
+    result['e'] = _d(ps['e'])
     if verbose:
-        print(parprint(ps['ecc'],'e',wn=8,w=10))
+        print(parprint(ps['e'],'e',wn=8,w=10))
 
     # Calculations start here. Intermediate variables names in result
     # dictionary start with "_" so we can remove/ignore them later.
@@ -769,13 +775,13 @@ def massradius(P=None, k=None, sini=None, ecc=None,
     if not True in [p is None for p in [m_star, sini, P, K]]:
         # Mass function in solar mass - careful to use K in km/s here
         _K = ps['K']/1000  # K in km/s
-        ps['_fm'] = f_m(ps['P'], _K, ps['ecc']) 
+        ps['_fm'] = f_m(ps['P'], _K, ps['e']) 
         ps['_mp'] = m_comp(ps['_fm'], ps['m_star'], ps['sini'])  # solar units
         ps['m_p'] = ps['_mp']*mfac                  # in output units
         result['m_p'] = _d(ps['m_p']) 
         ps['q'] = ps['_mp']/ps['m_star']
         result['q'] = _d(ps['q'])
-        ps['a'] = asini(_K*(1+1/ps['q']), ps['P'], ps['ecc']) / ps['sini']
+        ps['a'] = asini(_K*(1+1/ps['q']), ps['P'], ps['e']) / ps['sini']
         result['a'] = _d(ps['a'])
         if verbose:
             print(parprint(ps['m_p'],'m_p',wn=8,w=10) + mstr)
@@ -790,7 +796,7 @@ def massradius(P=None, k=None, sini=None, ecc=None,
 
     if not True in [p is None for p in [k, aR, K, sini, P]]:
         _K = ps['K']/1000  # K in km/s
-        ps['g_p'] = g_2(ps['k']/ps['aR'],ps['P'],_K,ps['sini'],ps['ecc'])
+        ps['g_p'] = g_2(ps['k']/ps['aR'],ps['P'],_K,ps['sini'],ps['e'])
         result['g_p'] = _d(ps['g_p'])
         if verbose:
             print(parprint(ps['g_p'],'g_p',wn=8,w=10) + ' m.s-2')
