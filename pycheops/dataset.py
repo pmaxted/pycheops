@@ -64,6 +64,10 @@ from scipy.stats import skewnorm
 from scipy.optimize import minimize as scipy_minimize
 from . import __version__
 from .funcs import rhostar, massradius
+from tqdm import tqdm_notebook as tqdm
+import matplotlib.animation as animation
+import matplotlib.colors as colors
+from IPython.display import Image
 
 try:
     from dace.cheops import Cheops
@@ -568,9 +572,9 @@ class Dataset(object):
         self.subarrays = (cube, hdr, meta)
         self.subarrays = {'data':cube, 'header':hdr, 'meta':meta}
 
-        return cube 
-       
-       
+        return cube
+
+
     def get_lightcurve(self, aperture=None,
             returnTable=False, reject_highpoints=False, verbose=True):
 
@@ -660,6 +664,78 @@ class Dataset(object):
             return table
         else:
             return time, flux, flux_err
+        
+        
+    def animate_frames(self, nframes=10, vmin=1., vmax=1., subarray=True, imagette=False, grid=False):
+
+        sub_anim, imag_anim = [], []
+        for hindex, h in enumerate([subarray, imagette]): 
+            if h == True:
+                if hindex == 0:
+                    title = str(self.target) + " - subarray"
+                    try:
+                        frame_cube = self.get_subarrays()[::nframes,:,:]
+                    except:
+                        print("\nNo subarray data.")
+                        continue
+                if hindex == 1:
+                    title = str(self.target) + " - imagette"
+                    try:
+                        frame_cube = self.get_imagettes()[::nframes,:,:]
+                    except:
+                        print("\nNo imagette data.")    
+                        continue
+            else:
+                continue       
+
+            fig = plt.figure()
+            plt.xlabel("Row (pixel)")
+            plt.ylabel("Column (pixel)")
+            plt.title(title)             
+            if grid:
+                ax = plt.gca()
+                ax.grid(color='w', linestyle='-', linewidth=1)
+
+            frames = []
+            for i in tqdm(range(len(frame_cube))):
+                if str(np.amin(frame_cube[i,:,:])) == "nan":
+                    img_min = 0
+                else:
+                    img_min = np.amin(frame_cube[i,:,:])
+                if str(np.amax(frame_cube[i,:,:])) == "nan":
+                    img_max = 200000
+                else:
+                    img_max = np.amax(frame_cube[i,:,:])
+                
+                image = plt.imshow(frame_cube[i,:,:], norm=colors.Normalize(vmin=vmin*img_min, vmax=vmax*img_max), 
+                                   origin="lower")
+                frames.append([image])
+
+            if hindex == 0:
+                sub_anim = animation.ArtistAnimation(fig, frames, blit=True)
+                print("MovieWriter PillowWriter warning safe to ignore.")
+                sub_anim.save(title.replace(" ","")+'.gif', writer='PillowWriter')
+                with open(title.replace(" ","")+'.gif','rb') as file:
+                    display(Image(file.read()))
+                print("Subarray is saved in the current directory as " + title.replace(" ","")+'.gif')
+                
+            elif hindex == 1:
+                imag_anim = animation.ArtistAnimation(fig, frames, blit=True)
+                print("MovieWriter PillowWriter warning safe to ignore.")
+                imag_anim.save(title.replace(" ","")+'.gif', writer='PillowWriter')
+                with open(title.replace(" ","")+'.gif','rb') as file:
+                    display(Image(file.read()))
+                print("Imagette is saved in the current directory as " + title.replace(" ","")+'.gif')
+                    
+            plt.close()
+    
+        if subarray and not imagette:    
+            return sub_anim
+        elif imagette and not subarray:
+            return imag_anim
+        elif subarray and imagette:
+            return sub_anim, imag_anim
+        
 
  #----------------------------------------------------------------------------
  # Eclipse and transit fitting
@@ -2253,7 +2329,8 @@ class Dataset(object):
     #------
 
     def diagnostic_plot(self, fname=None,
-            figsize=(8,8), fontsize=10, compare=None):
+            figsize=(8,8), fontsize=10, flagged=None):
+        
         try:
             D = Table(self.lc['table'], masked=True)
         except AttributeError:
@@ -2267,92 +2344,103 @@ class Dataset(object):
         D['BACKGROUND_BAD'] = MaskedColumn(self.lc['table']['BACKGROUND'],
                 mask = (EventMask == False))
 
-        tjdb = D['BJD_TIME']
-        flux = D['FLUX']
-        flux_bad = D['FLUX_BAD']
-        flux_err = D['FLUXERR']
-        back = D['BACKGROUND']
-        back_bad = D['BACKGROUND_BAD']
-        dark = D['DARK']
-        contam = D['CONTA_LC']
-        contam_err = D['CONTA_LC_ERR']
-        rollangle = D['ROLL_ANGLE']
-        xloc = D['LOCATION_X']
-        yloc = D['LOCATION_Y']
-        xcen = D['CENTROID_X']
-        ycen = D['CENTROID_Y']
-        
-        if compare:
-            time_detrend = np.array(self.lc['time'])+self.lc['bjd_ref']
-            flux_detrend = np.array(self.lc['flux'])*np.nanmean(flux)
-            flux_err_detrend = np.array(self.lc['flux_err'])*np.nanmean(flux)
-            rollangle_detrend = np.array(self.lc['roll_angle'])
-            xcen_detrend = np.array(self.lc['centroid_x'])
-            ycen_detrend = np.array(self.lc['centroid_y'])
+        tjdb_table = D['BJD_TIME']
+        flux_table = D['FLUX']
+        flux_err_table = D['FLUXERR']
+        back_table = D['BACKGROUND']
+        rollangle_table = D['ROLL_ANGLE']
+        xcen_table = D['CENTROID_X']
+        ycen_table = D['CENTROID_Y']
+        contam_table = D['CONTA_LC']
+        contam_err_table = D['CONTA_LC_ERR']
+
+        flux_bad_table = D['FLUX_BAD']
+        back_bad_table = D['BACKGROUND_BAD']
+
+        xloc_table = D['LOCATION_X']
+        yloc_table = D['LOCATION_Y']       
+
+        time = np.array(self.lc['time'])+self.lc['bjd_ref']
+        flux = np.array(self.lc['flux'])*np.nanmean(flux_table)
+        flux_err = np.array(self.lc['flux_err'])*np.nanmean(flux_table)
+        rollangle = np.array(self.lc['roll_angle'])
+        xcen = np.array(self.lc['centroid_x'])
+        ycen = np.array(self.lc['centroid_y'])
+        xoff = np.array(self.lc['xoff'])
+        yoff = np.array(self.lc['yoff'])        
+        bg = np.array(self.lc['bg'])
+        contam = np.array(self.lc['contam'])            
         
         plt.rc('font', size=fontsize)    
         fig, ax = plt.subplots(4,2,figsize=figsize)
-        cgood = 'c'
-        cbad = 'r'
-        cdetrend = 'b'
+        cgood = 'midnightblue'
+        cbad = 'xkcd:red'
         
-        ylim_min, ylim_max = 0.995*np.nanmean(flux), 1.005*np.nanmean(flux)
-        ax[0,0].scatter(tjdb,flux,s=2,c=cgood)
-        #ax[0,0].scatter(tjdb,flux_bad,s=2,c=cbad)
-        if compare:
-            ax[0,0].scatter(time_detrend,flux_detrend,s=2,c=cdetrend)   
-            ax[0,0].set_ylim(ylim_min,ylim_max)
+        if flagged:
+            flux_measure = flux_table
+        else:
+            flux_measure = flux
+        ax[0,0].scatter(time,flux,s=2,c=cgood)
+        if flagged:
+            ax[0,0].scatter(tjdb_table,flux_bad_table,s=2,c=cbad)
+        ax[0,0].set_ylim(0.998*np.quantile(flux_measure,0.16),
+                         1.002*np.quantile(flux_measure,0.84))
         ax[0,0].set_xlabel('BJD')
         ax[0,0].set_ylabel('Flux in ADU')
         
         ax[0,1].scatter(rollangle,flux,s=2,c=cgood)
-        #ax[0,1].scatter(rollangle,flux_bad,s=2,c=cbad)
-        if compare:
-            ax[0,1].scatter(rollangle_detrend,flux_detrend,s=2,c=cdetrend)
-            ax[0,1].set_ylim(ylim_min,ylim_max)
+        if flagged:
+            ax[0,1].scatter(rollangle_table,flux_bad_table,s=2,c=cbad)
+        ax[0,1].set_ylim(0.998*np.quantile(flux_measure,0.16),
+                         1.002*np.quantile(flux_measure,0.84))
         ax[0,1].set_xlabel('Roll angle in degrees')
         ax[0,1].set_ylabel('Flux in ADU')
         
-        ax[1,0].scatter(tjdb,back,s=2,c=cgood)
-        #ax[1,0].scatter(tjdb,back_bad,s=2,c=cbad)
+        ax[1,0].scatter(time,bg,s=2,c=cgood)
+        if flagged:
+            ax[1,0].scatter(tjdb_table,back_bad_table,s=2,c=cbad)
         ax[1,0].set_xlabel('BJD')
         ax[1,0].set_ylabel('Background in ADU')
-        ax[1,0].set_ylim(0.9*np.quantile(back,0.005),
-                         1.1*np.quantile(back,0.995))
+        ax[1,0].set_ylim(0.9*np.quantile(bg,0.005),
+                         1.1*np.quantile(bg,0.995))
         
-        ax[1,1].scatter(rollangle,back,s=2,c=cgood)
-        #ax[1,1].scatter(rollangle,back_bad,s=2,c=cbad)
+        ax[1,1].scatter(rollangle,bg,s=2,c=cgood)
+        if flagged:
+            ax[1,1].scatter(rollangle_table,back_bad_table,s=2,c=cbad)
         ax[1,1].set_xlabel('Roll angle in degrees')
         ax[1,1].set_ylabel('Background in ADU')
-        ax[1,1].set_ylim(0.9*np.quantile(back,0.005),
-                         1.1*np.quantile(back,0.995))
+        ax[1,1].set_ylim(0.9*np.quantile(bg,0.005),
+                         1.1*np.quantile(bg,0.995))
         
         ax[2,0].scatter(xcen,flux,s=2,c=cgood)
-        #ax[2,0].scatter(xcen,flux_bad,s=2,c=cbad)
-        if compare:
-            ax[2,0].scatter(xcen_detrend,flux_detrend,s=2,c=cdetrend)
-            ax[2,0].set_ylim(ylim_min,ylim_max)
+        if flagged:
+            ax[2,0].scatter(xcen_table,flux_bad_table,s=2,c=cbad)
+        ax[2,0].set_ylim(0.998*np.quantile(flux_measure,0.16),
+                         1.002*np.quantile(flux_measure,0.84))
         ax[2,0].set_xlabel('Centroid x')
         ax[2,0].set_ylabel('Flux in ADU')
         
         ax[2,1].scatter(ycen,flux,s=2,c=cgood)
-        #ax[2,1].scatter(ycen,flux_bad,s=2,c=cbad)
-        if compare:
-            ax[2,1].scatter(ycen_detrend,flux_detrend,s=2,c=cdetrend)
-            ax[2,1].set_ylim(ylim_min,ylim_max)
+        if flagged:
+            ax[2,1].scatter(ycen_table,flux_bad_table,s=2,c=cbad)
+        ax[2,1].set_ylim(0.998*np.quantile(flux_measure,0.16),
+                         1.002*np.quantile(flux_measure,0.84))
         ax[2,1].set_xlabel('Centroid y')
         ax[2,1].set_ylabel('Flux in ADU')
         
         ax[3,0].scatter(contam,flux,s=2,c=cgood)
-        #ax[3,0].scatter(contam,flux_bad,s=2,c=cbad)
+        if flagged:
+            ax[3,0].scatter(contam_table,flux_bad_table,s=2,c=cbad)
         ax[3,0].set_xlabel('Contamination estimate')
         ax[3,0].set_ylabel('Flux in ADU')
         ax[3,0].set_xlim(np.min(contam),np.max(contam))
+        ax[3,0].set_ylim(0.998*np.quantile(flux_measure,0.16),
+                         1.002*np.quantile(flux_measure,0.84))     
         
-        ax[3,1].scatter(rollangle,xcen,s=2,c=cgood)
-        ax[3,1].scatter(rollangle,ycen,s=2,c=cbad)
+        ax[3,1].scatter(rollangle,xoff,s=2,c=cgood)
+        ax[3,1].scatter(rollangle,yoff,s=2,c=cbad)
         ax[3,1].set_xlabel('Roll angle in degrees')
-        ax[3,1].set_ylabel('Centroid x (cyan), y (red)')
+        ax[3,1].set_ylabel('X (cyan) and y (red) offset')
 
         fig.tight_layout()
         if fname is None:
