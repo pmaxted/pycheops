@@ -4,6 +4,7 @@ Changes since 0.6.0 onwards.
 0.7.7 (2020-05-08)
 ~~~~~~~~~~~~~~~~~~
 *N.B.* New behaviour for dataset.get_lightcurve()
+
 * dataset.get_lightcurve() now subtracts contaminating flux by default
 * added decontaminate keyword to dataset.get_lightcurve() (#82)
 * dataset.add_glint() function is now  periodic (#87)
