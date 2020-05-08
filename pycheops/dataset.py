@@ -584,9 +584,6 @@ class Dataset(object):
 
         return cube
 
-
-#----
-
     def get_lightcurve(self, aperture=None,
             returnTable=False, reject_highpoints=False, verbose=True):
 
@@ -716,7 +713,7 @@ class Dataset(object):
 
     def animate_frames(self, nframes=10, vmin=1., vmax=1., subarray=True,
             imagette=False, grid=False):
-
+    
         sub_anim, imag_anim = [], []
         for hindex, h in enumerate([subarray, imagette]): 
             if h == True:
