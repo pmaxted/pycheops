@@ -85,7 +85,7 @@ def setup_config(configFile=None, overwrite=False, mode=0o600):
         os.mkdir(data_cache_path)
 
     if platform == "linux" or platform == "linux2":
-        pdf_cmd_default = r'acroread {}'
+        pdf_cmd_default = r'okular {} &'
     elif platform == "darwin":
         pdf_cmd_default = r'open -a preview {}'
     elif platform == "win32":
