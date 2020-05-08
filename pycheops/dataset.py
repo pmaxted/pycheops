@@ -584,8 +584,15 @@ class Dataset(object):
 
         return cube
 
-    def get_lightcurve(self, aperture=None,
+    def get_lightcurve(self, aperture=None, decontaminate=True,
             returnTable=False, reject_highpoints=False, verbose=True):
+        """
+        :param aperture: 'OPTIMAL', 'DEFAULT', 'RSUP' or 'RINF'
+        :param decontaminate: subtract estimated flux from background stars 
+        :param returnTable: 
+        :param reject_highpoints: 
+        :param verbose:
+        """
 
         if aperture not in ('OPTIMAL','RSUP','RINF','DEFAULT'):
             raise ValueError('Invalid/missing aperture name')
@@ -632,6 +639,13 @@ class Dataset(object):
         if verbose:
             print('Time stored relative to BJD = {:0.0f}'.format(bjd_ref))
             print('Aperture radius used = {:0.0f} arcsec'.format(ap_rad))
+        if decontaminate:
+            flux = flux*(1 - contam) 
+            if verbose:
+                print('Light curve corrected for flux from background stars')
+        else:
+            if verbose:
+                print('Correction for flux from background stars not applied')
 
         if reject_highpoints:
             C_cut = (2*np.nanmedian(flux)-np.nanmin(flux))
@@ -655,6 +669,7 @@ class Dataset(object):
                 1e6*np.nanstd(flux)/fluxmed))
             print('Median standard error = {:0.1f} [{:0.0f} ppm]'.format(
                 np.nanmedian(flux_err), 1e6*np.nanmedian(flux_err)/fluxmed))
+            print('Mean contamination = {:0.1f} ppm'.format(1e6*contam.mean()))
 
         self.flux_mean = flux.mean()
         self.flux_median = fluxmed
@@ -1037,7 +1052,7 @@ class Dataset(object):
             else:
                 xlab = r'Roll angle [$^{\circ}$]'
             xlim = (0,360)
-            theta = angle 
+            theta = angle % 360
         else:
             if moon:
                 xlab = r'Moon angle - {:0.0f}$^{{\circ}}$'.format(angle0)
@@ -1054,11 +1069,16 @@ class Dataset(object):
             y = y[~mask]
 
 
+        # Copies of data for theta-360 and theta+360 used to make
+        # interpolating function periodic
         y = y - np.nanmedian(y)
         y = y[np.argsort(theta)]
-        theta = np.sort(theta)
-        t = np.linspace(min(theta),max(theta),1+nspline,endpoint=False)[1:]
-        f_glint = LSQUnivariateSpline(theta,y,t,ext='const')
+        x = np.sort(theta)
+        t = np.linspace(min(x),max(x),1+nspline,endpoint=False)[1:]
+        x = np.hstack([x-360,x,x+360])
+        y = np.hstack([y,y,y])
+        t = np.hstack([t-360,t,t+360])
+        f_glint = LSQUnivariateSpline(x,y,t,ext='const')
 
         self.glint_moon = moon
         self.glint_angle0 = angle0
@@ -1068,15 +1088,15 @@ class Dataset(object):
         if show_plot:
             plt.rc('font', size=fontsize)
             fig,ax=plt.subplots(nrows=1, figsize=figsize, sharex=True)
-            ax.plot(theta, y, 'o',c='skyblue',ms=2)
+            ax.plot(x, y, 'o',c='skyblue',ms=2)
             if binwidth:
-                r_, f_, e_, n_ = lcbin(theta, y, binwidth=binwidth)
+                r_, f_, e_, n_ = lcbin(x, y, binwidth=binwidth)
                 ax.errorbar(r_,f_,yerr=e_,fmt='o',c='midnightblue',ms=5,
                     capsize=2)
             ax.set_xlim(xlim)
             ylim = np.max(np.abs(y))+0.05*np.ptp(y)
             ax.set_ylim(-ylim,ylim)
-            xt = np.linspace(min(theta),max(theta),10001)
+            xt = np.linspace(xlim[0],xlim[1],10001)
             yt = f_glint(xt)
             ax.plot(xt, yt, color='saddlebrown')
             ax.set_xlabel(xlab)
