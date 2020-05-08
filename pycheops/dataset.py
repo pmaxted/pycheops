@@ -68,6 +68,7 @@ from tqdm import tqdm_notebook as tqdm
 import matplotlib.animation as animation
 import matplotlib.colors as colors
 from IPython.display import Image
+import subprocess
 
 try:
     from dace.cheops import Cheops
@@ -281,12 +282,14 @@ class Dataset(object):
     :param download_all: If False, download light curves only
     :param configFile:
     :param target:
+    :param view_report_on_download: 
     :param verbose:
 
     """
 
     def __init__(self, file_key, force_download=False, download_all=True,
-            configFile=None, target=None, verbose=True):
+            configFile=None, target=None, verbose=True, 
+            view_report_on_download=True):
 
         self.file_key = file_key
         m = _file_key_re.search(file_key)
@@ -300,17 +303,20 @@ class Dataset(object):
         tgzPath = Path(_cache_path,file_key).with_suffix('.tgz')
         self.tgzfile = str(tgzPath)
 
+        view_report = view_report_on_download
         if tgzPath.is_file() and not force_download:
-            if verbose: print('Found archive tgzfile',self.tgzfile)
+            if verbose:
+                print('Found archive tgzfile',self.tgzfile)
+                view_report = False
         else:
             if download_all:
                 file_type='all'
             else:
                 file_type='lightcurves'
+                view_report = False
             Cheops.download(file_type, 
                 filters={'file_key':{'contains':file_key}},
-                output_full_file_path=str(tgzPath)
-                )
+                output_full_file_path=str(tgzPath))
 
         lisPath = Path(_cache_path,file_key).with_suffix('.lis')
         # The file list can be out-of-date is force_download is used
@@ -370,6 +376,8 @@ class Dataset(object):
             print(' Spec. type  : {}'.format(self.spectype))
             print(' V magnitude : {:0.2f} +- {:0.2f}'.
                     format(self.vmag, self.e_vmag))
+        if view_report:
+            self.view_report(configFile=configFile)
         
 #----
 
@@ -542,6 +550,8 @@ class Dataset(object):
 
         return cube
 
+#----
+
     def get_subarrays(self, verbose=True):
         subFile = "{}-SubArray.fits".format(self.file_key)
         subPath = Path(self.tgzfile).parent / subFile
@@ -573,7 +583,6 @@ class Dataset(object):
         self.subarrays = {'data':cube, 'header':hdr, 'meta':meta}
 
         return cube
-
 
     def get_lightcurve(self, aperture=None,
             returnTable=False, reject_highpoints=False, verbose=True):
@@ -665,9 +674,46 @@ class Dataset(object):
         else:
             return time, flux, flux_err
         
-        
-    def animate_frames(self, nframes=10, vmin=1., vmax=1., subarray=True, imagette=False, grid=False):
+    def view_report(self, pdf_cmd=None, configFile=None):
+        '''
+        View the PDF DRP report.
 
+        :param pdf_cmd: command to launch PDF viewer with {} as placeholder for
+                        file name.
+        '''
+        if pdf_cmd is None:
+            config = load_config(configFile)
+            try:
+                pdf_cmd = config['DEFAULT']['pdf_cmd']
+            except KeyError:
+                raise KeyError("Run pycheops.core.setup_config to set your"
+                        " default PDF viewer")
+
+        pdfFile = "{}_DataReduction.pdf".format(self.file_key)
+        pdfPath = Path(self.tgzfile).parent/pdfFile
+        if not pdfPath.is_file():
+            tar = tarfile.open(self.tgzfile)
+            r = re.compile('(.*_RPT_COR_DataReduction_.*.pdf)')
+            report = list(filter(r.match, self.list))
+            if len(report) == 0:
+                raise Exception('Dataset does not contain DRP report.')
+            if len(report) > 1:
+                raise Exception('Multiple reports in datset')
+            print('Extracting report from .tgz file ...')
+            with tar.extractfile(report[0]) as fin:
+                with open(pdfPath,'wb') as fout:
+                    for line in fin:
+                        fout.write(line)
+            tar.close()
+
+        subprocess.run(pdf_cmd.format(pdfPath),shell=True)
+
+        
+#----
+
+    def animate_frames(self, nframes=10, vmin=1., vmax=1., subarray=True,
+            imagette=False, grid=False):
+    
         sub_anim, imag_anim = [], []
         for hindex, h in enumerate([subarray, imagette]): 
             if h == True:
@@ -1566,6 +1612,7 @@ class Dataset(object):
         return figure
 
     # ------------------------------------------------------------
+
     def plot_fft(self, star=None, gsmooth=5, logxlim = (1.5,4.5),
             title=None, fontsize=12, figsize=(8,5)):
         """ 
@@ -1855,6 +1902,7 @@ class Dataset(object):
         return fig
         
     # ------------------------------------------------------------
+
     def massradius(self, m_star=None, r_star=None, K=None, q=0, 
             jovian=True, plot_kws=None, verbose=True):
         '''
@@ -2278,8 +2326,8 @@ class Dataset(object):
 
         return self.lc['time'], self.lc['flux'], self.lc['flux_err']
 
-
     #------
+
     def mask_data(self, mask, verbose=True):
         """
         Mask light curve data
@@ -2297,6 +2345,8 @@ class Dataset(object):
         if verbose:
             print('\nMasked {} points'.format(sum(mask)))
         return self.lc['time'], self.lc['flux'], self.lc['flux_err']
+
+    #------
 
     def clip_outliers(self, clip=5, width=11, verbose=True):
         """
@@ -2453,7 +2503,8 @@ class Dataset(object):
     def decorr(self, dfdt=False, d2fdt2=False, dfdx=False, d2fdx2=False, 
                 dfdy=False, d2fdy2=False, d2fdxdy=False, dfdsinphi=False, 
                 dfdcosphi=False, dfdsin2phi=False, dfdcos2phi=False,
-                dfdsin3phi=False, dfdcos3phi=False, dfdbg=False, dfdcontam=False):
+                dfdsin3phi=False, dfdcos3phi=False, dfdbg=False,
+                dfdcontam=False):
 
         time = np.array(self.lc['time'])
         flux = np.array(self.lc['flux'])
