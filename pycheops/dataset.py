@@ -1023,15 +1023,17 @@ class Dataset(object):
             bjd = Time(self.bjd_ref+self.lc['time'],format='jd',scale='tdb')
             moon_coo = get_body('moon', bjd)
             target_coo = SkyCoord(self.ra,self.dec,unit=('hour','degree'))
-            v_moon = target_coo.position_angle(moon_coo).radian
             ra_m = moon_coo.ra.radian
             ra_s = target_coo.ra.radian
             dec_m = moon_coo.dec.radian
             dec_s = target_coo.dec.radian
+            v_moon = np. arccos(
+                    np.cos(ra_m)*np.cos(dec_m)*np.cos(ra_s)*np.cos(dec_s) +
+                    np.sin(ra_m)*np.cos(dec_m)*np.sin(ra_s)*np.cos(dec_s) +
+                    np.sin(dec_m)*np.sin(dec_s))
             dv_rot = np.degrees(np.arcsin(np.sin(ra_m-ra_s)*np.cos(dec_m)/
                 np.sin(v_moon)))
             angle -= dv_rot
-
         if fit_flux:
             y = flux - 1
         else:

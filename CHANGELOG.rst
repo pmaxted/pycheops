@@ -11,6 +11,7 @@ Changes since 0.6.0 onwards.
 * Added outlier rejection to dataset.diagnostic_plot (#84)
 * Add functions to dataset to view/animate images (#83)
 * Updated comments re: decorrelation in example notebooks 
+* Bug fix to moon angle calculation in dataset.py
 
 0.7.6 (2020-05-01)
 ~~~~~~~~~~~~~~~~~~
