@@ -1,11 +1,7 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-0.7.8 (2020-05-08)
-~~~~~~~~~~~~~~~~~~
-* Avoid math errors in massradius caused by negative values in samples. 
-
-0.7.7 (2020-05-08)
+0.7.7 (2020-05-12)
 ~~~~~~~~~~~~~~~~~~
 *N.B.* New behaviour for dataset.get_lightcurve()
 
@@ -16,6 +12,7 @@ Changes since 0.6.0 onwards.
 * Add functions to dataset to view/animate images (#83)
 * Updated comments re: decorrelation in example notebooks 
 * Bug fix to moon angle calculation in dataset.py
+* Avoid math errors in massradius caused by negative values in samples. 
   
 0.7.6 (2020-05-01)
 ~~~~~~~~~~~~~~~~~~
