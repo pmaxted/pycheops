@@ -12,7 +12,8 @@ Changes since 0.6.0 onwards.
 * Add functions to dataset to view/animate images (#83)
 * Updated comments re: decorrelation in example notebooks 
 * Bug fix to moon angle calculation in dataset.py
-* Avoid math errors in massradius caused by negative values in samples. 
+* Fix math errors in funcs.massradius caused by negative values (#104)
+* Fix math errors in dataset.massradius caused by negative values (#104)
   
 0.7.6 (2020-05-01)
 ~~~~~~~~~~~~~~~~~~

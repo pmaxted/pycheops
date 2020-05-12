@@ -2014,11 +2014,12 @@ class Dataset(object):
             ecc = f_c**2 + f_s**2
             _q = _s(q, len(self.emcee.chain))
             rho_star = rhostar(1/aR,P,_q)
+            # N.B. use of np.abs to cope with values with large errors
             if r_star is None and m_star is not None:
-                _m = _s(m_star, len(self.emcee.chain))
+                _m = np.abs(_s(m_star, len(self.emcee.chain)))
                 r_star = (_m/rho_star)**(1/3)
             if m_star is None and r_star is not None:
-                _r = _s(r_star, len(self.emcee.chain))
+                _r = np.abs(_s(r_star, len(self.emcee.chain)))
                 m_star = rho_star*_r**3
     
         # If last fit was lmfit then extract parameter values as ufloats or, for
