@@ -733,9 +733,11 @@ def massradius(P=None, k=None, sini=None, ecc=None,
                 ps[pn[_k]] = pv[_k][_j]
 
     # Generate samples for input parameters not already sampled
+    # N.B. All parameters assumed to be strictly positive so use abs() to
+    # avoid negative values.
     for n in set(pn) - set(ps.keys()):
         _i = pn.index(n)
-        ps[n] = None if pv[_i] is None else _s(pv[_i])
+        ps[n] = None if pv[_i] is None else np.abs(_s(pv[_i]))
 
     if jovian:
         mfac = M_SunN/M_JupN 
