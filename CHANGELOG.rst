@@ -1,6 +1,20 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.7.7 (2020-05-12)
+~~~~~~~~~~~~~~~~~~
+*N.B.* New behaviour for dataset.get_lightcurve()
+
+* dataset.get_lightcurve() now subtracts contaminating flux by default
+* added decontaminate keyword to dataset.get_lightcurve() (#82)
+* dataset.add_glint() function is now  periodic (#87)
+* Added outlier rejection to dataset.diagnostic_plot (#84)
+* Add functions to dataset to view/animate images (#83)
+* Updated comments re: decorrelation in example notebooks 
+* Bug fix to moon angle calculation in dataset.py
+* Fix math errors in funcs.massradius caused by negative values (#104)
+* Fix math errors in dataset.massradius caused by negative values (#104)
+  
 0.7.6 (2020-05-01)
 ~~~~~~~~~~~~~~~~~~
 * Fixed y-axis title bug in dataset.rollangle_plot (#85).

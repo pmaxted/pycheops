@@ -68,6 +68,7 @@ from tqdm import tqdm_notebook as tqdm
 import matplotlib.animation as animation
 import matplotlib.colors as colors
 from IPython.display import Image
+import subprocess
 
 try:
     from dace.cheops import Cheops
@@ -281,12 +282,14 @@ class Dataset(object):
     :param download_all: If False, download light curves only
     :param configFile:
     :param target:
+    :param view_report_on_download: 
     :param verbose:
 
     """
 
     def __init__(self, file_key, force_download=False, download_all=True,
-            configFile=None, target=None, verbose=True):
+            configFile=None, target=None, verbose=True, 
+            view_report_on_download=True):
 
         self.file_key = file_key
         m = _file_key_re.search(file_key)
@@ -300,17 +303,20 @@ class Dataset(object):
         tgzPath = Path(_cache_path,file_key).with_suffix('.tgz')
         self.tgzfile = str(tgzPath)
 
+        view_report = view_report_on_download
         if tgzPath.is_file() and not force_download:
-            if verbose: print('Found archive tgzfile',self.tgzfile)
+            if verbose:
+                print('Found archive tgzfile',self.tgzfile)
+                view_report = False
         else:
             if download_all:
                 file_type='all'
             else:
                 file_type='lightcurves'
+                view_report = False
             Cheops.download(file_type, 
                 filters={'file_key':{'contains':file_key}},
-                output_full_file_path=str(tgzPath)
-                )
+                output_full_file_path=str(tgzPath))
 
         lisPath = Path(_cache_path,file_key).with_suffix('.lis')
         # The file list can be out-of-date is force_download is used
@@ -370,6 +376,8 @@ class Dataset(object):
             print(' Spec. type  : {}'.format(self.spectype))
             print(' V magnitude : {:0.2f} +- {:0.2f}'.
                     format(self.vmag, self.e_vmag))
+        if view_report:
+            self.view_report(configFile=configFile)
         
 #----
 
@@ -542,6 +550,8 @@ class Dataset(object):
 
         return cube
 
+#----
+
     def get_subarrays(self, verbose=True):
         subFile = "{}-SubArray.fits".format(self.file_key)
         subPath = Path(self.tgzfile).parent / subFile
@@ -574,9 +584,15 @@ class Dataset(object):
 
         return cube
 
-
-    def get_lightcurve(self, aperture=None,
+    def get_lightcurve(self, aperture=None, decontaminate=True,
             returnTable=False, reject_highpoints=False, verbose=True):
+        """
+        :param aperture: 'OPTIMAL', 'DEFAULT', 'RSUP' or 'RINF'
+        :param decontaminate: subtract estimated flux from background stars 
+        :param returnTable: 
+        :param reject_highpoints: 
+        :param verbose:
+        """
 
         if aperture not in ('OPTIMAL','RSUP','RINF','DEFAULT'):
             raise ValueError('Invalid/missing aperture name')
@@ -623,6 +639,13 @@ class Dataset(object):
         if verbose:
             print('Time stored relative to BJD = {:0.0f}'.format(bjd_ref))
             print('Aperture radius used = {:0.0f} arcsec'.format(ap_rad))
+        if decontaminate:
+            flux = flux*(1 - contam) 
+            if verbose:
+                print('Light curve corrected for flux from background stars')
+        else:
+            if verbose:
+                print('Correction for flux from background stars not applied')
 
         if reject_highpoints:
             C_cut = (2*np.nanmedian(flux)-np.nanmin(flux))
@@ -646,6 +669,7 @@ class Dataset(object):
                 1e6*np.nanstd(flux)/fluxmed))
             print('Median standard error = {:0.1f} [{:0.0f} ppm]'.format(
                 np.nanmedian(flux_err), 1e6*np.nanmedian(flux_err)/fluxmed))
+            print('Mean contamination = {:0.1f} ppm'.format(1e6*contam.mean()))
 
         self.flux_mean = flux.mean()
         self.flux_median = fluxmed
@@ -665,9 +689,46 @@ class Dataset(object):
         else:
             return time, flux, flux_err
         
-        
-    def animate_frames(self, nframes=10, vmin=1., vmax=1., subarray=True, imagette=False, grid=False):
+    def view_report(self, pdf_cmd=None, configFile=None):
+        '''
+        View the PDF DRP report.
 
+        :param pdf_cmd: command to launch PDF viewer with {} as placeholder for
+                        file name.
+        '''
+        if pdf_cmd is None:
+            config = load_config(configFile)
+            try:
+                pdf_cmd = config['DEFAULT']['pdf_cmd']
+            except KeyError:
+                raise KeyError("Run pycheops.core.setup_config to set your"
+                        " default PDF viewer")
+
+        pdfFile = "{}_DataReduction.pdf".format(self.file_key)
+        pdfPath = Path(self.tgzfile).parent/pdfFile
+        if not pdfPath.is_file():
+            tar = tarfile.open(self.tgzfile)
+            r = re.compile('(.*_RPT_COR_DataReduction_.*.pdf)')
+            report = list(filter(r.match, self.list))
+            if len(report) == 0:
+                raise Exception('Dataset does not contain DRP report.')
+            if len(report) > 1:
+                raise Exception('Multiple reports in datset')
+            print('Extracting report from .tgz file ...')
+            with tar.extractfile(report[0]) as fin:
+                with open(pdfPath,'wb') as fout:
+                    for line in fin:
+                        fout.write(line)
+            tar.close()
+
+        subprocess.run(pdf_cmd.format(pdfPath),shell=True)
+
+        
+#----
+
+    def animate_frames(self, nframes=10, vmin=1., vmax=1., subarray=True,
+            imagette=False, grid=False):
+    
         sub_anim, imag_anim = [], []
         for hindex, h in enumerate([subarray, imagette]): 
             if h == True:
@@ -962,15 +1023,17 @@ class Dataset(object):
             bjd = Time(self.bjd_ref+self.lc['time'],format='jd',scale='tdb')
             moon_coo = get_body('moon', bjd)
             target_coo = SkyCoord(self.ra,self.dec,unit=('hour','degree'))
-            v_moon = target_coo.position_angle(moon_coo).radian
             ra_m = moon_coo.ra.radian
             ra_s = target_coo.ra.radian
             dec_m = moon_coo.dec.radian
             dec_s = target_coo.dec.radian
+            v_moon = np. arccos(
+                    np.cos(ra_m)*np.cos(dec_m)*np.cos(ra_s)*np.cos(dec_s) +
+                    np.sin(ra_m)*np.cos(dec_m)*np.sin(ra_s)*np.cos(dec_s) +
+                    np.sin(dec_m)*np.sin(dec_s))
             dv_rot = np.degrees(np.arcsin(np.sin(ra_m-ra_s)*np.cos(dec_m)/
                 np.sin(v_moon)))
             angle -= dv_rot
-
         if fit_flux:
             y = flux - 1
         else:
@@ -991,7 +1054,7 @@ class Dataset(object):
             else:
                 xlab = r'Roll angle [$^{\circ}$]'
             xlim = (0,360)
-            theta = angle 
+            theta = angle % 360
         else:
             if moon:
                 xlab = r'Moon angle - {:0.0f}$^{{\circ}}$'.format(angle0)
@@ -1008,11 +1071,16 @@ class Dataset(object):
             y = y[~mask]
 
 
+        # Copies of data for theta-360 and theta+360 used to make
+        # interpolating function periodic
         y = y - np.nanmedian(y)
         y = y[np.argsort(theta)]
-        theta = np.sort(theta)
-        t = np.linspace(min(theta),max(theta),1+nspline,endpoint=False)[1:]
-        f_glint = LSQUnivariateSpline(theta,y,t,ext='const')
+        x = np.sort(theta)
+        t = np.linspace(min(x),max(x),1+nspline,endpoint=False)[1:]
+        x = np.hstack([x-360,x,x+360])
+        y = np.hstack([y,y,y])
+        t = np.hstack([t-360,t,t+360])
+        f_glint = LSQUnivariateSpline(x,y,t,ext='const')
 
         self.glint_moon = moon
         self.glint_angle0 = angle0
@@ -1022,15 +1090,15 @@ class Dataset(object):
         if show_plot:
             plt.rc('font', size=fontsize)
             fig,ax=plt.subplots(nrows=1, figsize=figsize, sharex=True)
-            ax.plot(theta, y, 'o',c='skyblue',ms=2)
+            ax.plot(x, y, 'o',c='skyblue',ms=2)
             if binwidth:
-                r_, f_, e_, n_ = lcbin(theta, y, binwidth=binwidth)
+                r_, f_, e_, n_ = lcbin(x, y, binwidth=binwidth)
                 ax.errorbar(r_,f_,yerr=e_,fmt='o',c='midnightblue',ms=5,
                     capsize=2)
             ax.set_xlim(xlim)
             ylim = np.max(np.abs(y))+0.05*np.ptp(y)
             ax.set_ylim(-ylim,ylim)
-            xt = np.linspace(min(theta),max(theta),10001)
+            xt = np.linspace(xlim[0],xlim[1],10001)
             yt = f_glint(xt)
             ax.plot(xt, yt, color='saddlebrown')
             ax.set_xlabel(xlab)
@@ -1566,6 +1634,7 @@ class Dataset(object):
         return figure
 
     # ------------------------------------------------------------
+
     def plot_fft(self, star=None, gsmooth=5, logxlim = (1.5,4.5),
             title=None, fontsize=12, figsize=(8,5)):
         """ 
@@ -1855,6 +1924,7 @@ class Dataset(object):
         return fig
         
     # ------------------------------------------------------------
+
     def massradius(self, m_star=None, r_star=None, K=None, q=0, 
             jovian=True, plot_kws=None, verbose=True):
         '''
@@ -1944,11 +2014,12 @@ class Dataset(object):
             ecc = f_c**2 + f_s**2
             _q = _s(q, len(self.emcee.chain))
             rho_star = rhostar(1/aR,P,_q)
+            # N.B. use of np.abs to cope with values with large errors
             if r_star is None and m_star is not None:
-                _m = _s(m_star, len(self.emcee.chain))
+                _m = np.abs(_s(m_star, len(self.emcee.chain)))
                 r_star = (_m/rho_star)**(1/3)
             if m_star is None and r_star is not None:
-                _r = _s(r_star, len(self.emcee.chain))
+                _r = np.abs(_s(r_star, len(self.emcee.chain)))
                 m_star = rho_star*_r**3
     
         # If last fit was lmfit then extract parameter values as ufloats or, for
@@ -2278,8 +2349,8 @@ class Dataset(object):
 
         return self.lc['time'], self.lc['flux'], self.lc['flux_err']
 
-
     #------
+
     def mask_data(self, mask, verbose=True):
         """
         Mask light curve data
@@ -2297,6 +2368,8 @@ class Dataset(object):
         if verbose:
             print('\nMasked {} points'.format(sum(mask)))
         return self.lc['time'], self.lc['flux'], self.lc['flux_err']
+
+    #------
 
     def clip_outliers(self, clip=5, width=11, verbose=True):
         """
@@ -2453,7 +2526,8 @@ class Dataset(object):
     def decorr(self, dfdt=False, d2fdt2=False, dfdx=False, d2fdx2=False, 
                 dfdy=False, d2fdy2=False, d2fdxdy=False, dfdsinphi=False, 
                 dfdcosphi=False, dfdsin2phi=False, dfdcos2phi=False,
-                dfdsin3phi=False, dfdcos3phi=False, dfdbg=False, dfdcontam=False):
+                dfdsin3phi=False, dfdcos3phi=False, dfdbg=False,
+                dfdcontam=False):
 
         time = np.array(self.lc['time'])
         flux = np.array(self.lc['flux'])

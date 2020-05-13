@@ -28,6 +28,7 @@ from __future__ import (absolute_import, division, print_function,
                                 unicode_literals)
 import  os 
 from configparser import ConfigParser
+from sys import platform
 import getpass
 
 __all__ = ['load_config', 'setup_config', 'get_cache_path']
@@ -83,6 +84,18 @@ def setup_config(configFile=None, overwrite=False, mode=0o600):
     if not os.path.isdir(data_cache_path):
         os.mkdir(data_cache_path)
 
+    if platform == "linux" or platform == "linux2":
+        pdf_cmd_default = r'okular {} &'
+    elif platform == "darwin":
+        pdf_cmd_default = r'open -a preview {}'
+    elif platform == "win32":
+        pdf_cmd_default = r'AcroRd32.exe {}'
+    prompt = ("Enter command to view PDF with {{}} as file name placeholder "
+    "[{}] > ".format(pdf_cmd_default))
+    pdf_cmd = input(prompt)
+    if pdf_cmd is '':
+        pdf_cmd = pdf_cmd_default
+
     #default_username = getpass.getuser()
     #prompt = "Enter CHEOPS archive username [{}] > ".format(default_username)
     #username = input(prompt)
@@ -92,9 +105,8 @@ def setup_config(configFile=None, overwrite=False, mode=0o600):
     #password = getpass.getpass("Enter CHEOPS archive password > ")
 
     c = ConfigParser()
-    c['DEFAULT'] = {'data_cache_path': data_cache_path}
-            #'archive_username': username,
-            #'archive_password': password}
+    c['DEFAULT'] = {'data_cache_path': data_cache_path, 
+                    'pdf_cmd': pdf_cmd}
 
     # SweetCat location and update interval in seconds
     url = 'https://www.astro.up.pt/resources/sweet-cat/download.php' 
