@@ -2574,9 +2574,10 @@ class Dataset(object):
         self.lc['flux_err'] =  flux_err/result.best_fit
         print('RMS after = {:0.1f} ppm'.format(1e6*self.lc['flux'].std()))
 
-        flux = flux/result.best_fit
+        flux_d = flux/result.best_fit
+        flux_err_d = flux_err/result.best_fit
         fig,ax=plt.subplots(1,2,figsize=(8,4))
-        y = 1e6*(flux-1)
+        y = 1e6*(flux_d-1)
         ax[0].plot(time, y,'b.',ms=1)
         ax[0].set_xlabel("BJD-{}".format((self.lc['bjd_ref'])),fontsize=12)
         ax[0].set_ylabel("Flux-1 [ppm]",fontsize=12)
@@ -2588,9 +2589,11 @@ class Dataset(object):
         fig.tight_layout()
         fig.subplots_adjust(top=0.88)
         
+        return flux_d, flux_err_d
+        
 #-----------------------------------
 
-    def should_I_decorr(self,cut=20,compare=False):
+    def should_I_decorr(self,cut=20):
 
         cut_val = cut
         time = np.array(self.lc['time'])
@@ -2662,7 +2665,7 @@ class Dataset(object):
             if len(dfdsinphi_bad) > 0 or len(dfdcosphi_bad) > 0:
                 print("Yes! Check flux against roll angle.")
 
-            self.diagnostic_plot(fontsize=9,compare=compare)
+            self.diagnostic_plot(fontsize=9)
 
             decorr_check = input('Do you want to decorrelate? ')
             if decorr_check.lower()[0] == "y":
@@ -2678,9 +2681,10 @@ class Dataset(object):
                     dfdy_arg = True
                 if "roll_angle" in which_decorr:
                     dfdsinphi_arg, dfdcosphi_arg = True, True
-                self.decorr(dfdx=dfdx_arg, dfdy=dfdy_arg,
+                flux_d, flux_err_d = self.decorr(dfdx=dfdx_arg, dfdy=dfdy_arg,
                         dfdsinphi=dfdsinphi_arg, dfdcosphi=dfdcosphi_arg)
-
+                return flux_d, flux_err_d
+               
             elif "centroid_x" in decorr_check or "centroid_y" in decorr_check or "roll_angle" in decorr_check:
                 dfdx_arg, dfdy_arg, dfdsinphi_arg, dfdcosphi_arg = False, False, False, False
                 decorr_check = decorr_check.split(",")
@@ -2693,8 +2697,9 @@ class Dataset(object):
                     dfdy_arg = True
                 if "roll_angle" in decorr_check:
                     dfdsinphi_arg, dfdcosphi_arg = True, True
-                self.decorr(dfdx=dfdx_arg, dfdy=dfdy_arg,
+                flux_d, flux_err_d = self.decorr(dfdx=dfdx_arg, dfdy=dfdy_arg,
                         dfdsinphi=dfdsinphi_arg, dfdcosphi=dfdcosphi_arg)
+                return flux_d, flux_err_d
 
             else:
                 print("Ok then")
