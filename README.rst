@@ -5,9 +5,9 @@ Python package for the analysis of light curves from the `ESA CHEOPS mission <ht
 
 Use ``pip install pycheops`` to install.
 
-See `pycheops/examples/Notebooks <https://github.com/pmaxted/pycheops/tree/master/pycheops/examples/Notebooks>`  for examples.
+See `pycheops/examples/Notebooks <https://github.com/pmaxted/pycheops/tree/master/pycheops/examples/Notebooks>`_ for examples.
 
-For discussion and announcements, please join the `pycheops google group <https://groups.google.com/forum/#!forum/pycheops>`
+For discussion and announcements, please join the `pycheops google group <https://groups.google.com/forum/#!forum/pycheops>`_
 
 Troubleshooting
 ***************
