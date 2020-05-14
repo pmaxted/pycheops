@@ -384,6 +384,10 @@ class Dataset(object):
     @classmethod
     def from_test_data(self, subdir,  target=None, configFile=None, 
             verbose=True):
+
+        config = load_config(configFile)
+        _cache_path = config['DEFAULT']['data_cache_path']
+
         ftp=FTP('obsftp.unige.ch')
         _ = ftp.login()
         wd = "pub/cheops/test_data/{}".format(subdir)
@@ -396,8 +400,12 @@ class Dataset(object):
         if len(zipfiles) == 0:
             raise ValueError('No zip files for datasets in ftp directory')
         zipfile = zipfiles[0]
-        config = load_config(configFile)
-        _cache_path = config['DEFAULT']['data_cache_path']
+
+        file_key = zipfile[:-4]+'_V0000'
+        m = _file_key_re.search(file_key)
+        l = [int(i) for i in m.groups()]
+        self.progtype,self.prog_id,self.req_id,self.visitctr,self.ver = l
+
         zipPath = Path(_cache_path,zipfile)
         if zipPath.is_file():
             if verbose: print('{} already downloaded'.format(str(zipPath)))
@@ -405,22 +413,43 @@ class Dataset(object):
             cmd = 'RETR {}'.format(zipfile)
             if verbose: print('Downloading {} ...'.format(zipfile))
             ftp.retrbinary(cmd, open(str(zipPath), 'wb').write)
-            ftp.quit()
-        
-        file_key = zipfile[:-4]+'_V0000'
-        m = _file_key_re.search(file_key)
-        l = [int(i) for i in m.groups()]
-        self.progtype,self.prog_id,self.req_id,self.visitctr,self.ver = l
 
+        pdfFile = "{}_DataReduction.pdf".format(file_key)
+        pdfPath = Path(_cache_path,pdfFile)
+        if pdfPath.is_file():
+            if verbose: print('{} already downloaded'.format(pdfFile))
+        else:
+            _re = re.compile(r'CH_.*RPT_COR_DataReduction.*pdf')
+            pdffiles = list(filter(_re.match, filelist))
+            if len(pdffiles) > 0: 
+                cmd = 'RETR {}'.format(pdffiles[0])
+                if verbose: print('Downloading {} ...'.format(pdfFile))
+                ftp.retrbinary(cmd, open(str(pdfPath), 'wb').write)
+        ftp.quit()
+        
         tgzPath = Path(_cache_path,file_key).with_suffix('.tgz')
         tgzfile = str(tgzPath)
 
         zpf = ZipFile(str(zipPath), mode='r')
         ziplist = zpf.namelist()
 
+        _re_sa = re.compile('(CH_.*SCI_RAW_SubArray_.*.fits)')
         _re_im = re.compile('(CH_.*SCI_RAW_Imagette_.*.fits)')
         _re_lc = re.compile('(CH_.*_SCI_COR_Lightcurve-.*fits)')
         with tarfile.open(tgzfile, mode='w:gz') as tgz:
+            subfiles = list(filter(_re_sa.match, ziplist))
+            if len(subfiles) > 1:
+                raise ValueError('More than one sub-array file in zip file')
+            if len(subfiles) == 1:
+                if verbose: print("Writing sub-array data to .tgz file...")
+                subfile=subfiles[0]
+                tarPath = Path('visit')/Path(file_key)/Path(subfile).name 
+                tarinfo = tarfile.TarInfo(name=str(tarPath))
+                zipinfo = zpf.getinfo(subfile)
+                tarinfo.size = zipinfo.file_size
+                zf = zpf.open(subfile)
+                tgz.addfile(tarinfo=tarinfo, fileobj=zf)
+                zf.close()
             imgfiles = list(filter(_re_im.match, ziplist))
             if len(imgfiles) > 1:
                 raise ValueError('More than one imagette file in zip file')
@@ -559,12 +588,19 @@ class Dataset(object):
             with fits.open(subPath) as hdul:
                 cube = hdul[1].data
                 hdr = hdul[1].header
-                meta = Table.read(hdul[2])
+                # Meta can be in extention 9 or 2, so...
+                try:
+                    meta = Table.read(hdul[9])
+                except IndexError:
+                    meta = Table.read(hdul[2])
             if verbose: print ('Subarray data loaded from ',subPath)
         else:
             if verbose: print ('Extracting subarray data from ',self.tgzfile)
             r=re.compile('(.*SCI_COR_SubArray.*.fits)' )
             datafile = list(filter(r.match, self.list))
+            if len(datafile) == 0:
+                r=re.compile('(.*SCI_RAW_SubArray.*.fits)' )
+                datafile = list(filter(r.match, self.list))
             if len(datafile) == 0:
                 raise Exception('Dataset does not contains subarray data.')
             if len(datafile) > 1:
@@ -574,7 +610,7 @@ class Dataset(object):
                 hdul = fits.open(fd)
                 cube = hdul[1].data
                 hdr = hdul[1].header
-                meta = Table.read(hdul[2])
+                meta = Table.read(hdul[9])
                 hdul.writeto(subPath)
             tar.close()
             if verbose: print('Saved subarray data to ',subPath)
