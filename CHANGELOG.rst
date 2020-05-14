@@ -14,7 +14,8 @@ Changes since 0.6.0 onwards.
 * Bug fix to moon angle calculation in dataset.py
 * Fix math errors in funcs.massradius caused by negative values (#104)
 * Fix math errors in dataset.massradius caused by negative values (#104)
-  
+* dataset.get_subarray adapted to allow use of simulated data
+
 0.7.6 (2020-05-01)
 ~~~~~~~~~~~~~~~~~~
 * Fixed y-axis title bug in dataset.rollangle_plot (#85).
