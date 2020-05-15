@@ -610,7 +610,11 @@ class Dataset(object):
                 hdul = fits.open(fd)
                 cube = hdul[1].data
                 hdr = hdul[1].header
-                meta = Table.read(hdul[9])
+                # Meta can be in extention 9 or 2, so...
+                try:
+                    meta = Table.read(hdul[9])
+                except IndexError:
+                    meta = Table.read(hdul[2])
                 hdul.writeto(subPath)
             tar.close()
             if verbose: print('Saved subarray data to ',subPath)
