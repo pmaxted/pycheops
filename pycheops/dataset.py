@@ -30,6 +30,7 @@ import numpy as np
 import tarfile
 from zipfile import ZipFile
 import re
+import logging
 from pathlib import Path
 from .core import load_config
 from astropy.io import fits
@@ -808,9 +809,12 @@ class Dataset(object):
                                    origin="lower")
                 frames.append([image])
 
+
+            # Suppress annoying logger warnings from animation module 
+            logging.getLogger('matplotlib.animation').setLevel(logging.ERROR)
             if hindex == 0:
                 sub_anim = animation.ArtistAnimation(fig, frames, blit=True)
-                print("MovieWriter PillowWriter warning safe to ignore.")
+                #print("MovieWriter PillowWriter warning safe to ignore.")
                 sub_anim.save(title.replace(" ","")+'.gif', writer='PillowWriter')
                 with open(title.replace(" ","")+'.gif','rb') as file:
                     display(Image(file.read()))
@@ -818,7 +822,7 @@ class Dataset(object):
                 
             elif hindex == 1:
                 imag_anim = animation.ArtistAnimation(fig, frames, blit=True)
-                print("MovieWriter PillowWriter warning safe to ignore.")
+                #print("MovieWriter PillowWriter warning safe to ignore.")
                 imag_anim.save(title.replace(" ","")+'.gif', writer='PillowWriter')
                 with open(title.replace(" ","")+'.gif','rb') as file:
                     display(Image(file.read()))

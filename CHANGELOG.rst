@@ -1,6 +1,11 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.7.8 (2020-05-18)
+~~~~~~~~~~~~~~~~~~
+* Suppress warnings from matplotlib.animate in dataset
+* Subarray metadata search fix (#110)
+
 0.7.7 (2020-05-12)
 ~~~~~~~~~~~~~~~~~~
 *N.B.* New behaviour for dataset.get_lightcurve()
