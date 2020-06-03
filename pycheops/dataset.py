@@ -70,6 +70,7 @@ import matplotlib.animation as animation
 import matplotlib.colors as colors
 from IPython.display import Image
 import subprocess
+import warnings
 
 try:
     from dace.cheops import Cheops
@@ -661,7 +662,12 @@ class Dataset(object):
                 hdul.writeto(lcPath)
             if verbose: print('Saved lc data to ',lcPath)
 
-        ok = (table['EVENT'] == 0) | (table['EVENT'] == 100)
+        ok = (table['EVENT'] == 0) | (table['EVENT'] == 100) 
+        m = np.isnan(table['FLUX'])
+        if sum(m) > 0:
+            msg = "Light curve contains {} NaN values".format(sum(m))
+            warnings.warn(msg)
+            ok = ok & ~m
         bjd = np.array(table['BJD_TIME'][ok])
         bjd_ref = np.int(bjd[0])
         self.bjd_ref = bjd_ref
