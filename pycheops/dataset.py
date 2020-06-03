@@ -2637,115 +2637,209 @@ class Dataset(object):
         
 #-----------------------------------
 
-    def should_I_decorr(self,cut=20):
+    def should_I_decorr(self,cut=20,mask_centre=0,mask_width=0):
 
         cut_val = cut
-        time = np.array(self.lc['time'])
         flux = np.array(self.lc['flux'])
         flux_err = np.array(self.lc['flux_err'])
         phi = self.lc['roll_angle']*np.pi/180
-        sinphi = interp1d(time,np.sin(phi), fill_value=0, bounds_error=False)
-        cosphi = interp1d(time,np.cos(phi), fill_value=0, bounds_error=False)
-        bg = interp1d(time,self.lc['bg'], fill_value=0, bounds_error=False)
-        contam = interp1d(time,self.lc['contam'], fill_value=0, bounds_error=False)
-        dx = interp1d(time,self.lc['xoff'], fill_value=0, bounds_error=False)
-        dy = interp1d(time,self.lc['yoff'], fill_value=0, bounds_error=False)
+        sinphi = interp1d(np.array(self.lc['time']),np.sin(phi), fill_value=0, bounds_error=False)
+        cosphi = interp1d(np.array(self.lc['time']),np.cos(phi), fill_value=0, bounds_error=False)
+        bg = interp1d(np.array(self.lc['time']),self.lc['bg'], fill_value=0, bounds_error=False)
+        contam = interp1d(np.array(self.lc['time']),self.lc['contam'], fill_value=0, bounds_error=False)
+        dx = interp1d(np.array(self.lc['time']),self.lc['xoff'], fill_value=0, bounds_error=False)
+        dy = interp1d(np.array(self.lc['time']),self.lc['yoff'], fill_value=0, bounds_error=False)
+        time = np.array(self.lc['time'])
+        
+        if mask_centre != 0:    
+            flux = flux[(self.lc['time'] < (mask_centre-mask_width)) | (self.lc['time'] > (mask_centre+mask_width))]
+            flux_err = flux_err[(self.lc['time'] < (mask_centre-mask_width)) | (self.lc['time'] > (mask_centre+mask_width))]
+            
+            time_cut = time[(self.lc['time'] < (mask_centre-mask_width)) | (self.lc['time'] > (mask_centre+mask_width))]
+            phi_cut = self.lc['roll_angle'][(self.lc['time'] < (mask_centre-mask_width)) | (self.lc['time'] > (mask_centre+mask_width))] *np.pi/180
+            sinphi = interp1d(time_cut,np.sin(phi_cut), fill_value=0, bounds_error=False)        
+            cosphi = interp1d(time_cut,np.cos(phi_cut), fill_value=0, bounds_error=False)
+            
+            bg_cut = self.lc['bg'][(self.lc['time'] < (mask_centre-mask_width)) | (self.lc['time'] > (mask_centre+mask_width))]
+            bg = interp1d(time_cut,bg_cut, fill_value=0, bounds_error=False)
+            contam_cut = self.lc['contam'][(self.lc['time'] < (mask_centre-mask_width)) | (self.lc['time'] > (mask_centre+mask_width))]
+            contam = interp1d(time_cut,contam_cut, fill_value=0, bounds_error=False)
+            dx_cut = self.lc['xoff'][(self.lc['time'] < (mask_centre-mask_width)) | (self.lc['time'] > (mask_centre+mask_width))]
+            dx = interp1d(time_cut,dx_cut, fill_value=0, bounds_error=False)
+            dy_cut = self.lc['yoff'][(self.lc['time'] < (mask_centre-mask_width)) | (self.lc['time'] > (mask_centre+mask_width))]
+            dy = interp1d(time_cut,dy_cut, fill_value=0, bounds_error=False)
 
+            time = time[(self.lc['time'] < (mask_centre-mask_width)) | (self.lc['time'] > (mask_centre+mask_width))]        
+            
+
+        dfdt_bad, dfdbg_bad, dfdcontam_bad = np.array([]), np.array([]), np.array([])
         dfdx_bad, dfdy_bad, dfdsinphi_bad, dfdcosphi_bad = np.array([]), np.array([]), np.array([]), np.array([])
-        for dfdx in [False, True]:
-            for dfdy in [False, True]:
-                for dfdsinphi in [False, True]:
-                    for dfdcosphi in [False, True]:
+        d2fdt2_bad, d2fdx2_bad, d2fdy2_bad, dfdsin2phi_bad, dfdcos2phi_bad = np.array([]), np.array([]), np.array([]), np.array([]), np.array([])
+        
+        params_d = ['dfdt', 'dfdx', 'dfdy', 'dfdsinphi', 'dfdcosphi', 'dfdbg', 'dfdcontam', 'd2fdt2', 'd2fdx2', 'd2fdy2', 'dfdsin2phi', 'dfdcos2phi']
 
-                        model = FactorModel(
-                            dx = _make_interp(time, self.lc['xoff'], scale='range'),
-                            dy = _make_interp(time, self.lc['yoff'], scale='range'),
-                            sinphi = _make_interp(time,np.sin(phi)),
-                            cosphi = _make_interp(time,np.cos(phi)),
-                            bg = _make_interp(time,self.lc['bg'], scale='max'),
-                            contam = _make_interp(time,self.lc['contam'], scale='max'))
-                        params = model.make_params()
-                        params.add('dfdt', value=0, vary=False)
-                        params.add('d2fdt2', value=0, vary=False)
-                        params.add('dfdx', value=0, vary=dfdx)
-                        params.add('d2fdx2', value=0, vary=False)
-                        params.add('dfdy', value=0, vary=dfdy)
-                        params.add('d2fdy2', value=0, vary=False)
-                        params.add('d2fdxdy', value=0, vary=False)
-                        params.add('dfdsinphi', value=0, vary=dfdsinphi)
-                        params.add('dfdcosphi', value=0, vary=dfdcosphi)
-                        params.add('dfdsin2phi', value=0, vary=False)
-                        params.add('dfdcos2phi', value=0, vary=False)
-                        params.add('dfdsin3phi', value=0, vary=False)
-                        params.add('dfdcos3phi', value=0, vary=False)
-                        params.add('dfdg', value=0, vary=False)
-                        params.add('dfdcontam', value=0, vary=False)
+        boolean = [[False, True]]*len(params_d)
+        decorr_arr = [[]]*len(params_d)
 
-                        result = model.fit(flux, params, t=time)
+        for kindex, k in enumerate(range(len(params_d))):
+            temp = []
+            for jindex, j in enumerate([False, True]):
+                for index, i in enumerate(range(len(params_d)-kindex)):
+                    temp.append(boolean[index][jindex])
+            decorr_arr[kindex] = temp
+            for hindex, h in enumerate(range(kindex)):
+                decorr_arr[kindex].append(False)
+                decorr_arr[kindex].append(True)
 
-                        if result.params['dfdx'].vary == True:
-                            if abs(100*result.params['dfdx'].stderr/result.params['dfdx'].value) < cut_val:
-                                dfdx_bad = np.append(dfdx_bad, abs(100*result.params['dfdx'].stderr/result.params['dfdx'].value))
-                        if result.params['dfdy'].vary == True:
-                            if abs(100*result.params['dfdy'].stderr/result.params['dfdy'].value) < cut_val:
-                                dfdy_bad = np.append(dfdy_bad, abs(100*result.params['dfdy'].stderr/result.params['dfdy'].value))
-                        if result.params['dfdsinphi'].vary == True:
-                            if abs(100*result.params['dfdsinphi'].stderr/result.params['dfdsinphi'].value) < cut_val:
-                                dfdsinphi_bad = np.append(dfdsinphi_bad, abs(100*result.params['dfdsinphi'].stderr/result.params['dfdsinphi'].value))
-                        if result.params['dfdcosphi'].vary == True:
-                            if abs(100*result.params['dfdcosphi'].stderr/result.params['dfdcosphi'].value) < cut_val:
-                                dfdcosphi_bad = np.append(dfdcosphi_bad,
-                                        abs(100*result.params['dfdcosphi'].stderr/result.params['dfdcosphi'].value))
+        for index, i in enumerate(decorr_arr[0]):
+            
+            dfdt=decorr_arr[0][index]
+            dfdx=decorr_arr[1][index]
+            dfdy=decorr_arr[2][index]
+            dfdsinphi=decorr_arr[3][index]
+            dfdcosphi=decorr_arr[4][index]
+            dfdbg=decorr_arr[5][index]
+            dfdcontam=decorr_arr[6][index]
+            d2fdt2=decorr_arr[7][index]
+            d2fdx2=decorr_arr[8][index]
+            d2fdy2=decorr_arr[9][index]
+            dfdsin2phi=decorr_arr[10][index]
+            dfdcos2phi=decorr_arr[11][index]
+            
+            model = FactorModel(
+                dx = dx,
+                dy = dy,
+                sinphi = sinphi,
+                cosphi = cosphi,
+                bg = bg,
+                contam = contam)
+            params = model.make_params()
+            params.add('dfdt', value=0, vary=dfdt)
+            params.add('dfdx', value=0, vary=dfdx)
+            params.add('dfdy', value=0, vary=dfdy)
+            params.add('dfdsinphi', value=0, vary=dfdsinphi)
+            params.add('dfdcosphi', value=0, vary=dfdcosphi)
+            params.add('dfdbg', value=0, vary=dfdbg)
+            params.add('dfdcontam', value=0, vary=dfdcontam)
+            params.add('d2fdt2', value=0, vary=d2fdt2)
+            params.add('d2fdx2', value=0, vary=d2fdx2)
+            params.add('d2fdy2', value=0, vary=d2fdy2)
+            params.add('dfdsin2phi', value=0, vary=dfdsin2phi)
+            params.add('dfdcos2phi', value=0, vary=dfdcos2phi)
 
-        if len(dfdx_bad) == 0 and len(dfdy_bad) == 0 and len(dfdsinphi_bad) == 0 and len(dfdcosphi_bad) == 0:
+            result = model.fit(flux, params, t=time)
+
+            if result.params['dfdt'].vary == True:
+                if abs(100*result.params['dfdt'].stderr/result.params['dfdt'].value) < cut_val:
+                    dfdt_bad = np.append(dfdt_bad, abs(100*result.params['dfdt'].stderr/result.params['dfdt'].value))
+            if result.params['dfdx'].vary == True:
+                if abs(100*result.params['dfdx'].stderr/result.params['dfdx'].value) < cut_val:
+                    dfdx_bad = np.append(dfdx_bad, abs(100*result.params['dfdx'].stderr/result.params['dfdx'].value))
+            if result.params['dfdy'].vary == True:
+                if abs(100*result.params['dfdy'].stderr/result.params['dfdy'].value) < cut_val:
+                    dfdy_bad = np.append(dfdy_bad, abs(100*result.params['dfdy'].stderr/result.params['dfdy'].value))
+            if result.params['dfdsinphi'].vary == True:
+                if abs(100*result.params['dfdsinphi'].stderr/result.params['dfdsinphi'].value) < cut_val:
+                    dfdsinphi_bad = np.append(dfdsinphi_bad, abs(100*result.params['dfdsinphi'].stderr/result.params['dfdsinphi'].value))
+            if result.params['dfdcosphi'].vary == True:
+                if abs(100*result.params['dfdcosphi'].stderr/result.params['dfdcosphi'].value) < cut_val:
+                    dfdcosphi_bad = np.append(dfdcosphi_bad, abs(100*result.params['dfdcosphi'].stderr/result.params['dfdcosphi'].value))
+            if result.params['dfdbg'].vary == True:
+                if abs(100*result.params['dfdbg'].stderr/result.params['dfdbg'].value) < cut_val:
+                    dfdbg_bad = np.append(dfdbg_bad, abs(100*result.params['dfdbg'].stderr/result.params['dfdbg'].value))
+            if result.params['dfdcontam'].vary == True:
+                if abs(100*result.params['dfdcontam'].stderr/result.params['dfdcontam'].value) < cut_val:
+                    dfdcontam_bad = np.append(dfdcontam_bad, abs(100*result.params['dfdcontam'].stderr/result.params['dfdcontam'].value))                    
+                    
+            if result.params['d2fdt2'].vary == True:
+                if abs(100*result.params['d2fdt2'].stderr/result.params['d2fdt2'].value) < cut_val:
+                    d2fdt2_bad = np.append(d2fdt2_bad, abs(100*result.params['d2fdt2'].stderr/result.params['d2fdt2'].value))
+            if result.params['d2fdx2'].vary == True:
+                if abs(100*result.params['d2fdx2'].stderr/result.params['d2fdx2'].value) < cut_val:
+                    d2fdx2_bad = np.append(d2fdx2_bad, abs(100*result.params['d2fdx2'].stderr/result.params['d2fdx2'].value))
+            if result.params['d2fdy2'].vary == True:
+                if abs(100*result.params['d2fdy2'].stderr/result.params['d2fdy2'].value) < cut_val:
+                    d2fdy2_bad = np.append(d2fdy2_bad, abs(100*result.params['d2fdy2'].stderr/result.params['d2fdy2'].value))
+            if result.params['dfdsin2phi'].vary == True:
+                if abs(100*result.params['dfdsin2phi'].stderr/result.params['dfdsin2phi'].value) < cut_val:
+                    dfdsin2phi_bad = np.append(dfdsin2phi_bad, abs(100*result.params['dfdsin2phi'].stderr/result.params['dfdsin2phi'].value))
+            if result.params['dfdcos2phi'].vary == True:
+                if abs(100*result.params['dfdcos2phi'].stderr/result.params['dfdcos2phi'].value) < cut_val:
+                    dfdcos2phi_bad = np.append(dfdcos2phi_bad, abs(100*result.params['dfdcos2phi'].stderr/result.params['dfdcos2phi'].value))                    
+                    
+
+        if len(dfdt_bad) == 0 and len(dfdx_bad) == 0 and len(dfdy_bad) == 0 and len(dfdsinphi_bad) == 0 and len(dfdcosphi_bad) == 0 and len(dfdbg_bad) == 0 and len(dfdcontam_bad) == 0 and len(d2fdt2_bad) == 0 and len(d2fdx2_bad) == 0 and len(d2fdy2_bad) == 0 and len(dfdsin2phi_bad) == 0 and len(dfdcos2phi_bad) == 0:
             print("No! You don't need to decorrelate.")
         else:
-            if len(dfdx_bad) > 0:
+            if len(dfdt_bad) > 0 or len(d2fdt2_bad) > 0:
+                print("Yes! Check flux against time.")            
+            
+            if len(dfdx_bad) > 0 or len(d2fdx2_bad) > 0:
                 print("Yes! Check flux against centroid x.")
 
-            if len(dfdy_bad) > 0:
+            if len(dfdy_bad) > 0 or len(d2fdy2_bad) > 0:
                 print("Yes! Check flux against centroid y.")
 
-            if len(dfdsinphi_bad) > 0 or len(dfdcosphi_bad) > 0:
+            if len(dfdsinphi_bad) > 0 or len(dfdcosphi_bad) > 0 or len(dfdsin2phi_bad) > 0 or len(dfdcos2phi_bad) > 0:
                 print("Yes! Check flux against roll angle.")
 
+            if len(dfdbg_bad) > 0:
+                print("Yes! Check flux against background.")
+
+            if len(dfdcontam_bad) > 0:
+                print("Yes! Check flux against contamination.")
+                
+                
             self.diagnostic_plot(fontsize=9)
 
             decorr_check = input('Do you want to decorrelate? ')
             if decorr_check.lower()[0] == "y":
-                which_decorr = input('Which to you wish to decorrelate? Please enter from the follow: centroid_x, centroid_y, and/or roll_angle. Multiple entries should be comma separated. ')
-                dfdx_arg, dfdy_arg, dfdsinphi_arg, dfdcosphi_arg = False, False, False, False
+                which_decorr = input('Which to you wish to decorrelate? Please enter from the follow: time, centroid_x, centroid_y, roll_angle, background, and/or contamination. Multiple entries should be comma separated. ')
+                dfdt_arg, dfdx_arg, dfdy_arg, dfdsinphi_arg, dfdcosphi_arg, dfdbg_arg, dfdcontam_arg = False, False, False, False, False, False, False
                 which_decorr = which_decorr.split(",")
 
                 for index, i in enumerate(which_decorr):
                     which_decorr[index] = i.lower().replace(' ', '')
+                if "time" in which_decorr:
+                    dfdt_arg = True
                 if "centroid_x" in which_decorr:
                     dfdx_arg = True
                 if "centroid_y" in which_decorr:
                     dfdy_arg = True
                 if "roll_angle" in which_decorr:
                     dfdsinphi_arg, dfdcosphi_arg = True, True
-                flux_d, flux_err_d = self.decorr(dfdx=dfdx_arg, dfdy=dfdy_arg,
-                        dfdsinphi=dfdsinphi_arg, dfdcosphi=dfdcosphi_arg)
+                if "background" in which_decorr:
+                    dfdbg_arg = True
+                if "contamination" in which_decorr:
+                    dfdcontam_arg = True                    
+                    
+                flux_d, flux_err_d = self.decorr(dfdt=dfdt_arg, dfdx=dfdx_arg, dfdy=dfdy_arg,
+                        dfdsinphi=dfdsinphi_arg, dfdcosphi=dfdcosphi_arg, dfdbg=dfdbg_arg, dfdcontam=dfdcontam_arg)
                 return flux_d, flux_err_d
-               
-            elif "centroid_x" in decorr_check or "centroid_y" in decorr_check or "roll_angle" in decorr_check:
-                dfdx_arg, dfdy_arg, dfdsinphi_arg, dfdcosphi_arg = False, False, False, False
+
+            elif "time" in decorr_check or "centroid_x" in decorr_check or "centroid_y" in decorr_check or "roll_angle" in decorr_check or "background" in decorr_check or "contamination" in decorr_check:
+                dfdt_arg, dfdx_arg, dfdy_arg, dfdsinphi_arg, dfdcosphi_arg, dfdbg_arg, dfdcontam_arg = False, False, False, False, False, False, False
                 decorr_check = decorr_check.split(",")
 
                 for index, i in enumerate(decorr_check):
                     decorr_check[index] = i.lower().replace(' ', '')
+                if "time" in decorr_check:
+                    dfdt_arg = True                    
                 if "centroid_x" in decorr_check:
                     dfdx_arg = True
                 if "centroid_y" in decorr_check:
                     dfdy_arg = True
                 if "roll_angle" in decorr_check:
                     dfdsinphi_arg, dfdcosphi_arg = True, True
-                flux_d, flux_err_d = self.decorr(dfdx=dfdx_arg, dfdy=dfdy_arg,
-                        dfdsinphi=dfdsinphi_arg, dfdcosphi=dfdcosphi_arg)
+                if "background" in decorr_check:
+                    dfdbg_arg = True
+                if "contamination" in decorr_check:
+                    dfdcontam_arg = True
+                    
+                flux_d, flux_err_d = self.decorr(dfdt=dfdt_arg, dfdx=dfdx_arg, dfdy=dfdy_arg,
+                        dfdsinphi=dfdsinphi_arg, dfdcosphi=dfdcosphi_arg, dfdbg=dfdbg_arg, dfdcontam=dfdcontam_arg)
                 return flux_d, flux_err_d
 
             else:
                 print("Ok then")
-        print('\n')
-
+        print('\n')    
