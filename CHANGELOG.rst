@@ -1,11 +1,13 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-0.7.8 (2020-05-18)
+0.7.8 (2020-06-03)
 ~~~~~~~~~~~~~~~~~~
 * Suppress warnings from matplotlib.animate in dataset
 * Subarray metadata search fix (#110)
-
+* Add check for finite flux values in dataset.get_lightcurve()
+* should_I_decorr bug fix, code cleanup and expansion (#115)
+  
 0.7.7 (2020-05-12)
 ~~~~~~~~~~~~~~~~~~
 *N.B.* New behaviour for dataset.get_lightcurve()
