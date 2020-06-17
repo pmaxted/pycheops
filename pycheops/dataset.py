@@ -853,7 +853,7 @@ class Dataset(object):
  
  # Eclipse and transit fitting
 
-    def __create_factor_model__(self):
+    def __factor_model__(self):
         time = np.array(self.lc['time'])
         phi = self.lc['roll_angle']*np.pi/180
         return FactorModel(
@@ -1006,7 +1006,7 @@ class Dataset(object):
         params.add('q_1',min=0,max=1,expr='(1-h_2)**2')
         params.add('q_2',min=0,max=1,expr='(h_1-h_2)/(1-h_2)')
 
-        model = TransitModel()*__create_factor_model__(self)
+        model = TransitModel()*self.__factor_model__()
 
         if 'glint_scale' in params.valuesdict().keys():
             try:
@@ -1276,7 +1276,7 @@ class Dataset(object):
         params.add('sini',expr='sqrt(1 - (b/aR)**2)')
         params.add('e',min=0,max=1,expr='f_c**2 + f_s**2')
 
-        model = EclipseModel()*__create_factor_model__(self)
+        model = EclipseModel()*self.__factor_model__()
 
         if 'glint_scale' in params.valuesdict().keys():
             try:
@@ -2470,9 +2470,12 @@ class Dataset(object):
         # Restore model from its string representation stored in the pickle
         model_repr = state['model']
         if '_transit_func' in model_repr:
-            model = TransitModel()*__create_factor_model__(self)
+            model = TransitModel()*self.__factor_model__()
         elif '_eclipse_func' in model_repr:
-            model = EclipseModel()*__create_factor_model__(self)
+            model = EclipseModel()*self.__factor_model__()
+        if 'glint_func' in model_repr:
+            model += Model(glint_func, independent_vars=['t'],
+                    f_theta=self.f_theta, f_glint=self.f_glint)
         self.model = model
 
 
@@ -2645,7 +2648,7 @@ class Dataset(object):
         dx = interp1d(time,self.lc['xoff'], fill_value=0, bounds_error=False)
         dy = interp1d(time,self.lc['yoff'], fill_value=0, bounds_error=False)
 
-        model = __create_factor_model__(self)
+        model = self.__factor_model__()
 
         params = model.make_params()
         params.add('dfdt', value=0, vary=dfdt)
