@@ -70,6 +70,7 @@ import matplotlib.animation as animation
 import matplotlib.colors as colors
 from IPython.display import Image
 import subprocess
+import pickle
 import warnings
 
 try:
@@ -849,7 +850,21 @@ class Dataset(object):
         
 
  #----------------------------------------------------------------------------
+ 
  # Eclipse and transit fitting
+
+    def __create_factor_model__(self):
+        time = np.array(self.lc['time'])
+        phi = self.lc['roll_angle']*np.pi/180
+        return FactorModel(
+            dx = _make_interp(time, self.lc['xoff'], scale='range'),
+            dy = _make_interp(time, self.lc['yoff'], scale='range'),
+            sinphi = _make_interp(time,np.sin(phi)),
+            cosphi = _make_interp(time,np.cos(phi)),
+            bg = _make_interp(time,self.lc['bg'], scale='max'),
+            contam = _make_interp(time,self.lc['contam'], scale='max'))
+
+    #---
 
     def lmfit_transit(self, 
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
@@ -991,13 +1006,7 @@ class Dataset(object):
         params.add('q_1',min=0,max=1,expr='(1-h_2)**2')
         params.add('q_2',min=0,max=1,expr='(h_1-h_2)/(1-h_2)')
 
-        model = TransitModel()*FactorModel(
-            dx = _make_interp(time, xoff, scale='range'),
-            dy = _make_interp(time, yoff, scale='range'),
-            sinphi = _make_interp(time,np.sin(phi)),
-            cosphi = _make_interp(time,np.cos(phi)),
-            bg = _make_interp(time,bg, scale='max'),
-            contam = _make_interp(time,contam, scale='max') )
+        model = TransitModel()*__create_factor_model__(self)
 
         if 'glint_scale' in params.valuesdict().keys():
             try:
@@ -1267,13 +1276,7 @@ class Dataset(object):
         params.add('sini',expr='sqrt(1 - (b/aR)**2)')
         params.add('e',min=0,max=1,expr='f_c**2 + f_s**2')
 
-        model = EclipseModel()*FactorModel(
-            dx = _make_interp(time, xoff, scale='range'),
-            dy = _make_interp(time, yoff, scale='range'),
-            sinphi = _make_interp(time,np.sin(phi)),
-            cosphi = _make_interp(time,np.cos(phi)),
-            bg = _make_interp(time,bg, scale='max'),
-            contam = _make_interp(time,contam, scale='max') )
+        model = EclipseModel()*__create_factor_model__(self)
 
         if 'glint_scale' in params.valuesdict().keys():
             try:
@@ -2451,6 +2454,59 @@ class Dataset(object):
 
     #------
 
+    # Remove unpicklable objects from dataset but save information that
+    # enables these objects to be reconstructed by __set_state__
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Replace lmfit model with its string representation
+        if 'model' in state.keys():
+            state['model'] = state['model'].__repr__()
+        else:
+            state['model'] = ''
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # Restore model from its string representation stored in the pickle
+        model_repr = state['model']
+        if '_transit_func' in model_repr:
+            model = TransitModel()*__create_factor_model__(self)
+        elif '_eclipse_func' in model_repr:
+            model = EclipseModel()*__create_factor_model__(self)
+        self.model = model
+
+
+    #------
+
+    def save(self):
+        """
+        Save the current file as a pickle file
+
+        :returns: pickle file name
+        """
+        fl = self.target.replace(" ","_")+'__'+self.file_key+'.dataset'
+        with open(fl, 'wb') as fp:
+            pickle.dump(self, fp, pickle.HIGHEST_PROTOCOL)
+        return fl
+
+    #------
+
+    @classmethod
+    def load(self, filename):
+        """
+        Load a dataset from a pickle file
+
+        :param filename: pickle file name
+
+        :returns: dataset object
+        
+        """
+        with open(filename, 'rb') as fp:
+            self = pickle.load(fp)
+        return self
+
+    #------
+
     def diagnostic_plot(self, fname=None,
             figsize=(8,8), fontsize=10, flagged=None):
         
@@ -2589,13 +2645,8 @@ class Dataset(object):
         dx = interp1d(time,self.lc['xoff'], fill_value=0, bounds_error=False)
         dy = interp1d(time,self.lc['yoff'], fill_value=0, bounds_error=False)
 
-        model = FactorModel(
-            dx = _make_interp(time, self.lc['xoff'], scale='range'),
-            dy = _make_interp(time, self.lc['yoff'], scale='range'),
-            sinphi = _make_interp(time,np.sin(phi)),
-            cosphi = _make_interp(time,np.cos(phi)),
-            bg = _make_interp(time,self.lc['bg'], scale='max'),
-            contam = _make_interp(time,self.lc['contam'], scale='max'))
+        model = __create_factor_model__(self)
+
         params = model.make_params()
         params.add('dfdt', value=0, vary=dfdt)
         params.add('d2fdt2', value=0, vary=d2fdt2)
