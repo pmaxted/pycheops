@@ -1,6 +1,11 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.8.0
+~~~~~~~~~~~~~~~~~~
+* Added Multivisit class
+* Added load() and save() to dataset
+
 0.7.8 (2020-06-03)
 ~~~~~~~~~~~~~~~~~~
 * Suppress warnings from matplotlib.animate in dataset

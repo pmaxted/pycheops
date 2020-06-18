@@ -109,6 +109,13 @@ def _make_interp(t,x,scale=None):
         raise ValueError('scale must be None, max or range')
     return interp1d(t,z,bounds_error=False, fill_value=(z[0],z[-1]))
 
+#---
+
+def _glint_func(t, glint_scale, f_theta=None, f_glint=None ):
+    return glint_scale * f_glint(f_theta(t))
+
+#---
+
 # Prior on (D, W, b) for transit/eclipse fitting.
 # This prior assumes uniform priors on cos(i), log(k) and log(aR). The
 # factor 2kW is the absolute value of the determinant of the Jacobian, 
@@ -121,6 +128,8 @@ def _log_prior(D, W, b):
     aR = np.sqrt((1+k)**2 - b**2)/(np.pi*W)
     if (aR < 2): return -np.inf
     return -np.log(2*k*W) - np.log(k) - np.log(aR)
+
+#---
 
 # Target functions for emcee
 def _log_posterior_jitter(pos, model, time, flux, flux_err,  params, vn,
@@ -272,7 +281,6 @@ def _make_labels(plotkeys, bjd_ref):
         else:
             labels.append(key)
     return labels
-
     
 #---------------
 
@@ -548,6 +556,82 @@ class Dataset(object):
 
         return self(file_key=file_key, target=target, verbose=verbose)
 
+#---------------------------------
+
+# Pickling
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+
+        # Replace lmfit model with its string representation
+        if 'model' in state.keys():
+            model_repr = state['model'].__repr__()
+            state['model'] = model_repr
+        else:
+            state['model'] = ''
+
+        # There may also be an instance of an lmfit model buried in 
+        # sampler.log_prob_fn.args - replace with its string representation
+        if 'sampler' in state.keys():
+            args = state['sampler'].log_prob_fn.args
+            model_repr = args[0].__repr__()
+            state['sampler'].log_prob_fn.args = (model_repr, *args[1:])
+
+        return state
+
+    #------
+
+    def __setstate__(self, state):
+
+        def reconstruct_model(model_repr,state):
+            if '_transit_func' in model_repr:
+                model = TransitModel()*self.__factor_model__()
+            elif '_eclipse_func' in model_repr:
+                model = EclipseModel()*self.__factor_model__()
+            if 'glint_func' in model_repr:
+                model += Model(_glint_func, independent_vars=['t'],
+                    f_theta=state['f_theta'], f_glint=state['f_glint'])
+            return model
+
+        self.__dict__.update(state)
+
+        if 'model' in state.keys():
+            self.model = reconstruct_model(state['model'],state)
+
+        if 'sampler' in state.keys():
+            args = state['sampler'].log_prob_fn.args
+            model = reconstruct_model(args[0],state)
+            state['sampler'].log_prob_fn.args = (model, *args[1:])
+
+    #------
+
+    def save(self):
+        """
+        Save the current file as a pickle file
+
+        :returns: pickle file name
+        """
+        fl = self.target.replace(" ","_")+'__'+self.file_key+'.dataset'
+        with open(fl, 'wb') as fp:
+            pickle.dump(self, fp, pickle.HIGHEST_PROTOCOL)
+        return fl
+
+    #------
+
+    @classmethod
+    def load(self, filename):
+        """
+        Load a dataset from a pickle file
+
+        :param filename: pickle file name
+
+        :returns: dataset object
+        
+        """
+        with open(filename, 'rb') as fp:
+            self = pickle.load(fp)
+        return self
+
 #----
         
     def get_imagettes(self, verbose=True):
@@ -771,7 +855,6 @@ class Dataset(object):
 
         subprocess.run(pdf_cmd.format(pdfPath),shell=True)
 
-        
 #----
 
     def animate_frames(self, nframes=10, vmin=1., vmax=1., subarray=True,
@@ -816,8 +899,10 @@ class Dataset(object):
                 else:
                     img_max = np.amax(frame_cube[i,:,:])
                 
-                image = plt.imshow(frame_cube[i,:,:], norm=colors.Normalize(vmin=vmin*img_min, vmax=vmax*img_max), 
-                                   origin="lower")
+                image = plt.imshow(frame_cube[i,:,:],
+                        norm=colors.Normalize(vmin=vmin*img_min,
+                            vmax=vmax*img_max),
+                        origin="lower")
                 frames.append([image])
 
 
@@ -826,18 +911,22 @@ class Dataset(object):
             if hindex == 0:
                 sub_anim = animation.ArtistAnimation(fig, frames, blit=True)
                 #print("MovieWriter PillowWriter warning safe to ignore.")
-                sub_anim.save(title.replace(" ","")+'.gif', writer='PillowWriter')
+                sub_anim.save(title.replace(" ","")+'.gif',
+                        writer='PillowWriter')
                 with open(title.replace(" ","")+'.gif','rb') as file:
                     display(Image(file.read()))
-                print("Subarray is saved in the current directory as " + title.replace(" ","")+'.gif')
+                print("Subarray is saved in the current directory as " +
+                        title.replace(" ","")+'.gif')
                 
             elif hindex == 1:
                 imag_anim = animation.ArtistAnimation(fig, frames, blit=True)
                 #print("MovieWriter PillowWriter warning safe to ignore.")
-                imag_anim.save(title.replace(" ","")+'.gif', writer='PillowWriter')
+                imag_anim.save(title.replace(" ","")+'.gif',
+                        writer='PillowWriter')
                 with open(title.replace(" ","")+'.gif','rb') as file:
                     display(Image(file.read()))
-                print("Imagette is saved in the current directory as " + title.replace(" ","")+'.gif')
+                print("Imagette is saved in the current directory as " +
+                        title.replace(" ","")+'.gif')
                     
             plt.close()
     
@@ -1014,12 +1103,9 @@ class Dataset(object):
                 f_glint = self.f_glint
             except AttributeError:
                 raise AttributeError("Use add_glint() to first.")
-            def glint_func(t, glint_scale, f_theta=None, f_glint=None ):
-                return glint_scale * f_glint(f_theta(t))
-            GlintModel = Model(glint_func, independent_vars=['t'],
+            GlintModel = Model(_glint_func, independent_vars=['t'],
                 f_theta=f_theta, f_glint=f_glint)
             model += GlintModel
-
 
         result = minimize(_chisq_prior, params,nan_policy='propagate',
                 args=(model, time, flux, flux_err))
@@ -1128,7 +1214,6 @@ class Dataset(object):
             time = time[~mask]
             theta = theta[~mask]
             y = y[~mask]
-
 
         # Copies of data for theta-360 and theta+360 used to make
         # interpolating function periodic
@@ -1284,9 +1369,7 @@ class Dataset(object):
                 f_glint = self.f_glint
             except AttributeError:
                 raise AttributeError("Use add_glint() to first.")
-            def glint_func(t, glint_scale, f_theta=None, f_glint=None ):
-                return glint_scale * f_glint(f_theta(t))
-            GlintModel = Model(glint_func, independent_vars=['t'],
+            GlintModel = Model(_glint_func, independent_vars=['t'],
                 f_theta=f_theta, f_glint=f_glint)
             model += GlintModel
 
@@ -1593,11 +1676,6 @@ class Dataset(object):
 
         return fig
 
-
-
-
-
-
     # ----------------------------------------------------------------
 
     def corner_plot(self, plotkeys=['T_0', 'D', 'W', 'b'], 
@@ -1750,7 +1828,6 @@ class Dataset(object):
         ax.set_ylabel('Power [ppm$^2$ $\mu$Hz$^{-1}$]');
         ax.set_title(title)
         return fig
-    
 
     # ------------------------------------------------------------
     
@@ -2452,63 +2529,7 @@ class Dataset(object):
                     'ppm from the median'.format(sum(~ok),clip,1e6*mad*clip))
         return self.lc['time'], self.lc['flux'], self.lc['flux_err']
 
-    #------
-
-    # Remove unpicklable objects from dataset but save information that
-    # enables these objects to be reconstructed by __set_state__
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        # Replace lmfit model with its string representation
-        if 'model' in state.keys():
-            state['model'] = state['model'].__repr__()
-        else:
-            state['model'] = ''
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        # Restore model from its string representation stored in the pickle
-        model_repr = state['model']
-        if '_transit_func' in model_repr:
-            model = TransitModel()*self.__factor_model__()
-        elif '_eclipse_func' in model_repr:
-            model = EclipseModel()*self.__factor_model__()
-        if 'glint_func' in model_repr:
-            model += Model(glint_func, independent_vars=['t'],
-                    f_theta=self.f_theta, f_glint=self.f_glint)
-        self.model = model
-
-
-    #------
-
-    def save(self):
-        """
-        Save the current file as a pickle file
-
-        :returns: pickle file name
-        """
-        fl = self.target.replace(" ","_")+'__'+self.file_key+'.dataset'
-        with open(fl, 'wb') as fp:
-            pickle.dump(self, fp, pickle.HIGHEST_PROTOCOL)
-        return fl
-
-    #------
-
-    @classmethod
-    def load(self, filename):
-        """
-        Load a dataset from a pickle file
-
-        :param filename: pickle file name
-
-        :returns: dataset object
-        
-        """
-        with open(filename, 'rb') as fp:
-            self = pickle.load(fp)
-        return self
-
-    #------
+#----------------------------------
 
     def diagnostic_plot(self, fname=None,
             figsize=(8,8), fontsize=10, flagged=None):
