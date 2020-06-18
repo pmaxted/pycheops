@@ -55,7 +55,8 @@ def load_config(configFile=None):
     return c
 
 
-def setup_config(configFile=None, overwrite=False, mode=0o600):
+def setup_config(configFile=None, overwrite=False, mode=0o600, 
+        data_cache_path=None, pdf_cmd=None):
     """
     Create module configuration 
     
@@ -66,6 +67,10 @@ def setup_config(configFile=None, overwrite=False, mode=0o600):
     :param overwrite: overwrite values in existing configFile
 
     :param mode: mode (permission) settings for configFile
+
+    :param data_cache_path: user is prompted if None, use '' for default
+
+    :param pdf_cmd: user is prompted if None, use '' for default
 
     """
 
@@ -78,7 +83,8 @@ def setup_config(configFile=None, overwrite=False, mode=0o600):
 
     data_cache_default = os.path.expanduser(os.path.join('~','pycheops_data'))
     prompt = "Enter data cache directory [{}] > ".format(data_cache_default)
-    data_cache_path = input(prompt)
+    if data_cache_path is None:
+        data_cache_path = input(prompt)
     if data_cache_path is '':
         data_cache_path = data_cache_default
     if not os.path.isdir(data_cache_path):
@@ -92,7 +98,8 @@ def setup_config(configFile=None, overwrite=False, mode=0o600):
         pdf_cmd_default = r'AcroRd32.exe {}'
     prompt = ("Enter command to view PDF with {{}} as file name placeholder "
     "[{}] > ".format(pdf_cmd_default))
-    pdf_cmd = input(prompt)
+    if pdf_cmd is None:
+        pdf_cmd = input(prompt)
     if pdf_cmd is '':
         pdf_cmd = pdf_cmd_default
 
