@@ -39,7 +39,6 @@ import matplotlib.pyplot as plt
 from .instrument import transit_noise
 from ftplib import FTP
 from .models import TransitModel, FactorModel, EclipseModel
-from uncertainties import UFloat
 from lmfit import Parameter, Parameters, minimize, Minimizer,fit_report
 from lmfit import __version__ as _lmfit_version_
 from lmfit import Model
@@ -47,7 +46,7 @@ from scipy.interpolate import interp1d, LSQUnivariateSpline
 import matplotlib.pyplot as plt
 from emcee import EnsembleSampler
 import corner
-import copy
+from copy import copy
 from celerite import terms, GP
 from sys import stdout 
 from astropy.coordinates import SkyCoord, get_body, Angle
@@ -70,6 +69,7 @@ import matplotlib.animation as animation
 import matplotlib.colors as colors
 from IPython.display import Image
 import subprocess
+import pickle
 import warnings
 
 try:
@@ -108,6 +108,50 @@ def _make_interp(t,x,scale=None):
         raise ValueError('scale must be None, max or range')
     return interp1d(t,z,bounds_error=False, fill_value=(z[0],z[-1]))
 
+#---
+
+def _glint_func(t, glint_scale, f_theta=None, f_glint=None ):
+    return glint_scale * f_glint(f_theta(t))
+
+#---
+
+def _make_trial_params(pos, params, vn):
+    # Create a copy of the params object with the parameter values give in
+    # list vn replaced with trial values from array pos.
+    # Also returns the contribution to the log-likelihood of the parameter
+    # values. 
+    # Return value is parcopy, lnprior
+    # If any of the parameters are out of range, returns None, -inf
+    parcopy = params.copy()
+    lnprior = 0 
+    for i, p in enumerate(vn):
+        v = pos[i]
+        if (v < parcopy[p].min) or (v > parcopy[p].max):
+            return None, -np.inf
+        parcopy[p].value = v
+
+    lnprior = _log_prior(parcopy['D'], parcopy['W'], parcopy['b'])
+    if not np.isfinite(lnprior):
+        return None, -np.inf
+
+    # Also check parameter range here so we catch "derived" parameters
+    # that are out of range.
+    for p in parcopy:
+        v = parcopy[p].value
+        if (v < parcopy[p].min) or (v > parcopy[p].max):
+            return None, -np.inf
+        if np.isnan(v):
+            return None, -np.inf
+        u = parcopy[p].user_data
+        if isinstance(u, UFloat):
+            lnprior += -0.5*((u.n - v)/u.s)**2
+    if not np.isfinite(lnprior):
+        return None, -np.inf
+
+    return parcopy, lnprior
+
+#---
+
 # Prior on (D, W, b) for transit/eclipse fitting.
 # This prior assumes uniform priors on cos(i), log(k) and log(aR). The
 # factor 2kW is the absolute value of the determinant of the Jacobian, 
@@ -121,42 +165,20 @@ def _log_prior(D, W, b):
     if (aR < 2): return -np.inf
     return -np.log(2*k*W) - np.log(k) - np.log(aR)
 
+#---
+
 # Target functions for emcee
 def _log_posterior_jitter(pos, model, time, flux, flux_err,  params, vn,
         return_fit):
 
-    # Check for pos[i] within valid range has to be done here
-    # because it gets set to the limiting value if out of range by the
-    # assignment to a parameter with min/max defined.
-    parcopy = params.copy()
-    for i, p in enumerate(vn):
-        v = pos[i]
-        if (v < parcopy[p].min) or (v > parcopy[p].max):
-            return -np.inf
-        parcopy[p].value = v
+    parcopy, lnprior = _make_trial_params(pos, params, vn)
+    if parcopy is None: return -np.inf
+
     fit = model.eval(parcopy, t=time)
     if return_fit:
         return fit
 
     if False in np.isfinite(fit):
-        return -np.inf
-
-    # Also check parameter range here so we catch "derived" parameters
-    # that are out of range.
-    lnprior = _log_prior(parcopy['D'], parcopy['W'], parcopy['b'])
-    if not np.isfinite(lnprior):
-        return -np.inf
-
-    for p in parcopy:
-        v = parcopy[p].value
-        if (v < parcopy[p].min) or (v > parcopy[p].max):
-            return -np.inf
-        if np.isnan(v):
-            return -np.inf
-        u = parcopy[p].user_data
-        if isinstance(u, UFloat):
-            lnprior += -0.5*((u.n - v)/u.s)**2
-    if not np.isfinite(lnprior):
         return -np.inf
 
     jitter = np.exp(parcopy['log_sigma'].value)
@@ -169,15 +191,9 @@ def _log_posterior_jitter(pos, model, time, flux, flux_err,  params, vn,
 def _log_posterior_SHOTerm(pos, model, time, flux, flux_err,  params, vn, gp, 
         return_fit):
 
-    # Check for pos[i] within valid range has to be done here
-    # because it gets set to the limiting value if out of range by the
-    # assignment to a parameter with min/max defined.
-    parcopy = params.copy()
-    for i, p in enumerate(vn):
-        v = pos[i]
-        if (v < parcopy[p].min) or (v > parcopy[p].max):
-            return -np.inf
-        parcopy[p].value = v
+    parcopy, lnprior = _make_trial_params(pos, params, vn)
+    if parcopy is None: return -np.inf
+
     fit = model.eval(parcopy, t=time)
     if return_fit:
         return fit
@@ -185,32 +201,10 @@ def _log_posterior_SHOTerm(pos, model, time, flux, flux_err,  params, vn, gp,
     if False in np.isfinite(fit):
         return -np.inf
     
-    # Also check parameter range here so we catch "derived" parameters
-    # that are out of range.
-    lnprior = _log_prior(parcopy['D'], parcopy['W'], parcopy['b'])
-    if not np.isfinite(lnprior):
-        return -np.inf
-    for p in parcopy:
-        v = parcopy[p].value
-        if (v < parcopy[p].min) or (v > parcopy[p].max):
-            return -np.inf
-        if np.isnan(v):
-            return -np.inf
-        u = parcopy[p].user_data
-        if isinstance(u, UFloat):
-            lnprior += -0.5*((u.n - v)/u.s)**2
-    if not np.isfinite(lnprior):
-        return -np.inf
-
     resid = flux-fit
-    gp.set_parameter('kernel:terms[0]:log_S0',
-            parcopy['log_S0'].value)
-    gp.set_parameter('kernel:terms[0]:log_Q',
-            parcopy['log_Q'].value)
-    gp.set_parameter('kernel:terms[0]:log_omega0',
-            parcopy['log_omega0'].value)
-    gp.set_parameter('kernel:terms[1]:log_sigma',
-            parcopy['log_sigma'].value)
+    for p in ['log_S0', 'log_Q', 'log_omega0', 'log_sigma']:
+        k = 1 if p == 'log_sigma' else 0
+        gp.set_parameter(f'kernel:terms[{k}]:{p}', parcopy[p].value)
     return gp.log_likelihood(resid) + lnprior
     
 #---------------
@@ -271,7 +265,6 @@ def _make_labels(plotkeys, bjd_ref):
         else:
             labels.append(key)
     return labels
-
     
 #---------------
 
@@ -309,7 +302,7 @@ class Dataset(object):
         if tgzPath.is_file() and not force_download:
             if verbose:
                 print('Found archive tgzfile',self.tgzfile)
-                view_report = False
+            view_report = False
         else:
             if download_all:
                 file_type='all'
@@ -547,6 +540,82 @@ class Dataset(object):
 
         return self(file_key=file_key, target=target, verbose=verbose)
 
+#---------------------------------
+
+# Pickling
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+
+        # Replace lmfit model with its string representation
+        if 'model' in state.keys():
+            model_repr = state['model'].__repr__()
+            state['model'] = model_repr
+        else:
+            state['model'] = ''
+
+        # There may also be an instance of an lmfit model buried in 
+        # sampler.log_prob_fn.args - replace with its string representation
+        if 'sampler' in state.keys():
+            args = state['sampler'].log_prob_fn.args
+            model_repr = args[0].__repr__()
+            state['sampler'].log_prob_fn.args = (model_repr, *args[1:])
+
+        return state
+
+    #------
+
+    def __setstate__(self, state):
+
+        def reconstruct_model(model_repr,state):
+            if '_transit_func' in model_repr:
+                model = TransitModel()*self.__factor_model__()
+            elif '_eclipse_func' in model_repr:
+                model = EclipseModel()*self.__factor_model__()
+            if 'glint_func' in model_repr:
+                model += Model(_glint_func, independent_vars=['t'],
+                    f_theta=state['f_theta'], f_glint=state['f_glint'])
+            return model
+
+        self.__dict__.update(state)
+
+        if 'model' in state.keys():
+            self.model = reconstruct_model(state['model'],state)
+
+        if 'sampler' in state.keys():
+            args = state['sampler'].log_prob_fn.args
+            model = reconstruct_model(args[0],state)
+            state['sampler'].log_prob_fn.args = (model, *args[1:])
+
+    #------
+
+    def save(self):
+        """
+        Save the current file as a pickle file
+
+        :returns: pickle file name
+        """
+        fl = self.target.replace(" ","_")+'__'+self.file_key+'.dataset'
+        with open(fl, 'wb') as fp:
+            pickle.dump(self, fp, pickle.HIGHEST_PROTOCOL)
+        return fl
+
+    #------
+
+    @classmethod
+    def load(self, filename):
+        """
+        Load a dataset from a pickle file
+
+        :param filename: pickle file name
+
+        :returns: dataset object
+        
+        """
+        with open(filename, 'rb') as fp:
+            self = pickle.load(fp)
+        return self
+
 #----
         
     def get_imagettes(self, verbose=True):
@@ -762,14 +831,13 @@ class Dataset(object):
 
         subprocess.run(pdf_cmd.format(pdfPath),shell=True)
 
-        
 #----
 
     def animate_frames(self, nframes=10, vmin=1., vmax=1., subarray=True,
-            imagette=False, grid=False):
-    
+            imagette=False, grid=False, writer='pillow'):
+
         sub_anim, imag_anim = [], []
-        for hindex, h in enumerate([subarray, imagette]): 
+        for hindex, h in enumerate([subarray, imagette]):
             if h == True:
                 if hindex == 0:
                     title = str(self.target) + " - subarray"
@@ -783,15 +851,15 @@ class Dataset(object):
                     try:
                         frame_cube = self.get_imagettes()[::nframes,:,:]
                     except:
-                        print("\nNo imagette data.")    
+                        print("\nNo imagette data.")
                         continue
             else:
-                continue       
+                continue
 
             fig = plt.figure()
             plt.xlabel("Row (pixel)")
             plt.ylabel("Column (pixel)")
-            plt.title(title)             
+            plt.title(title)
             if grid:
                 ax = plt.gca()
                 ax.grid(color='w', linestyle='-', linewidth=1)
@@ -806,40 +874,55 @@ class Dataset(object):
                     img_max = 200000
                 else:
                     img_max = np.amax(frame_cube[i,:,:])
-                
-                image = plt.imshow(frame_cube[i,:,:], norm=colors.Normalize(vmin=vmin*img_min, vmax=vmax*img_max), 
-                                   origin="lower")
+
+                image = plt.imshow(frame_cube[i,:,:],
+                        norm=colors.Normalize(vmin=vmin*img_min,
+                            vmax=vmax*img_max),
+                        origin="lower")
                 frames.append([image])
 
-
-            # Suppress annoying logger warnings from animation module 
+            # Suppress annoying logger warnings from animation module
             logging.getLogger('matplotlib.animation').setLevel(logging.ERROR)
             if hindex == 0:
                 sub_anim = animation.ArtistAnimation(fig, frames, blit=True)
-                sub_anim.save(title.replace(" ","")+'.gif', writer='pillow')
+                sub_anim.save(title.replace(" ","")+'.gif', writer=writer)
                 with open(title.replace(" ","")+'.gif','rb') as file:
                     display(Image(file.read()))
-                print("Subarray is saved in the current directory as " + title.replace(" ","")+'.gif')
-                
+                print("Subarray is saved in the current directory as " +
+                        title.replace(" ","")+'.gif')
+
             elif hindex == 1:
                 imag_anim = animation.ArtistAnimation(fig, frames, blit=True)
-                imag_anim.save(title.replace(" ","")+'.gif', writer='pillow')
+                imag_anim.save(title.replace(" ","")+'.gif', writer=writer)
                 with open(title.replace(" ","")+'.gif','rb') as file:
                     display(Image(file.read()))
-                print("Imagette is saved in the current directory as " + title.replace(" ","")+'.gif')
-                    
+                print("Imagette is saved in the current directory as " +
+                        title.replace(" ","")+'.gif')
+
             plt.close()
-    
-        if subarray and not imagette:    
+
+        if subarray and not imagette:
             return sub_anim
         elif imagette and not subarray:
             return imag_anim
         elif subarray and imagette:
             return sub_anim, imag_anim
-        
-
  #----------------------------------------------------------------------------
+ 
  # Eclipse and transit fitting
+
+    def __factor_model__(self):
+        time = np.array(self.lc['time'])
+        phi = self.lc['roll_angle']*np.pi/180
+        return FactorModel(
+            dx = _make_interp(time, self.lc['xoff'], scale='range'),
+            dy = _make_interp(time, self.lc['yoff'], scale='range'),
+            sinphi = _make_interp(time,np.sin(phi)),
+            cosphi = _make_interp(time,np.cos(phi)),
+            bg = _make_interp(time,self.lc['bg'], scale='max'),
+            contam = _make_interp(time,self.lc['contam'], scale='max'))
+
+    #---
 
     def lmfit_transit(self, 
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
@@ -852,23 +935,24 @@ class Dataset(object):
         """
         Fit a transit to the light curve in the current dataset.
 
-        Parameter values can be specified in one of three ways
+        Parameter values can be specified in one of the following ways:
 
-        * Fixed value, e.g., P=1.234
-        * Free parameter with uniform prior interval specified as a 2-tuple,
+        * fixed value, e.g., P=1.234
+        * free parameter with uniform prior interval specified as a 2-tuple,
           e.g., dfdx=(-1,1). The initial value is taken as the the mid-point of
-          the allowed interval.
-        * Free parameter with uniform prior interval and initial value
-          specified as a 3-tuple, e.g., (0.1, 0.2, 1)
-        * Free parameter with a Gaussian prior specified as a ufloat, e.g.,
-          ufloat(0,1).
+          the allowed interval;
+        * free parameter with uniform prior interval and initial value
+          specified as a 3-tuple, e.g., (0.1, 0.2, 1);
+        * free parameter with a Gaussian prior specified as a ufloat, e.g.,
+          ufloat(0,1);
+        * as an lmfit Parameter object.
 
         To enable decorrelation against a parameter, specifiy it as a free
         parameter, e.g., dfdbg=(0,1).
 
         Decorrelation is done against is a scaled version of the quantity
         specified with a range of either (-1,1) or, for strictly positive
-        quantities, (0,1). This means the coeffieicnts dfdx, dfdy, etc.
+        quantities, (0,1). This means the coefficients dfdx, dfdy, etc.
         correspond to the amplitude of the flux variation due to the
         correlation with the relevant parameter.
 
@@ -981,13 +1065,7 @@ class Dataset(object):
         params.add('q_1',min=0,max=1,expr='(1-h_2)**2')
         params.add('q_2',min=0,max=1,expr='(h_1-h_2)/(1-h_2)')
 
-        model = TransitModel()*FactorModel(
-            dx = _make_interp(time, xoff, scale='range'),
-            dy = _make_interp(time, yoff, scale='range'),
-            sinphi = _make_interp(time,np.sin(phi)),
-            cosphi = _make_interp(time,np.cos(phi)),
-            bg = _make_interp(time,bg, scale='max'),
-            contam = _make_interp(time,contam, scale='max') )
+        model = TransitModel()*self.__factor_model__()
 
         if 'glint_scale' in params.valuesdict().keys():
             try:
@@ -995,12 +1073,9 @@ class Dataset(object):
                 f_glint = self.f_glint
             except AttributeError:
                 raise AttributeError("Use add_glint() to first.")
-            def glint_func(t, glint_scale, f_theta=None, f_glint=None ):
-                return glint_scale * f_glint(f_theta(t))
-            GlintModel = Model(glint_func, independent_vars=['t'],
+            GlintModel = Model(_glint_func, independent_vars=['t'],
                 f_theta=f_theta, f_glint=f_glint)
             model += GlintModel
-
 
         result = minimize(_chisq_prior, params,nan_policy='propagate',
                 args=(model, time, flux, flux_err))
@@ -1109,7 +1184,6 @@ class Dataset(object):
             time = time[~mask]
             theta = theta[~mask]
             y = y[~mask]
-
 
         # Copies of data for theta-360 and theta+360 used to make
         # interpolating function periodic
@@ -1257,13 +1331,7 @@ class Dataset(object):
         params.add('sini',expr='sqrt(1 - (b/aR)**2)')
         params.add('e',min=0,max=1,expr='f_c**2 + f_s**2')
 
-        model = EclipseModel()*FactorModel(
-            dx = _make_interp(time, xoff, scale='range'),
-            dy = _make_interp(time, yoff, scale='range'),
-            sinphi = _make_interp(time,np.sin(phi)),
-            cosphi = _make_interp(time,np.cos(phi)),
-            bg = _make_interp(time,bg, scale='max'),
-            contam = _make_interp(time,contam, scale='max') )
+        model = EclipseModel()*self.__factor_model__()
 
         if 'glint_scale' in params.valuesdict().keys():
             try:
@@ -1271,9 +1339,7 @@ class Dataset(object):
                 f_glint = self.f_glint
             except AttributeError:
                 raise AttributeError("Use add_glint() to first.")
-            def glint_func(t, glint_scale, f_theta=None, f_glint=None ):
-                return glint_scale * f_glint(f_theta(t))
-            GlintModel = Model(glint_func, independent_vars=['t'],
+            GlintModel = Model(_glint_func, independent_vars=['t'],
                 f_theta=f_theta, f_glint=f_glint)
             model += GlintModel
 
@@ -1325,7 +1391,7 @@ class Dataset(object):
     def emcee_sampler(self, params=None,
             steps=128, nwalkers=64, burn=256, thin=4, log_sigma=None, 
             add_shoterm=False, log_omega0=None, log_S0=None, log_Q=None,
-            init_scale=1e-3, progress=True):
+            init_scale=1e-2, progress=True):
 
         try:
             time = np.array(self.lc['time'])
@@ -1342,7 +1408,7 @@ class Dataset(object):
 
         # Make a copy of the lmfit Minimizer result as a template for the
         # output of this method
-        result = copy.copy(self.lmfit)
+        result = copy(self.lmfit)
         result.method ='emcee'
         # Remove components on result not relevant for emcee
         result.status = None
@@ -1388,23 +1454,21 @@ class Dataset(object):
             params['log_sigma'] = _kw_to_Parameter('log_sigma', log_sigma)
         params.add('sigma_w',expr='exp(log_sigma)*1e6')
 
-        vv = []
-        vs = []
-        vn = []
+        vv, vs, vn = [], [], []
         for p in params:
             if params[p].vary:
                 vn.append(p)
                 vv.append(params[p].value)
                 if params[p].stderr is None:
                     if params[p].user_data is None:
-                        vs.append(0.1*(params[p].max-params[p].min))
+                        vs.append(0.01*(params[p].max-params[p].min))
                     else:
                         vs.append(params[p].user_data.s)
                 else:
                     if np.isfinite(params[p].stderr):
                         vs.append(params[p].stderr)
                     else:
-                        vs.append(0.1*(params[p].max-params[p].min))
+                        vs.append(0.01*(params[p].max-params[p].min))
 
         result.var_names = vn
         result.init_vals = vv
@@ -1418,7 +1482,8 @@ class Dataset(object):
         args=(model, time, flux, flux_err,  params, vn)
         p = list(params.keys())
         if 'log_S0' in p and 'log_omega0' in p and 'log_Q' in p :
-            kernel = terms.SHOTerm(log_S0=params['log_S0'].value,
+            kernel = terms.SHOTerm(
+                    log_S0=params['log_S0'].value,
                     log_Q=params['log_Q'].value,
                     log_omega0=params['log_omega0'].value)
             kernel += terms.JitterTerm(log_sigma=params['log_sigma'].value)
@@ -1444,7 +1509,6 @@ class Dataset(object):
             while lnlike_i == -np.inf:
                 pos_i = vv + vs*np.random.randn(n_varys)*init_scale
                 lnlike_i = log_posterior_func(pos_i, *args)
-
             pos.append(pos_i)
 
         sampler = EnsembleSampler(nwalkers, n_varys, log_posterior_func,
@@ -1579,11 +1643,6 @@ class Dataset(object):
         ax[-1].set_xlabel("step number");
 
         return fig
-
-
-
-
-
 
     # ----------------------------------------------------------------
 
@@ -1737,7 +1796,6 @@ class Dataset(object):
         ax.set_ylabel('Power [ppm$^2$ $\mu$Hz$^{-1}$]');
         ax.set_title(title)
         return fig
-    
 
     # ------------------------------------------------------------
     
@@ -1764,7 +1822,7 @@ class Dataset(object):
         tmax = np.round(np.max(time)+0.05*np.ptp(time),2)
         tp = np.linspace(tmin, tmax, 10*len(time))
         fp = self.model.eval(params,t=tp)
-        glint = model.right.name == 'Model(glint_func)'
+        glint = model.right.name == 'Model(_glint_func)'
         if detrend:
             if glint:
                 flux -= model.right.eval(params, t=time)  # de-glint
@@ -1841,13 +1899,13 @@ class Dataset(object):
             raise AttributeError(
                     "Use emcee_transit() or emcee_eclipse() first.")
 
-        res = flux - self.model.eval(parbest, t=time)
+        res = flux - model.eval(parbest, t=time)
         tmin = np.round(np.min(time)-0.05*np.ptp(time),2)
         tmax = np.round(np.max(time)+0.05*np.ptp(time),2)
         tp = np.linspace(tmin, tmax, 10*len(time))
-        fp = self.model.eval(parbest,t=tp)
-        glint = model.right.name == 'Model(glint_func)'
-        flux0 = flux + 0  # Copy flux, don't point to it!
+        fp = model.eval(parbest,t=tp)
+        glint = model.right.name == 'Model(_glint_func)'
+        flux0 = copy(flux)
         if detrend:
             if glint:
                 flux -= model.right.eval(parbest, t=time)  # de-glint
@@ -1886,13 +1944,13 @@ class Dataset(object):
                     dtype=np.int):
                 for j, n in enumerate(self.emcee.var_names):
                     partmp[n].value = self.emcee.chain[i,j]
-                    fp = self.model.eval(partmp,t=tp)
+                    fp = model.eval(partmp,t=tp)
                     if detrend:
                         if glint:
                             fp -= model.right.eval(partmp, t=tp)
                             fp /= model.left.right.eval(partmp, t=tp) 
                         else: 
-                            fp /= self.model.right.eval(partmp, t=tp)
+                            fp /= model.right.eval(partmp, t=tp)
                 ax[0].plot(tp,fp,c='saddlebrown',zorder=1,alpha=0.1)
         else:
             self.gp.set_parameter('kernel:terms[0]:log_S0',
@@ -1905,7 +1963,7 @@ class Dataset(object):
                     parbest['log_sigma'].value)
 
             mu0 = self.gp.predict(res,tp,return_cov=False,return_var=False)
-            pp = mu0 + self.model.eval(parbest,t=tp)
+            pp = mu0 + model.eval(parbest,t=tp)
             if detrend:
                 if glint:
                     pp -= model.right.eval(parbest, t=tp)  # de-glint
@@ -1917,7 +1975,7 @@ class Dataset(object):
                     dtype=np.int):
                 for j, n in enumerate(self.emcee.var_names):
                     partmp[n].value = self.emcee.chain[i,j]
-                rr = flux0 - self.model.eval(partmp, t=time)
+                rr = flux0 - model.eval(partmp, t=time)
                 self.gp.set_parameter('kernel:terms[0]:log_S0',
                         partmp['log_S0'].value)
                 self.gp.set_parameter('kernel:terms[0]:log_Q',
@@ -1927,7 +1985,7 @@ class Dataset(object):
                 self.gp.set_parameter('kernel:terms[1]:log_sigma',
                         partmp['log_sigma'].value)
                 mu = self.gp.predict(rr,tp,return_var=False,return_cov=False)
-                pp = mu + self.model.eval(partmp, t=tp)
+                pp = mu + model.eval(partmp, t=tp)
                 if detrend:
                     if glint:
                         pp -= model.right.eval(partmp, t=tp)  # de-glint
@@ -2401,7 +2459,7 @@ class Dataset(object):
         The orignal data are saved in lc_unmask
 
         """
-        self.lc_unmask = copy.copy(self.lc)
+        self.lc_unmask = copy(self.lc)
         for k in self.lc:
             if isinstance(self.lc[k],np.ndarray):
                 self.lc[k] = self.lc[k][~mask]
@@ -2439,7 +2497,7 @@ class Dataset(object):
                     'ppm from the median'.format(sum(~ok),clip,1e6*mad*clip))
         return self.lc['time'], self.lc['flux'], self.lc['flux_err']
 
-    #------
+#----------------------------------
 
     def diagnostic_plot(self, fname=None,
             figsize=(8,8), fontsize=10, flagged=None):
