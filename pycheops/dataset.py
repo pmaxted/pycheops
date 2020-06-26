@@ -816,20 +816,14 @@ class Dataset(object):
             logging.getLogger('matplotlib.animation').setLevel(logging.ERROR)
             if hindex == 0:
                 sub_anim = animation.ArtistAnimation(fig, frames, blit=True)
-                try:               
-                    sub_anim.save(title.replace(" ","")+'.gif', writer='PillowWriter')
-                except:
-                    sub_anim.save(title.replace(" ","")+'.gif', writer='pillow')
+                sub_anim.save(title.replace(" ","")+'.gif', writer='pillow')
                 with open(title.replace(" ","")+'.gif','rb') as file:
                     display(Image(file.read()))
                 print("Subarray is saved in the current directory as " + title.replace(" ","")+'.gif')
                 
             elif hindex == 1:
                 imag_anim = animation.ArtistAnimation(fig, frames, blit=True)
-                try:               
-                    sub_anim.save(title.replace(" ","")+'.gif', writer='PillowWriter')
-                except:
-                    sub_anim.save(title.replace(" ","")+'.gif', writer='pillow')
+                imag_anim.save(title.replace(" ","")+'.gif', writer='pillow')
                 with open(title.replace(" ","")+'.gif','rb') as file:
                     display(Image(file.read()))
                 print("Imagette is saved in the current directory as " + title.replace(" ","")+'.gif')
