@@ -1822,7 +1822,7 @@ class Dataset(object):
         tmax = np.round(np.max(time)+0.05*np.ptp(time),2)
         tp = np.linspace(tmin, tmax, 10*len(time))
         fp = self.model.eval(params,t=tp)
-        glint = model.right.name == 'Model(glint_func)'
+        glint = model.right.name == 'Model(_glint_func)'
         if detrend:
             if glint:
                 flux -= model.right.eval(params, t=time)  # de-glint
@@ -1899,12 +1899,12 @@ class Dataset(object):
             raise AttributeError(
                     "Use emcee_transit() or emcee_eclipse() first.")
 
-        res = flux - self.model.eval(parbest, t=time)
+        res = flux - model.eval(parbest, t=time)
         tmin = np.round(np.min(time)-0.05*np.ptp(time),2)
         tmax = np.round(np.max(time)+0.05*np.ptp(time),2)
         tp = np.linspace(tmin, tmax, 10*len(time))
-        fp = self.model.eval(parbest,t=tp)
-        glint = model.right.name == 'Model(glint_func)'
+        fp = model.eval(parbest,t=tp)
+        glint = model.right.name == 'Model(_glint_func)'
         flux0 = copy(flux)
         if detrend:
             if glint:
@@ -1944,13 +1944,13 @@ class Dataset(object):
                     dtype=np.int):
                 for j, n in enumerate(self.emcee.var_names):
                     partmp[n].value = self.emcee.chain[i,j]
-                    fp = self.model.eval(partmp,t=tp)
+                    fp = model.eval(partmp,t=tp)
                     if detrend:
                         if glint:
                             fp -= model.right.eval(partmp, t=tp)
                             fp /= model.left.right.eval(partmp, t=tp) 
                         else: 
-                            fp /= self.model.right.eval(partmp, t=tp)
+                            fp /= model.right.eval(partmp, t=tp)
                 ax[0].plot(tp,fp,c='saddlebrown',zorder=1,alpha=0.1)
         else:
             self.gp.set_parameter('kernel:terms[0]:log_S0',
@@ -1963,7 +1963,7 @@ class Dataset(object):
                     parbest['log_sigma'].value)
 
             mu0 = self.gp.predict(res,tp,return_cov=False,return_var=False)
-            pp = mu0 + self.model.eval(parbest,t=tp)
+            pp = mu0 + model.eval(parbest,t=tp)
             if detrend:
                 if glint:
                     pp -= model.right.eval(parbest, t=tp)  # de-glint
@@ -1975,7 +1975,7 @@ class Dataset(object):
                     dtype=np.int):
                 for j, n in enumerate(self.emcee.var_names):
                     partmp[n].value = self.emcee.chain[i,j]
-                rr = flux0 - self.model.eval(partmp, t=time)
+                rr = flux0 - model.eval(partmp, t=time)
                 self.gp.set_parameter('kernel:terms[0]:log_S0',
                         partmp['log_S0'].value)
                 self.gp.set_parameter('kernel:terms[0]:log_Q',
@@ -1985,7 +1985,7 @@ class Dataset(object):
                 self.gp.set_parameter('kernel:terms[1]:log_sigma',
                         partmp['log_sigma'].value)
                 mu = self.gp.predict(rr,tp,return_var=False,return_cov=False)
-                pp = mu + self.model.eval(partmp, t=tp)
+                pp = mu + model.eval(partmp, t=tp)
                 if detrend:
                     if glint:
                         pp -= model.right.eval(partmp, t=tp)  # de-glint
