@@ -834,10 +834,10 @@ class Dataset(object):
 #----
 
     def animate_frames(self, nframes=10, vmin=1., vmax=1., subarray=True,
-            imagette=False, grid=False):
-    
+            imagette=False, grid=False, writer='pillow'):
+
         sub_anim, imag_anim = [], []
-        for hindex, h in enumerate([subarray, imagette]): 
+        for hindex, h in enumerate([subarray, imagette]):
             if h == True:
                 if hindex == 0:
                     title = str(self.target) + " - subarray"
@@ -851,15 +851,15 @@ class Dataset(object):
                     try:
                         frame_cube = self.get_imagettes()[::nframes,:,:]
                     except:
-                        print("\nNo imagette data.")    
+                        print("\nNo imagette data.")
                         continue
             else:
-                continue       
+                continue
 
             fig = plt.figure()
             plt.xlabel("Row (pixel)")
             plt.ylabel("Column (pixel)")
-            plt.title(title)             
+            plt.title(title)
             if grid:
                 ax = plt.gca()
                 ax.grid(color='w', linestyle='-', linewidth=1)
@@ -874,48 +874,39 @@ class Dataset(object):
                     img_max = 200000
                 else:
                     img_max = np.amax(frame_cube[i,:,:])
-                
+
                 image = plt.imshow(frame_cube[i,:,:],
                         norm=colors.Normalize(vmin=vmin*img_min,
                             vmax=vmax*img_max),
                         origin="lower")
                 frames.append([image])
 
-
-            # Suppress annoying logger warnings from animation module 
+            # Suppress annoying logger warnings from animation module
             logging.getLogger('matplotlib.animation').setLevel(logging.ERROR)
             if hindex == 0:
                 sub_anim = animation.ArtistAnimation(fig, frames, blit=True)
-                try:               
-                    sub_anim.save(title.replace(" ","")+'.gif', writer='PillowWriter')
-                except:
-                    sub_anim.save(title.replace(" ","")+'.gif', writer='pillow')
+                sub_anim.save(title.replace(" ","")+'.gif', writer=writer)
                 with open(title.replace(" ","")+'.gif','rb') as file:
                     display(Image(file.read()))
                 print("Subarray is saved in the current directory as " +
                         title.replace(" ","")+'.gif')
-                
+
             elif hindex == 1:
                 imag_anim = animation.ArtistAnimation(fig, frames, blit=True)
-                try:               
-                    sub_anim.save(title.replace(" ","")+'.gif', writer='PillowWriter')
-                except:
-                    sub_anim.save(title.replace(" ","")+'.gif', writer='pillow')
+                imag_anim.save(title.replace(" ","")+'.gif', writer=writer)
                 with open(title.replace(" ","")+'.gif','rb') as file:
                     display(Image(file.read()))
                 print("Imagette is saved in the current directory as " +
                         title.replace(" ","")+'.gif')
-                    
+
             plt.close()
-    
-        if subarray and not imagette:    
+
+        if subarray and not imagette:
             return sub_anim
         elif imagette and not subarray:
             return imag_anim
         elif subarray and imagette:
             return sub_anim, imag_anim
-        
-
  #----------------------------------------------------------------------------
  
  # Eclipse and transit fitting

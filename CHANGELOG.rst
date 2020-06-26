@@ -7,6 +7,8 @@ Changes since 0.6.0 onwards.
 * Added load() and save() to dataset
 * Added dace keywords to StarProperties
 * Added option to set user-defined values using a 2-tuple in StarProperties 
+* Bug fixes for animate_frames 
+* Add requirement for matplotlib 3.2.2 to setup.py
 
 0.7.8 (2020-06-03)
 ~~~~~~~~~~~~~~~~~~
