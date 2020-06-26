@@ -39,7 +39,6 @@ import matplotlib.pyplot as plt
 from .instrument import transit_noise
 from ftplib import FTP
 from .models import TransitModel, FactorModel, EclipseModel
-from uncertainties import UFloat
 from lmfit import Parameter, Parameters, minimize, Minimizer,fit_report
 from lmfit import __version__ as _lmfit_version_
 from lmfit import Model
@@ -47,7 +46,7 @@ from scipy.interpolate import interp1d, LSQUnivariateSpline
 import matplotlib.pyplot as plt
 from emcee import EnsembleSampler
 import corner
-import copy
+from copy import copy
 from celerite import terms, GP
 from sys import stdout 
 from astropy.coordinates import SkyCoord, get_body, Angle
@@ -70,6 +69,7 @@ import matplotlib.animation as animation
 import matplotlib.colors as colors
 from IPython.display import Image
 import subprocess
+import pickle
 import warnings
 
 try:
@@ -108,6 +108,50 @@ def _make_interp(t,x,scale=None):
         raise ValueError('scale must be None, max or range')
     return interp1d(t,z,bounds_error=False, fill_value=(z[0],z[-1]))
 
+#---
+
+def _glint_func(t, glint_scale, f_theta=None, f_glint=None ):
+    return glint_scale * f_glint(f_theta(t))
+
+#---
+
+def _make_trial_params(pos, params, vn):
+    # Create a copy of the params object with the parameter values give in
+    # list vn replaced with trial values from array pos.
+    # Also returns the contribution to the log-likelihood of the parameter
+    # values. 
+    # Return value is parcopy, lnprior
+    # If any of the parameters are out of range, returns None, -inf
+    parcopy = params.copy()
+    lnprior = 0 
+    for i, p in enumerate(vn):
+        v = pos[i]
+        if (v < parcopy[p].min) or (v > parcopy[p].max):
+            return None, -np.inf
+        parcopy[p].value = v
+
+    lnprior = _log_prior(parcopy['D'], parcopy['W'], parcopy['b'])
+    if not np.isfinite(lnprior):
+        return None, -np.inf
+
+    # Also check parameter range here so we catch "derived" parameters
+    # that are out of range.
+    for p in parcopy:
+        v = parcopy[p].value
+        if (v < parcopy[p].min) or (v > parcopy[p].max):
+            return None, -np.inf
+        if np.isnan(v):
+            return None, -np.inf
+        u = parcopy[p].user_data
+        if isinstance(u, UFloat):
+            lnprior += -0.5*((u.n - v)/u.s)**2
+    if not np.isfinite(lnprior):
+        return None, -np.inf
+
+    return parcopy, lnprior
+
+#---
+
 # Prior on (D, W, b) for transit/eclipse fitting.
 # This prior assumes uniform priors on cos(i), log(k) and log(aR). The
 # factor 2kW is the absolute value of the determinant of the Jacobian, 
@@ -121,42 +165,20 @@ def _log_prior(D, W, b):
     if (aR < 2): return -np.inf
     return -np.log(2*k*W) - np.log(k) - np.log(aR)
 
+#---
+
 # Target functions for emcee
 def _log_posterior_jitter(pos, model, time, flux, flux_err,  params, vn,
         return_fit):
 
-    # Check for pos[i] within valid range has to be done here
-    # because it gets set to the limiting value if out of range by the
-    # assignment to a parameter with min/max defined.
-    parcopy = params.copy()
-    for i, p in enumerate(vn):
-        v = pos[i]
-        if (v < parcopy[p].min) or (v > parcopy[p].max):
-            return -np.inf
-        parcopy[p].value = v
+    parcopy, lnprior = _make_trial_params(pos, params, vn)
+    if parcopy is None: return -np.inf
+
     fit = model.eval(parcopy, t=time)
     if return_fit:
         return fit
 
     if False in np.isfinite(fit):
-        return -np.inf
-
-    # Also check parameter range here so we catch "derived" parameters
-    # that are out of range.
-    lnprior = _log_prior(parcopy['D'], parcopy['W'], parcopy['b'])
-    if not np.isfinite(lnprior):
-        return -np.inf
-
-    for p in parcopy:
-        v = parcopy[p].value
-        if (v < parcopy[p].min) or (v > parcopy[p].max):
-            return -np.inf
-        if np.isnan(v):
-            return -np.inf
-        u = parcopy[p].user_data
-        if isinstance(u, UFloat):
-            lnprior += -0.5*((u.n - v)/u.s)**2
-    if not np.isfinite(lnprior):
         return -np.inf
 
     jitter = np.exp(parcopy['log_sigma'].value)
@@ -169,15 +191,9 @@ def _log_posterior_jitter(pos, model, time, flux, flux_err,  params, vn,
 def _log_posterior_SHOTerm(pos, model, time, flux, flux_err,  params, vn, gp, 
         return_fit):
 
-    # Check for pos[i] within valid range has to be done here
-    # because it gets set to the limiting value if out of range by the
-    # assignment to a parameter with min/max defined.
-    parcopy = params.copy()
-    for i, p in enumerate(vn):
-        v = pos[i]
-        if (v < parcopy[p].min) or (v > parcopy[p].max):
-            return -np.inf
-        parcopy[p].value = v
+    parcopy, lnprior = _make_trial_params(pos, params, vn)
+    if parcopy is None: return -np.inf
+
     fit = model.eval(parcopy, t=time)
     if return_fit:
         return fit
@@ -185,32 +201,10 @@ def _log_posterior_SHOTerm(pos, model, time, flux, flux_err,  params, vn, gp,
     if False in np.isfinite(fit):
         return -np.inf
     
-    # Also check parameter range here so we catch "derived" parameters
-    # that are out of range.
-    lnprior = _log_prior(parcopy['D'], parcopy['W'], parcopy['b'])
-    if not np.isfinite(lnprior):
-        return -np.inf
-    for p in parcopy:
-        v = parcopy[p].value
-        if (v < parcopy[p].min) or (v > parcopy[p].max):
-            return -np.inf
-        if np.isnan(v):
-            return -np.inf
-        u = parcopy[p].user_data
-        if isinstance(u, UFloat):
-            lnprior += -0.5*((u.n - v)/u.s)**2
-    if not np.isfinite(lnprior):
-        return -np.inf
-
     resid = flux-fit
-    gp.set_parameter('kernel:terms[0]:log_S0',
-            parcopy['log_S0'].value)
-    gp.set_parameter('kernel:terms[0]:log_Q',
-            parcopy['log_Q'].value)
-    gp.set_parameter('kernel:terms[0]:log_omega0',
-            parcopy['log_omega0'].value)
-    gp.set_parameter('kernel:terms[1]:log_sigma',
-            parcopy['log_sigma'].value)
+    for p in ['log_S0', 'log_Q', 'log_omega0', 'log_sigma']:
+        k = 1 if p == 'log_sigma' else 0
+        gp.set_parameter(f'kernel:terms[{k}]:{p}', parcopy[p].value)
     return gp.log_likelihood(resid) + lnprior
     
 #---------------
@@ -271,7 +265,6 @@ def _make_labels(plotkeys, bjd_ref):
         else:
             labels.append(key)
     return labels
-
     
 #---------------
 
@@ -309,7 +302,7 @@ class Dataset(object):
         if tgzPath.is_file() and not force_download:
             if verbose:
                 print('Found archive tgzfile',self.tgzfile)
-                view_report = False
+            view_report = False
         else:
             if download_all:
                 file_type='all'
@@ -547,6 +540,82 @@ class Dataset(object):
 
         return self(file_key=file_key, target=target, verbose=verbose)
 
+#---------------------------------
+
+# Pickling
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+
+        # Replace lmfit model with its string representation
+        if 'model' in state.keys():
+            model_repr = state['model'].__repr__()
+            state['model'] = model_repr
+        else:
+            state['model'] = ''
+
+        # There may also be an instance of an lmfit model buried in 
+        # sampler.log_prob_fn.args - replace with its string representation
+        if 'sampler' in state.keys():
+            args = state['sampler'].log_prob_fn.args
+            model_repr = args[0].__repr__()
+            state['sampler'].log_prob_fn.args = (model_repr, *args[1:])
+
+        return state
+
+    #------
+
+    def __setstate__(self, state):
+
+        def reconstruct_model(model_repr,state):
+            if '_transit_func' in model_repr:
+                model = TransitModel()*self.__factor_model__()
+            elif '_eclipse_func' in model_repr:
+                model = EclipseModel()*self.__factor_model__()
+            if 'glint_func' in model_repr:
+                model += Model(_glint_func, independent_vars=['t'],
+                    f_theta=state['f_theta'], f_glint=state['f_glint'])
+            return model
+
+        self.__dict__.update(state)
+
+        if 'model' in state.keys():
+            self.model = reconstruct_model(state['model'],state)
+
+        if 'sampler' in state.keys():
+            args = state['sampler'].log_prob_fn.args
+            model = reconstruct_model(args[0],state)
+            state['sampler'].log_prob_fn.args = (model, *args[1:])
+
+    #------
+
+    def save(self):
+        """
+        Save the current file as a pickle file
+
+        :returns: pickle file name
+        """
+        fl = self.target.replace(" ","_")+'__'+self.file_key+'.dataset'
+        with open(fl, 'wb') as fp:
+            pickle.dump(self, fp, pickle.HIGHEST_PROTOCOL)
+        return fl
+
+    #------
+
+    @classmethod
+    def load(self, filename):
+        """
+        Load a dataset from a pickle file
+
+        :param filename: pickle file name
+
+        :returns: dataset object
+        
+        """
+        with open(filename, 'rb') as fp:
+            self = pickle.load(fp)
+        return self
+
 #----
         
     def get_imagettes(self, verbose=True):
@@ -554,9 +623,9 @@ class Dataset(object):
         imPath = Path(self.tgzfile).parent / imFile
         if imPath.is_file():
             with fits.open(imPath) as hdul:
-                cube = hdul[1].data
-                hdr = hdul[1].header
-                meta = Table.read(hdul[2])
+                cube = hdul['SCI_RAW_Imagette'].data
+                hdr = hdul['SCI_RAW_Imagette'].header
+                meta = Table.read(hdul['SCI_RAW_ImagetteMetadata'])
             if verbose: print ('Imagette data loaded from ',imPath)
         else:
             if verbose: print ('Extracting imagette data from ',self.tgzfile)
@@ -569,9 +638,9 @@ class Dataset(object):
             tar = tarfile.open(self.tgzfile)
             with tar.extractfile(datafile[0]) as fd:
                 hdul = fits.open(fd)
-                cube = hdul[1].data
-                hdr = hdul[1].header
-                meta = Table.read(hdul[2])
+                cube = hdul['SCI_RAW_Imagette'].data
+                hdr = hdul['SCI_RAW_Imagette'].header
+                meta = Table.read(hdul['SCI_RAW_ImagetteMetadata'])
                 hdul.writeto(imPath)
             tar.close()
             if verbose: print('Saved imagette data to ',imPath)
@@ -588,13 +657,9 @@ class Dataset(object):
         subPath = Path(self.tgzfile).parent / subFile
         if subPath.is_file():
             with fits.open(subPath) as hdul:
-                cube = hdul[1].data
-                hdr = hdul[1].header
-                # Meta can be in extention 9 or 2, so...
-                try:
-                    meta = Table.read(hdul[9])
-                except IndexError:
-                    meta = Table.read(hdul[2])
+                cube = hdul['SCI_COR_SubArray'].data
+                hdr = hdul['SCI_COR_SubArray'].header
+                meta = Table.read(hdul['SCI_COR_ImageMetadata'])
             if verbose: print ('Subarray data loaded from ',subPath)
         else:
             if verbose: print ('Extracting subarray data from ',self.tgzfile)
@@ -610,13 +675,9 @@ class Dataset(object):
             tar = tarfile.open(self.tgzfile)
             with tar.extractfile(datafile[0]) as fd:
                 hdul = fits.open(fd)
-                cube = hdul[1].data
-                hdr = hdul[1].header
-                # Meta can be in extention 9 or 2, so...
-                try:
-                    meta = Table.read(hdul[9])
-                except IndexError:
-                    meta = Table.read(hdul[2])
+                cube = hdul['SCI_COR_SubArray'].data
+                hdr = hdul['SCI_COR_SubArray'].header
+                meta = Table.read(hdul['SCI_COR_ImageMetadata'])
                 hdul.writeto(subPath)
             tar.close()
             if verbose: print('Saved subarray data to ',subPath)
@@ -770,14 +831,13 @@ class Dataset(object):
 
         subprocess.run(pdf_cmd.format(pdfPath),shell=True)
 
-        
 #----
 
     def animate_frames(self, nframes=10, vmin=1., vmax=1., subarray=True,
-            imagette=False, grid=False):
-    
+            imagette=False, grid=False, writer='pillow'):
+
         sub_anim, imag_anim = [], []
-        for hindex, h in enumerate([subarray, imagette]): 
+        for hindex, h in enumerate([subarray, imagette]):
             if h == True:
                 if hindex == 0:
                     title = str(self.target) + " - subarray"
@@ -791,15 +851,15 @@ class Dataset(object):
                     try:
                         frame_cube = self.get_imagettes()[::nframes,:,:]
                     except:
-                        print("\nNo imagette data.")    
+                        print("\nNo imagette data.")
                         continue
             else:
-                continue       
+                continue
 
             fig = plt.figure()
             plt.xlabel("Row (pixel)")
             plt.ylabel("Column (pixel)")
-            plt.title(title)             
+            plt.title(title)
             if grid:
                 ax = plt.gca()
                 ax.grid(color='w', linestyle='-', linewidth=1)
@@ -814,42 +874,55 @@ class Dataset(object):
                     img_max = 200000
                 else:
                     img_max = np.amax(frame_cube[i,:,:])
-                
-                image = plt.imshow(frame_cube[i,:,:], norm=colors.Normalize(vmin=vmin*img_min, vmax=vmax*img_max), 
-                                   origin="lower")
+
+                image = plt.imshow(frame_cube[i,:,:],
+                        norm=colors.Normalize(vmin=vmin*img_min,
+                            vmax=vmax*img_max),
+                        origin="lower")
                 frames.append([image])
 
-
-            # Suppress annoying logger warnings from animation module 
+            # Suppress annoying logger warnings from animation module
             logging.getLogger('matplotlib.animation').setLevel(logging.ERROR)
             if hindex == 0:
                 sub_anim = animation.ArtistAnimation(fig, frames, blit=True)
-                #print("MovieWriter PillowWriter warning safe to ignore.")
-                sub_anim.save(title.replace(" ","")+'.gif', writer='PillowWriter')
+                sub_anim.save(title.replace(" ","")+'.gif', writer=writer)
                 with open(title.replace(" ","")+'.gif','rb') as file:
                     display(Image(file.read()))
-                print("Subarray is saved in the current directory as " + title.replace(" ","")+'.gif')
-                
+                print("Subarray is saved in the current directory as " +
+                        title.replace(" ","")+'.gif')
+
             elif hindex == 1:
                 imag_anim = animation.ArtistAnimation(fig, frames, blit=True)
-                #print("MovieWriter PillowWriter warning safe to ignore.")
-                imag_anim.save(title.replace(" ","")+'.gif', writer='PillowWriter')
+                imag_anim.save(title.replace(" ","")+'.gif', writer=writer)
                 with open(title.replace(" ","")+'.gif','rb') as file:
                     display(Image(file.read()))
-                print("Imagette is saved in the current directory as " + title.replace(" ","")+'.gif')
-                    
+                print("Imagette is saved in the current directory as " +
+                        title.replace(" ","")+'.gif')
+
             plt.close()
-    
-        if subarray and not imagette:    
+
+        if subarray and not imagette:
             return sub_anim
         elif imagette and not subarray:
             return imag_anim
         elif subarray and imagette:
             return sub_anim, imag_anim
-        
-
  #----------------------------------------------------------------------------
+ 
  # Eclipse and transit fitting
+
+    def __factor_model__(self):
+        time = np.array(self.lc['time'])
+        phi = self.lc['roll_angle']*np.pi/180
+        return FactorModel(
+            dx = _make_interp(time, self.lc['xoff'], scale='range'),
+            dy = _make_interp(time, self.lc['yoff'], scale='range'),
+            sinphi = _make_interp(time,np.sin(phi)),
+            cosphi = _make_interp(time,np.cos(phi)),
+            bg = _make_interp(time,self.lc['bg'], scale='max'),
+            contam = _make_interp(time,self.lc['contam'], scale='max'))
+
+    #---
 
     def lmfit_transit(self, 
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
@@ -862,23 +935,24 @@ class Dataset(object):
         """
         Fit a transit to the light curve in the current dataset.
 
-        Parameter values can be specified in one of three ways
+        Parameter values can be specified in one of the following ways:
 
-        * Fixed value, e.g., P=1.234
-        * Free parameter with uniform prior interval specified as a 2-tuple,
+        * fixed value, e.g., P=1.234
+        * free parameter with uniform prior interval specified as a 2-tuple,
           e.g., dfdx=(-1,1). The initial value is taken as the the mid-point of
-          the allowed interval.
-        * Free parameter with uniform prior interval and initial value
-          specified as a 3-tuple, e.g., (0.1, 0.2, 1)
-        * Free parameter with a Gaussian prior specified as a ufloat, e.g.,
-          ufloat(0,1).
+          the allowed interval;
+        * free parameter with uniform prior interval and initial value
+          specified as a 3-tuple, e.g., (0.1, 0.2, 1);
+        * free parameter with a Gaussian prior specified as a ufloat, e.g.,
+          ufloat(0,1);
+        * as an lmfit Parameter object.
 
         To enable decorrelation against a parameter, specifiy it as a free
         parameter, e.g., dfdbg=(0,1).
 
         Decorrelation is done against is a scaled version of the quantity
         specified with a range of either (-1,1) or, for strictly positive
-        quantities, (0,1). This means the coeffieicnts dfdx, dfdy, etc.
+        quantities, (0,1). This means the coefficients dfdx, dfdy, etc.
         correspond to the amplitude of the flux variation due to the
         correlation with the relevant parameter.
 
@@ -991,13 +1065,7 @@ class Dataset(object):
         params.add('q_1',min=0,max=1,expr='(1-h_2)**2')
         params.add('q_2',min=0,max=1,expr='(h_1-h_2)/(1-h_2)')
 
-        model = TransitModel()*FactorModel(
-            dx = _make_interp(time, xoff, scale='range'),
-            dy = _make_interp(time, yoff, scale='range'),
-            sinphi = _make_interp(time,np.sin(phi)),
-            cosphi = _make_interp(time,np.cos(phi)),
-            bg = _make_interp(time,bg, scale='max'),
-            contam = _make_interp(time,contam, scale='max') )
+        model = TransitModel()*self.__factor_model__()
 
         if 'glint_scale' in params.valuesdict().keys():
             try:
@@ -1005,12 +1073,9 @@ class Dataset(object):
                 f_glint = self.f_glint
             except AttributeError:
                 raise AttributeError("Use add_glint() to first.")
-            def glint_func(t, glint_scale, f_theta=None, f_glint=None ):
-                return glint_scale * f_glint(f_theta(t))
-            GlintModel = Model(glint_func, independent_vars=['t'],
+            GlintModel = Model(_glint_func, independent_vars=['t'],
                 f_theta=f_theta, f_glint=f_glint)
             model += GlintModel
-
 
         result = minimize(_chisq_prior, params,nan_policy='propagate',
                 args=(model, time, flux, flux_err))
@@ -1119,7 +1184,6 @@ class Dataset(object):
             time = time[~mask]
             theta = theta[~mask]
             y = y[~mask]
-
 
         # Copies of data for theta-360 and theta+360 used to make
         # interpolating function periodic
@@ -1267,13 +1331,7 @@ class Dataset(object):
         params.add('sini',expr='sqrt(1 - (b/aR)**2)')
         params.add('e',min=0,max=1,expr='f_c**2 + f_s**2')
 
-        model = EclipseModel()*FactorModel(
-            dx = _make_interp(time, xoff, scale='range'),
-            dy = _make_interp(time, yoff, scale='range'),
-            sinphi = _make_interp(time,np.sin(phi)),
-            cosphi = _make_interp(time,np.cos(phi)),
-            bg = _make_interp(time,bg, scale='max'),
-            contam = _make_interp(time,contam, scale='max') )
+        model = EclipseModel()*self.__factor_model__()
 
         if 'glint_scale' in params.valuesdict().keys():
             try:
@@ -1281,9 +1339,7 @@ class Dataset(object):
                 f_glint = self.f_glint
             except AttributeError:
                 raise AttributeError("Use add_glint() to first.")
-            def glint_func(t, glint_scale, f_theta=None, f_glint=None ):
-                return glint_scale * f_glint(f_theta(t))
-            GlintModel = Model(glint_func, independent_vars=['t'],
+            GlintModel = Model(_glint_func, independent_vars=['t'],
                 f_theta=f_theta, f_glint=f_glint)
             model += GlintModel
 
@@ -1335,7 +1391,7 @@ class Dataset(object):
     def emcee_sampler(self, params=None,
             steps=128, nwalkers=64, burn=256, thin=4, log_sigma=None, 
             add_shoterm=False, log_omega0=None, log_S0=None, log_Q=None,
-            init_scale=1e-3, progress=True):
+            init_scale=1e-2, progress=True):
 
         try:
             time = np.array(self.lc['time'])
@@ -1352,7 +1408,7 @@ class Dataset(object):
 
         # Make a copy of the lmfit Minimizer result as a template for the
         # output of this method
-        result = copy.copy(self.lmfit)
+        result = copy(self.lmfit)
         result.method ='emcee'
         # Remove components on result not relevant for emcee
         result.status = None
@@ -1398,23 +1454,21 @@ class Dataset(object):
             params['log_sigma'] = _kw_to_Parameter('log_sigma', log_sigma)
         params.add('sigma_w',expr='exp(log_sigma)*1e6')
 
-        vv = []
-        vs = []
-        vn = []
+        vv, vs, vn = [], [], []
         for p in params:
             if params[p].vary:
                 vn.append(p)
                 vv.append(params[p].value)
                 if params[p].stderr is None:
                     if params[p].user_data is None:
-                        vs.append(0.1*(params[p].max-params[p].min))
+                        vs.append(0.01*(params[p].max-params[p].min))
                     else:
                         vs.append(params[p].user_data.s)
                 else:
                     if np.isfinite(params[p].stderr):
                         vs.append(params[p].stderr)
                     else:
-                        vs.append(0.1*(params[p].max-params[p].min))
+                        vs.append(0.01*(params[p].max-params[p].min))
 
         result.var_names = vn
         result.init_vals = vv
@@ -1428,7 +1482,8 @@ class Dataset(object):
         args=(model, time, flux, flux_err,  params, vn)
         p = list(params.keys())
         if 'log_S0' in p and 'log_omega0' in p and 'log_Q' in p :
-            kernel = terms.SHOTerm(log_S0=params['log_S0'].value,
+            kernel = terms.SHOTerm(
+                    log_S0=params['log_S0'].value,
                     log_Q=params['log_Q'].value,
                     log_omega0=params['log_omega0'].value)
             kernel += terms.JitterTerm(log_sigma=params['log_sigma'].value)
@@ -1454,7 +1509,6 @@ class Dataset(object):
             while lnlike_i == -np.inf:
                 pos_i = vv + vs*np.random.randn(n_varys)*init_scale
                 lnlike_i = log_posterior_func(pos_i, *args)
-
             pos.append(pos_i)
 
         sampler = EnsembleSampler(nwalkers, n_varys, log_posterior_func,
@@ -1589,11 +1643,6 @@ class Dataset(object):
         ax[-1].set_xlabel("step number");
 
         return fig
-
-
-
-
-
 
     # ----------------------------------------------------------------
 
@@ -1747,7 +1796,6 @@ class Dataset(object):
         ax.set_ylabel('Power [ppm$^2$ $\mu$Hz$^{-1}$]');
         ax.set_title(title)
         return fig
-    
 
     # ------------------------------------------------------------
     
@@ -1857,7 +1905,7 @@ class Dataset(object):
         tp = np.linspace(tmin, tmax, 10*len(time))
         fp = self.model.eval(parbest,t=tp)
         glint = model.right.name == 'Model(glint_func)'
-        flux0 = flux + 0  # Copy flux, don't point to it!
+        flux0 = copy(flux)
         if detrend:
             if glint:
                 flux -= model.right.eval(parbest, t=time)  # de-glint
@@ -2411,7 +2459,7 @@ class Dataset(object):
         The orignal data are saved in lc_unmask
 
         """
-        self.lc_unmask = copy.copy(self.lc)
+        self.lc_unmask = copy(self.lc)
         for k in self.lc:
             if isinstance(self.lc[k],np.ndarray):
                 self.lc[k] = self.lc[k][~mask]
@@ -2449,7 +2497,7 @@ class Dataset(object):
                     'ppm from the median'.format(sum(~ok),clip,1e6*mad*clip))
         return self.lc['time'], self.lc['flux'], self.lc['flux_err']
 
-    #------
+#----------------------------------
 
     def diagnostic_plot(self, fname=None,
             figsize=(8,8), fontsize=10, flagged=None):
@@ -2500,9 +2548,9 @@ class Dataset(object):
         cbad = 'xkcd:red'
         
         if flagged:
-            flux_measure = flux_table
+            flux_measure = copy.copy(flux_table)
         else:
-            flux_measure = flux
+            flux_measure = copy.copy(flux)
         ax[0,0].scatter(time,flux,s=2,c=cgood)
         if flagged:
             ax[0,0].scatter(tjdb_table,flux_bad_table,s=2,c=cbad)
@@ -2589,13 +2637,7 @@ class Dataset(object):
         dx = interp1d(time,self.lc['xoff'], fill_value=0, bounds_error=False)
         dy = interp1d(time,self.lc['yoff'], fill_value=0, bounds_error=False)
 
-        model = FactorModel(
-            dx = _make_interp(time, self.lc['xoff'], scale='range'),
-            dy = _make_interp(time, self.lc['yoff'], scale='range'),
-            sinphi = _make_interp(time,np.sin(phi)),
-            cosphi = _make_interp(time,np.cos(phi)),
-            bg = _make_interp(time,self.lc['bg'], scale='max'),
-            contam = _make_interp(time,self.lc['contam'], scale='max'))
+        model = self.__factor_model__()
         params = model.make_params()
         params.add('dfdt', value=0, vary=dfdt)
         params.add('d2fdt2', value=0, vary=d2fdt2)
@@ -2642,48 +2684,57 @@ class Dataset(object):
         return flux_d, flux_err_d
         
 #-----------------------------------
-
-    def should_I_decorr(self,cut=20,mask_centre=0,mask_width=0):
-
-        cut_val = cut
+    def should_I_decorr(self,mask_centre=0,mask_width=0):
+        
         flux = np.array(self.lc['flux'])
         flux_err = np.array(self.lc['flux_err'])
         phi = self.lc['roll_angle']*np.pi/180
-        sinphi = interp1d(np.array(self.lc['time']),np.sin(phi), fill_value=0, bounds_error=False)
-        cosphi = interp1d(np.array(self.lc['time']),np.cos(phi), fill_value=0, bounds_error=False)
-        bg = interp1d(np.array(self.lc['time']),self.lc['bg'], fill_value=0, bounds_error=False)
-        contam = interp1d(np.array(self.lc['time']),self.lc['contam'], fill_value=0, bounds_error=False)
-        dx = interp1d(np.array(self.lc['time']),self.lc['xoff'], fill_value=0, bounds_error=False)
-        dy = interp1d(np.array(self.lc['time']),self.lc['yoff'], fill_value=0, bounds_error=False)
+        sinphi = interp1d(np.array(self.lc['time']),np.sin(phi), fill_value=0,
+                          bounds_error=False)
+        cosphi = interp1d(np.array(self.lc['time']),np.cos(phi), fill_value=0,
+                          bounds_error=False)
+        bg = interp1d(np.array(self.lc['time']),self.lc['bg'], fill_value=0,
+                      bounds_error=False)
+        contam = interp1d(np.array(self.lc['time']),self.lc['contam'], fill_value=0,
+                          bounds_error=False)
+        dx = interp1d(np.array(self.lc['time']),self.lc['xoff'], fill_value=0,
+                      bounds_error=False)
+        dy = interp1d(np.array(self.lc['time']),self.lc['yoff'], fill_value=0,
+                      bounds_error=False)
         time = np.array(self.lc['time'])
         
         if mask_centre != 0:    
-            flux = flux[(self.lc['time'] < (mask_centre-mask_width)) | (self.lc['time'] > (mask_centre+mask_width))]
-            flux_err = flux_err[(self.lc['time'] < (mask_centre-mask_width)) | (self.lc['time'] > (mask_centre+mask_width))]
+            flux = flux[(self.lc['time'] < (mask_centre-mask_width/2)) | 
+                        (self.lc['time'] > (mask_centre+mask_width/2))]
+            flux_err = flux_err[(self.lc['time'] < (mask_centre-mask_width/2)) |
+                                (self.lc['time'] > (mask_centre+mask_width/2))]
             
-            time_cut = time[(self.lc['time'] < (mask_centre-mask_width)) | (self.lc['time'] > (mask_centre+mask_width))]
-            phi_cut = self.lc['roll_angle'][(self.lc['time'] < (mask_centre-mask_width)) | (self.lc['time'] > (mask_centre+mask_width))] *np.pi/180
+            time_cut = time[(self.lc['time'] < (mask_centre-mask_width/2)) |
+                            (self.lc['time'] > (mask_centre+mask_width/2))]
+            phi_cut = self.lc['roll_angle'][(self.lc['time'] < (mask_centre-mask_width/2)) |
+                                            (self.lc['time'] > (mask_centre+mask_width/2))] *np.pi/180
             sinphi = interp1d(time_cut,np.sin(phi_cut), fill_value=0, bounds_error=False)        
             cosphi = interp1d(time_cut,np.cos(phi_cut), fill_value=0, bounds_error=False)
             
-            bg_cut = self.lc['bg'][(self.lc['time'] < (mask_centre-mask_width)) | (self.lc['time'] > (mask_centre+mask_width))]
+            bg_cut = self.lc['bg'][(self.lc['time'] < (mask_centre-mask_width/2)) |
+                                   (self.lc['time'] > (mask_centre+mask_width/2))]
             bg = interp1d(time_cut,bg_cut, fill_value=0, bounds_error=False)
-            contam_cut = self.lc['contam'][(self.lc['time'] < (mask_centre-mask_width)) | (self.lc['time'] > (mask_centre+mask_width))]
+            contam_cut = self.lc['contam'][(self.lc['time'] < (mask_centre-mask_width/2)) |
+                                           (self.lc['time'] > (mask_centre+mask_width/2))]
             contam = interp1d(time_cut,contam_cut, fill_value=0, bounds_error=False)
-            dx_cut = self.lc['xoff'][(self.lc['time'] < (mask_centre-mask_width)) | (self.lc['time'] > (mask_centre+mask_width))]
+            dx_cut = self.lc['xoff'][(self.lc['time'] < (mask_centre-mask_width/2)) |
+                                     (self.lc['time'] > (mask_centre+mask_width/2))]
             dx = interp1d(time_cut,dx_cut, fill_value=0, bounds_error=False)
-            dy_cut = self.lc['yoff'][(self.lc['time'] < (mask_centre-mask_width)) | (self.lc['time'] > (mask_centre+mask_width))]
+            dy_cut = self.lc['yoff'][(self.lc['time'] < (mask_centre-mask_width/2)) |
+                                     (self.lc['time'] > (mask_centre+mask_width/2))]
             dy = interp1d(time_cut,dy_cut, fill_value=0, bounds_error=False)
 
-            time = time[(self.lc['time'] < (mask_centre-mask_width)) | (self.lc['time'] > (mask_centre+mask_width))]        
-            
+            time = time[(self.lc['time'] < (mask_centre-mask_width/2)) |
+                        (self.lc['time'] > (mask_centre+mask_width/2))]
 
-        dfdt_bad, dfdbg_bad, dfdcontam_bad = np.array([]), np.array([]), np.array([])
-        dfdx_bad, dfdy_bad, dfdsinphi_bad, dfdcosphi_bad = np.array([]), np.array([]), np.array([]), np.array([])
-        d2fdt2_bad, d2fdx2_bad, d2fdy2_bad, dfdsin2phi_bad, dfdcos2phi_bad = np.array([]), np.array([]), np.array([]), np.array([]), np.array([])
-        
-        params_d = ['dfdt', 'dfdx', 'dfdy', 'dfdsinphi', 'dfdcosphi', 'dfdbg', 'dfdcontam', 'd2fdt2', 'd2fdx2', 'd2fdy2', 'dfdsin2phi', 'dfdcos2phi']
 
+        params_d = ['dfdt', 'dfdx', 'dfdy', 'dfdsinphi', 'dfdcosphi', 'dfdbg', 'dfdcontam',
+                    'd2fdt2', 'd2fdx2', 'd2fdy2', 'dfdsin2phi', 'dfdcos2phi']
         boolean = [[False, True]]*len(params_d)
         decorr_arr = [[]]*len(params_d)
 
@@ -2698,7 +2749,6 @@ class Dataset(object):
                 decorr_arr[kindex].append(True)
 
         for index, i in enumerate(decorr_arr[0]):
-            
             dfdt=decorr_arr[0][index]
             dfdx=decorr_arr[1][index]
             dfdy=decorr_arr[2][index]
@@ -2712,13 +2762,7 @@ class Dataset(object):
             dfdsin2phi=decorr_arr[10][index]
             dfdcos2phi=decorr_arr[11][index]
             
-            model = FactorModel(
-                dx = dx,
-                dy = dy,
-                sinphi = sinphi,
-                cosphi = cosphi,
-                bg = bg,
-                contam = contam)
+            model = self.__factor_model__()
             params = model.make_params()
             params.add('dfdt', value=0, vary=dfdt)
             params.add('dfdx', value=0, vary=dfdx)
@@ -2732,120 +2776,40 @@ class Dataset(object):
             params.add('d2fdy2', value=0, vary=d2fdy2)
             params.add('dfdsin2phi', value=0, vary=dfdsin2phi)
             params.add('dfdcos2phi', value=0, vary=dfdcos2phi)
-
+            
             result = model.fit(flux, params, t=time)
 
-            if result.params['dfdt'].vary == True:
-                if abs(100*result.params['dfdt'].stderr/result.params['dfdt'].value) < cut_val:
-                    dfdt_bad = np.append(dfdt_bad, abs(100*result.params['dfdt'].stderr/result.params['dfdt'].value))
-            if result.params['dfdx'].vary == True:
-                if abs(100*result.params['dfdx'].stderr/result.params['dfdx'].value) < cut_val:
-                    dfdx_bad = np.append(dfdx_bad, abs(100*result.params['dfdx'].stderr/result.params['dfdx'].value))
-            if result.params['dfdy'].vary == True:
-                if abs(100*result.params['dfdy'].stderr/result.params['dfdy'].value) < cut_val:
-                    dfdy_bad = np.append(dfdy_bad, abs(100*result.params['dfdy'].stderr/result.params['dfdy'].value))
-            if result.params['dfdsinphi'].vary == True:
-                if abs(100*result.params['dfdsinphi'].stderr/result.params['dfdsinphi'].value) < cut_val:
-                    dfdsinphi_bad = np.append(dfdsinphi_bad, abs(100*result.params['dfdsinphi'].stderr/result.params['dfdsinphi'].value))
-            if result.params['dfdcosphi'].vary == True:
-                if abs(100*result.params['dfdcosphi'].stderr/result.params['dfdcosphi'].value) < cut_val:
-                    dfdcosphi_bad = np.append(dfdcosphi_bad, abs(100*result.params['dfdcosphi'].stderr/result.params['dfdcosphi'].value))
-            if result.params['dfdbg'].vary == True:
-                if abs(100*result.params['dfdbg'].stderr/result.params['dfdbg'].value) < cut_val:
-                    dfdbg_bad = np.append(dfdbg_bad, abs(100*result.params['dfdbg'].stderr/result.params['dfdbg'].value))
-            if result.params['dfdcontam'].vary == True:
-                if abs(100*result.params['dfdcontam'].stderr/result.params['dfdcontam'].value) < cut_val:
-                    dfdcontam_bad = np.append(dfdcontam_bad, abs(100*result.params['dfdcontam'].stderr/result.params['dfdcontam'].value))                    
-                    
-            if result.params['d2fdt2'].vary == True:
-                if abs(100*result.params['d2fdt2'].stderr/result.params['d2fdt2'].value) < cut_val:
-                    d2fdt2_bad = np.append(d2fdt2_bad, abs(100*result.params['d2fdt2'].stderr/result.params['d2fdt2'].value))
-            if result.params['d2fdx2'].vary == True:
-                if abs(100*result.params['d2fdx2'].stderr/result.params['d2fdx2'].value) < cut_val:
-                    d2fdx2_bad = np.append(d2fdx2_bad, abs(100*result.params['d2fdx2'].stderr/result.params['d2fdx2'].value))
-            if result.params['d2fdy2'].vary == True:
-                if abs(100*result.params['d2fdy2'].stderr/result.params['d2fdy2'].value) < cut_val:
-                    d2fdy2_bad = np.append(d2fdy2_bad, abs(100*result.params['d2fdy2'].stderr/result.params['d2fdy2'].value))
-            if result.params['dfdsin2phi'].vary == True:
-                if abs(100*result.params['dfdsin2phi'].stderr/result.params['dfdsin2phi'].value) < cut_val:
-                    dfdsin2phi_bad = np.append(dfdsin2phi_bad, abs(100*result.params['dfdsin2phi'].stderr/result.params['dfdsin2phi'].value))
-            if result.params['dfdcos2phi'].vary == True:
-                if abs(100*result.params['dfdcos2phi'].stderr/result.params['dfdcos2phi'].value) < cut_val:
-                    dfdcos2phi_bad = np.append(dfdcos2phi_bad, abs(100*result.params['dfdcos2phi'].stderr/result.params['dfdcos2phi'].value))                    
-                    
-
-        if len(dfdt_bad) == 0 and len(dfdx_bad) == 0 and len(dfdy_bad) == 0 and len(dfdsinphi_bad) == 0 and len(dfdcosphi_bad) == 0 and len(dfdbg_bad) == 0 and len(dfdcontam_bad) == 0 and len(d2fdt2_bad) == 0 and len(d2fdx2_bad) == 0 and len(d2fdy2_bad) == 0 and len(dfdsin2phi_bad) == 0 and len(dfdcos2phi_bad) == 0:
-            print("No! You don't need to decorrelate.")
-        else:
-            if len(dfdt_bad) > 0 or len(d2fdt2_bad) > 0:
-                print("Yes! Check flux against time.")            
-            
-            if len(dfdx_bad) > 0 or len(d2fdx2_bad) > 0:
-                print("Yes! Check flux against centroid x.")
-
-            if len(dfdy_bad) > 0 or len(d2fdy2_bad) > 0:
-                print("Yes! Check flux against centroid y.")
-
-            if len(dfdsinphi_bad) > 0 or len(dfdcosphi_bad) > 0 or len(dfdsin2phi_bad) > 0 or len(dfdcos2phi_bad) > 0:
-                print("Yes! Check flux against roll angle.")
-
-            if len(dfdbg_bad) > 0:
-                print("Yes! Check flux against background.")
-
-            if len(dfdcontam_bad) > 0:
-                print("Yes! Check flux against contamination.")
-                
-                
-            self.diagnostic_plot(fontsize=9)
-
-            decorr_check = input('Do you want to decorrelate? ')
-            if decorr_check.lower()[0] == "y":
-                which_decorr = input('Which to you wish to decorrelate? Please enter from the follow: time, centroid_x, centroid_y, roll_angle, background, and/or contamination. Multiple entries should be comma separated. ')
-                dfdt_arg, dfdx_arg, dfdy_arg, dfdsinphi_arg, dfdcosphi_arg, dfdbg_arg, dfdcontam_arg = False, False, False, False, False, False, False
-                which_decorr = which_decorr.split(",")
-
-                for index, i in enumerate(which_decorr):
-                    which_decorr[index] = i.lower().replace(' ', '')
-                if "time" in which_decorr:
-                    dfdt_arg = True
-                if "centroid_x" in which_decorr:
-                    dfdx_arg = True
-                if "centroid_y" in which_decorr:
-                    dfdy_arg = True
-                if "roll_angle" in which_decorr:
-                    dfdsinphi_arg, dfdcosphi_arg = True, True
-                if "background" in which_decorr:
-                    dfdbg_arg = True
-                if "contamination" in which_decorr:
-                    dfdcontam_arg = True                    
-                    
-                flux_d, flux_err_d = self.decorr(dfdt=dfdt_arg, dfdx=dfdx_arg, dfdy=dfdy_arg,
-                        dfdsinphi=dfdsinphi_arg, dfdcosphi=dfdcosphi_arg, dfdbg=dfdbg_arg, dfdcontam=dfdcontam_arg)
-                return flux_d, flux_err_d
-
-            elif "time" in decorr_check or "centroid_x" in decorr_check or "centroid_y" in decorr_check or "roll_angle" in decorr_check or "background" in decorr_check or "contamination" in decorr_check:
-                dfdt_arg, dfdx_arg, dfdy_arg, dfdsinphi_arg, dfdcosphi_arg, dfdbg_arg, dfdcontam_arg = False, False, False, False, False, False, False
-                decorr_check = decorr_check.split(",")
-
-                for index, i in enumerate(decorr_check):
-                    decorr_check[index] = i.lower().replace(' ', '')
-                if "time" in decorr_check:
-                    dfdt_arg = True                    
-                if "centroid_x" in decorr_check:
-                    dfdx_arg = True
-                if "centroid_y" in decorr_check:
-                    dfdy_arg = True
-                if "roll_angle" in decorr_check:
-                    dfdsinphi_arg, dfdcosphi_arg = True, True
-                if "background" in decorr_check:
-                    dfdbg_arg = True
-                if "contamination" in decorr_check:
-                    dfdcontam_arg = True
-                    
-                flux_d, flux_err_d = self.decorr(dfdt=dfdt_arg, dfdx=dfdx_arg, dfdy=dfdy_arg,
-                        dfdsinphi=dfdsinphi_arg, dfdcosphi=dfdcosphi_arg, dfdbg=dfdbg_arg, dfdcontam=dfdcontam_arg)
-                return flux_d, flux_err_d
-
+            if index == 0:
+                min_BIC = copy.copy(result.bic)
+                decorr_params = []
             else:
-                print("Ok then")
-        print('\n')    
+                if result.bic < min_BIC:
+                    min_BIC = copy.copy(result.bic)
+                    decorr_params = []
+                    for xindex, x in enumerate([dfdt, dfdx, dfdy, dfdsinphi, dfdcosphi, dfdbg,
+                                                dfdcontam, d2fdt2, d2fdx2, d2fdy2, dfdsin2phi, dfdcos2phi]):
+                        if x == True:
+                            if params_d[xindex] == "dfdsinphi":
+                                decorr_params.append("dfdsinphi")
+                                decorr_params.append("dfdcosphi")
+                            elif params_d[xindex] == "dfdcosphi" and "dfdsinphi" not in decorr_params:
+                                decorr_params.append("dfdsinphi") 
+                                decorr_params.append("dfdcosphi")
+                            elif params_d[xindex] == "dfdcosphi" and "dfdcosphi" in decorr_params:
+                                print()
+                            elif params_d[xindex] == "dfdsin2phi":
+                                decorr_params.append("dfdsin2phi")
+                                decorr_params.append("dfdcos2phi")
+                            elif params_d[xindex] == "dfdcos2phi" and "dfdsin2phi" not in decorr_params:
+                                decorr_params.append("dfdsin2phi")  
+                                decorr_params.append("dfdcos2phi")
+                            elif params_d[xindex] == "dfdcos2phi" and "dfdcos2phi" in decorr_params:
+                                print()
+                            else:
+                                decorr_params.append(params_d[xindex])
+            
+        if len(decorr_params) == 0:
+            print("No decorrelation is needed.")
+        else:
+            print("Decorrelate in", *decorr_params, "using decorr, lmfit_transt, or lmfit_eclipse functions.")
+        return(min_BIC, decorr_params)  
