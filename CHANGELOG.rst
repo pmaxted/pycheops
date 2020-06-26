@@ -5,6 +5,8 @@ Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~
 * Added Multivisit class
 * Added load() and save() to dataset
+* Added dace keywords to StarProperties
+* Added option to set user-defined values using a 2-tuple in StarProperties 
 
 0.7.8 (2020-06-03)
 ~~~~~~~~~~~~~~~~~~

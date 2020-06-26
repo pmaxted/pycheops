@@ -117,5 +117,6 @@ if not path.isfile(pfile):
         pickle.dump(I,fp)
 
 from .dataset import Dataset
+from .multivisit import MultiVisit
 from .starproperties import StarProperties
 

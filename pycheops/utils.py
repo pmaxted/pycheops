@@ -31,7 +31,7 @@ from __future__ import (absolute_import, division, print_function,
                                 unicode_literals)
 import numpy as np
 
-__all__ = [ 'parprint', 'lcbin']
+__all__ = [ 'parprint', 'lcbin', 'phaser', 'mode']
 
 def parprint(x,n, w=8, sf=2, wn=None, indent=4, short=False, asym=True):
     """
@@ -246,3 +246,19 @@ def mode(x):
     dataMode = _hsm(data)
         
     return dataMode
+
+#-----------
+
+def phaser(time, period=1, time0=0, phase0=-0.25):
+    """
+    Calculate the phase for an array of times
+
+    :param time: array of times
+    :param period: period
+    :param time0: time for phase=0
+    :param phase0: minimum output phase value 
+
+    :returns: ( ( ( (time-time0)/period % 1) - phase0) % 1) + phase0
+
+    """
+    return ( ( ( (time-time0)/period % 1) - phase0) % 1) + phase0

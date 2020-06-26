@@ -46,7 +46,19 @@ class StarProperties(object):
     CHEOPS StarProperties object
 
     The observed properties T_eff, log_g and [Fe/H] are obtained from
-    SWEET-Cat, or can be specified by the user. 
+    DACE or SWEET-Cat, or can be specified by the user. 
+
+    Set match_arcsec=None to skip extraction of parameters from SWEET-Cat.
+
+    By default properties are obtained from SWEET-Cat.
+    
+    Set dace=True to obtain parameters from the stellar properties table at
+    DACE.
+    
+    User-defined properties are specified either as a ufloat or as a 2-tuple
+    (value, error), e.g., teff=(5000,100).
+    
+    User-defined properties over-write values obtained from SWEET-Cat or DACE.
 
     The stellar density is estimated using an linear relation between log(rho)
     and log(g) derived using the method of Moya et al. (2018ApJS..237...21M)
@@ -64,11 +76,9 @@ class StarProperties(object):
     used. The parameters h_1 and h_2 are both given nominal errors of 0.1 for
     both ATLAS model, and 0.15 for PHOENIX models.
 
-    Set match_arcsec=None to skip extraction of parameters from SWEET-Cat.
-
     """
 
-    def __init__(self, identifier, force_download=False, 
+    def __init__(self, identifier, force_download=False, dace=False, 
             match_arcsec=5, configFile=None,
             teff=None, logg=None, metal=None, 
             verbose=True):
@@ -83,13 +93,16 @@ class StarProperties(object):
         _cache_path = config['DEFAULT']['data_cache_path']
         sweetCatPath = Path(_cache_path,'sweetcat.tsv')
 
-        download_sweetcat = False
         if force_download:
             download_sweetcat = True
+        elif dace:
+            download_sweetcat = False
         elif sweetCatPath.is_file():
             file_age = mktime(localtime())-getmtime(sweetCatPath)
             if file_age > int(config['SWEET-Cat']['update_interval']):
                 download_sweetcat = True
+            else:
+                download_sweetcat = False
         else:
             download_sweetcat = True
 
@@ -101,58 +114,68 @@ class StarProperties(object):
             if verbose:
                 print('SWEET-Cat data downloaded from \n {}'.format(url))
 
-        names = ['star', 'hd', 'ra', 'dec', 'vmag', 'e_vmag', 'par', 'e_par',
-                'parsource', 'teff', 'e_teff', 'logg', 'e_logg', 'logglc',
-                'e_logglc', 'vt', 'e_vt', 'metal', 'e_metal', 'mass', 'e_mass',
-                'author', 'source', 'update', 'comment']
-        sweetCat = Table.read(sweetCatPath,format='ascii.no_header', 
-                delimiter="\t", fast_reader=False, names=names,
-                encoding='utf-8')
-
-        if match_arcsec is None:
-            entry = None
-        else:
-            cat_c = SkyCoord(sweetCat['ra'],sweetCat['dec'],unit='hour,degree')
+        if dace:
+            from dace.cheops import Cheops
+            db = Cheops.query_catalog("stellar")
+            cat_c = SkyCoord(db['obj_pos_ra_deg'], db['obj_pos_dec_deg'],
+                    unit='degree,degree')
             idx, sep, _ = coords.match_to_catalog_sky(cat_c)
             if sep.arcsec[0] > match_arcsec:
-                raise ValueError('No matching star in SWEET-Cat')
-            entry = sweetCat[idx]
+                raise ValueError(
+                        'No matching star in DACE stellar properties table')
+            self.teff = ufloat(db['obj_phys_teff_k'][idx],99) 
+            self.teff_note = "DACE"
+            self.logg = ufloat(db['obj_phys_logg'][idx],0.09) 
+            self.logg_note = "DACE"
+            self.metal = ufloat(db['obj_phys_feh'][idx],0.09) 
+            self.metal_note = "DACE"
+            self.gaiadr2 = db['obj_id_gaiadr2'][idx]
 
-        try:
-            self.teff = ufloat(float(entry['teff']),float(entry['e_teff']))
-            self.teff_note = "SWEET-Cat"
-        except:
-            self.teff = None
-        try:
-            self.logg = ufloat(float(entry['logg']),float(entry['e_logg']))
-            self.logg_note = "SWEET-Cat"
-        except:
-            self.logg = None
-        try:
-            self.metal=ufloat(float(entry['metal']),float(entry['e_metal']))
-            self.metal_note = "SWEET-Cat"
-        except:
-            self.metal = None
+        else:
+            names = ['star', 'hd', 'ra', 'dec', 'vmag', 'e_vmag', 'par',
+                    'e_par', 'parsource', 'teff', 'e_teff', 'logg', 'e_logg',
+                    'logglc', 'e_logglc', 'vt', 'e_vt', 'metal', 'e_metal',
+                    'mass', 'e_mass', 'author', 'source', 'update', 'comment']
+            sweetCat = Table.read(sweetCatPath,format='ascii.no_header',
+                    delimiter="\t", fast_reader=False, names=names,
+                    encoding='utf-8')
+
+            if match_arcsec is None:
+                entry = None
+            else:
+                cat_c = SkyCoord(sweetCat['ra'],sweetCat['dec'],
+                            unit='hour,degree')
+                idx, sep, _ = coords.match_to_catalog_sky(cat_c)
+                if sep.arcsec[0] > match_arcsec:
+                    raise ValueError('No matching star in SWEET-Cat')
+                entry = sweetCat[idx]
+
+            try:
+                self.teff = ufloat(float(entry['teff']),float(entry['e_teff']))
+                self.teff_note = "SWEET-Cat"
+            except:
+                self.teff = None
+            try:
+                self.logg = ufloat(float(entry['logg']),float(entry['e_logg']))
+                self.logg_note = "SWEET-Cat"
+            except:
+                self.logg = None
+            try:
+                self.metal=ufloat(float(entry['metal']),float(entry['e_metal']))
+                self.metal_note = "SWEET-Cat"
+            except:
+                self.metal = None
 
         # User defined values
         if teff:
-           if  isinstance(teff, UFloat):
-               self.teff = teff
-               self.teff_note = "User"
-           else:
-               raise ValueError("teff keyword is not ufloat")
+           self.teff = teff if isinstance(teff, UFloat) else ufloat(*teff)
+           self.teff_note = "User"
         if logg:
-           if  isinstance(logg, UFloat):
-               self.logg = logg
-               self.logg_note = "User"
-           else:
-               raise ValueError("logg keyword is not ufloat")
+           self.logg = logg if isinstance(logg, UFloat) else ufloat(*logg)
+           self.logg_note = "User"
         if metal:
-           if  isinstance(metal, UFloat):
-               self.metal = metal
-               self.metal_note = "User"
-           else:
-               raise ValueError("metal keyword is not ufloat")
+           self.metal = metal if isinstance(metal, UFloat) else ufloat(*metal)
+           self.metal_note = "User"
 
         # log rho from log g using method of Moya et al.
         # (2018ApJS..237...21M). Accuracy is 4.4%
@@ -187,19 +210,19 @@ class StarProperties(object):
                     self.h_1 = ufloat(round(h_1,3),0.1)
                     self.h_2 = ufloat(round(h_2,3),0.1)
                     self.ld_ref = 'ATLAS'
-        if self.ld_ref is None:
-            phoenix = phoenix_h1h2_interpolator()
-            h_1,h_2 = phoenix(self.teff.n,self.logg.n)
-            if not np.isnan(h_1): 
-                self.h_1 = ufloat(round(h_1,3),0.15)
-                self.h_2 = ufloat(round(h_2,3),0.15)
-                self.ld_ref = 'PHOENIX-COND'
+            if self.ld_ref is None:
+                phoenix = phoenix_h1h2_interpolator()
+                h_1,h_2 = phoenix(self.teff.n,self.logg.n)
+                if not np.isnan(h_1): 
+                    self.h_1 = ufloat(round(h_1,3),0.15)
+                    self.h_2 = ufloat(round(h_2,3),0.15)
+                    self.ld_ref = 'PHOENIX-COND'
 
     def __repr__(self):
         s =  'Identifier : {}\n'.format(self.identifier)
         s +=  'Coordinates: {} {}\n'.format(self.ra, self.dec)
         if self.teff:
-            s += 'T_eff : {:5.0f} +/- {:0.0f} K    [{}]\n'.format(
+            s += 'T_eff : {:5.0f} +/- {:3.0f} K   [{}]\n'.format(
                     self.teff.n, self.teff.s,self.teff_note)
         if self.logg:
             s += 'log g : {:5.2f} +/- {:0.2f}    [{}]\n'.format(
@@ -216,9 +239,3 @@ class StarProperties(object):
             s += 'h_2 : {:5.3f} +/- {:0.3f}     [{}]\n'.format(
                     self.h_2.n, self.h_2.s,self.ld_ref)
         return s
-
-
-
-
-
-
