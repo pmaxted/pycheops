@@ -1167,11 +1167,12 @@ class MultiVisit(object):
 
         if detrend:
             for j, (trend, flx, fit) in enumerate(zip(trends, fluxes, fits)):
-                    flx = flx - trend[np.isfinite(trend)]
-                    fit = fit - trend
-                    c = np.nanmedian(fit)
-                    fluxes[j] = flx/c
-                    fits[j] = fit/c
+                trend = trend - np.nanmedian(trend)
+                flx = flx - trend[np.isfinite(trend)]
+                fit = fit - trend
+                c = np.nanmedian(fit)
+                fluxes[j] = flx/c
+                fits[j] = fit/c
 
         plt.rc('font', size=fontsize)    
         if figsize is None:
