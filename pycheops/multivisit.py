@@ -113,6 +113,8 @@ def _make_labels(plotkeys, d0):
     labels = []
     r = re.compile('dfd(.*)_([0-9]+)')
     r2 = re.compile('d2fd(.*)2_([0-9]+)')
+    rt = re.compile('ttv_([0-9]+)')
+    rl = re.compile('L_([0-9]+)')
     for key in plotkeys:
         if key == 'T_0':
             labels.append(r'T$_0-{:.0f}$'.format(d0))
@@ -126,6 +128,12 @@ def _make_labels(plotkeys, d0):
         elif r2.match(key):
             p,n = r2.match(key).group(1,2)
             labels.append(r'$d^2f\,/\,d{}^2_{}$'.format(p,n))
+        elif rt.match(key):
+            n = rt.match(key).group(1)
+            labels.append(r'$\delta T_{}$'.format(n))
+        elif rl.match(key):
+            n = rl.match(key).group(1)
+            labels.append(r'$L_{}$'.format(n))
         elif key == 'log_sigma_w':
             labels.append(r'$\log\sigma_w$')
         elif key == 'log_omega0':
@@ -179,6 +187,10 @@ def _log_posterior(pos, gps, lcs, models, modpars, noisemodel, priors, vn,
         if p in vn:
             v = pos[vn.index(p)]
             modpar['T_0'].value = modpar['T_0'].init_value + v/86400
+
+        p = f'L_{i+1}'
+        if p in vn:
+            modpar['L'].value = pos[vn.index(p)]
 
         # Noise model parameters
         for p in ('log_sigma_w', 'log_omega0', 'log_S0', 'log_Q'):
@@ -556,10 +568,17 @@ class MultiVisit(object):
 #--------------------------------------------------------------------------
 
     def __make_modpars__(self, model_type, vals, params, noisemodel,
-             vn, vv, vs, priors, ttv, ttv_prior, unroll, nroll):
+             vn, vv, vs, priors, ttv_edv, ttv_edv_prior, unroll, nroll):
         plist = [d.emcee.params if d.__lastfit__ == 'emcee' else 
                  d.lmfit.params for d in self.datasets]
 
+        ttv, edv = False, False
+        if ttv_edv:
+            if model_type == '_transit_func':
+                ttv, ttv_prior = True, ttv_edv_prior
+            if model_type == '_eclipse_func':
+                edv, edv_prior = True, ttv_edv_prior
+        
         gps = []      # Separate GPs because over o/h to compute matrices
         lcs = []
         models = []
@@ -581,7 +600,8 @@ class MultiVisit(object):
             m = _make_model(model_type, lc, *glint)
             models.append(m)
             modpar = m.make_params(verbose=False, **vals)
-            if ttv: modpar['T_0'].init_value = modpar['T_0'].value
+            if ttv: 
+                modpar['T_0'].init_value = modpar['T_0'].value
             modpars.append(modpar)
 
             if ttv:
@@ -591,7 +611,16 @@ class MultiVisit(object):
                 vn.append(t)
                 vv.append(0)
                 vs.append(30)
-                priors[t] = ufloat(0,ttv_prior)
+                priors[t] = params[t].user_data
+                
+            if edv:
+                t = f'L_{i+1}'
+                params.add(t, 0)
+                params[t].user_data = ufloat(vals['L'], edv_prior)
+                vn.append(t)
+                vv.append(0)
+                vs.append(1e-6)
+                priors[t] = params[t].user_data
                 
             for d in dfdp:
                 if d in p and p[d].vary:
@@ -700,7 +729,8 @@ class MultiVisit(object):
         If T_0 and P are both fixed parameters then ttv=True can be used to
         include the free parameters ttv_i, the offset in seconds from the
         predicted time of mid-transit for each dataset i = 1, ..., N. The
-        prior on ttv_i is a Gaussian prior with a width ttv_prior in seconds.
+        prior on the values of ttv_i is a Gaussian with a width ttv_prior in
+        seconds.
 
         """
         # Dict of initial parameter values for creation of models
@@ -777,20 +807,22 @@ class MultiVisit(object):
 
         return self.result
 
-    # ----------------------------------------------------------------
-
-
 #--------------------------------------------------------------------------
 
     def fit_eclipse(self, 
             steps=128, nwalkers=64, burn=256, 
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
-            L=None, a_c=0, extra_priors=None, 
+            L=None, a_c=0, edv=False, edv_prior=1e-3, extra_priors=None, 
             log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
             unroll=True, nroll=3,
             init_scale=1e-2, progress=True):
         """
         Use emcee to fit the eclipses in the current datasets 
+
+        Eclipse depths variations can be included in the fit using the keyword
+        edv=True. In this case L must be a fixed parameter and the eclipse
+        depth for dataset i is L_i, i=1, ..., N. The prior on the values of
+        L_i is a Gaussian with mean value L and width edv_prior.
 
         """
 
@@ -809,13 +841,15 @@ class MultiVisit(object):
         vn,vv,vs,params = self.__make_params__(vals, priors, pmin, pmax, step,
                 extra_priors)
 
+        if edv and params['L'].vary:
+            raise ValueError('L must be a fixed parameter of edv=True.')
+
         _ = self.__make_noisemodel__(log_sigma_w, log_S0, log_omega0,
                 log_Q, params, priors, vn, vv, vs, unroll)
         noisemodel, params, priors, vn, vv, vs = _
 
-        ttv, ttv_prior = False, None 
         _ = self.__make_modpars__('_eclipse_func', vals, params, noisemodel,
-                vn, vv, vs, priors, ttv, ttv_prior, unroll, nroll)
+                vn, vv, vs, priors, edv, edv_prior, unroll, nroll)
         params,gps,lcs,models,modpars,glints,omegas,vn,vv,vs,priors  = _
 
         # Setup sampler
@@ -915,21 +949,19 @@ class MultiVisit(object):
 
         params = self.result.params
         samples = self.sampler.get_chain()
-
-        varkeys = []
-        for key in params:
-            if params[key].vary:
-                varkeys.append(key)
+        var_names = self.result.var_names
+        n = len(self.datasets)
 
         if plotkeys == 'all':
-            plotkeys = varkeys
-        if plotkeys is None:
+            plotkeys = var_names
+        elif plotkeys is None:
             if self.__fittype__ == 'transit':
                 l = ['D', 'W', 'b', 'T_0', 'P', 'h_1', 'h_2']
+            elif 'L_1' in var_names:
+                l = ['D','W','b']+[f'L_{j+1}' for j in range(n)]
             else:
-                n = len(self.datasets)
                 l = ['L']+[f'c_{j+1}' for j in range(n)]
-            plotkeys = list(set(self.result.var_names).intersection(l))
+            plotkeys = list(set(var_names).intersection(l))
             plotkeys.sort()
 
 
@@ -937,13 +969,13 @@ class MultiVisit(object):
         fig,ax = plt.subplots(nrows=n, figsize=(width,n*height), sharex=True)
         d0 = 0 
         if 'T_0' in plotkeys:
-            d0 = np.floor(np.nanmedian(samples[:,:,varkeys.index('T_0')]))
+            d0 = np.floor(np.nanmedian(samples[:,:,var_names.index('T_0')]))
         labels = _make_labels(plotkeys, d0)
         for i,key in enumerate(plotkeys):
             if key == 'T_0':
-                ax[i].plot(samples[:,:,varkeys.index(key)]-d0, **plot_kws)
+                ax[i].plot(samples[:,:,var_names.index(key)]-d0, **plot_kws)
             else:
-                ax[i].plot(samples[:,:,varkeys.index(key)], **plot_kws)
+                ax[i].plot(samples[:,:,var_names.index(key)], **plot_kws)
             ax[i].set_ylabel(labels[i])
             ax[i].yaxis.set_label_coords(-0.1, 0.5)
         ax[-1].set_xlim(0, len(samples))
@@ -958,54 +990,52 @@ class MultiVisit(object):
             show_priors=True, show_ticklabels=False,  kwargs=None):
 
         params = self.result.params
-
-        varkeys = []
-        for key in params:
-            if params[key].vary:
-                varkeys.append(key)
+        var_names = self.result.var_names
+        n = len(self.datasets)
 
         if plotkeys == 'all':
-            plotkeys = varkeys
+            plotkeys = var_names
         if plotkeys == None:
             if self.__fittype__ == 'transit':
                 l = ['D', 'W', 'b', 'T_0', 'P', 'h_1', 'h_2']
+            elif 'L_1' in var_names:
+                l = ['D','W','b']+[f'L_{j+1}' for j in range(n)]
             else:
-                n = len(self.datasets)
                 l = ['L']+[f'c_{j+1}' for j in range(n)]
-            plotkeys = list(set(self.result.var_names).intersection(l))
+            plotkeys = list(set(var_names).intersection(l))
             plotkeys.sort()
 
         chain = self.sampler.get_chain(flat=True)
         xs = []
         if 'T_0' in plotkeys:
-            d0 = np.floor(np.nanmedian(chain[:,varkeys.index('T_0')]))
+            d0 = np.floor(np.nanmedian(chain[:,var_names.index('T_0')]))
         else:
             d0 = 0 
         for key in plotkeys:
-            if key in varkeys:
+            if key in var_names:
                 if key == 'T_0':
-                    xs.append(chain[:,varkeys.index(key)]-d0)
+                    xs.append(chain[:,var_names.index(key)]-d0)
                 else:
-                    xs.append(chain[:,varkeys.index(key)])
+                    xs.append(chain[:,var_names.index(key)])
 
             if key == 'sigma_w' and params['log_sigma_w'].vary:
                 xs.append(np.exp(self.emcee.chain[:,-1])*1e6)
 
-            if 'D' in varkeys:
-                k = np.sqrt(chain[:,varkeys.index('D')])
+            if 'D' in var_names:
+                k = np.sqrt(chain[:,var_names.index('D')])
             else:
                 k = np.sqrt(params['D'].value) # Needed for later calculations
 
-            if key == 'k' and 'D' in varkeys:
+            if key == 'k' and 'D' in var_names:
                 xs.append(k)
 
-            if 'b' in varkeys:
-                b = chain[:,varkeys.index('b')]
+            if 'b' in var_names:
+                b = chain[:,var_names.index('b')]
             else:
                 b = params['b'].value  # Needed for later calculations
 
-            if 'W' in varkeys:
-                W = chain[:,varkeys.index('W')]
+            if 'W' in var_names:
+                W = chain[:,var_names.index('W')]
             else:
                 W = params['W'].value
 
@@ -1017,8 +1047,8 @@ class MultiVisit(object):
             if key == 'sini':
                 xs.append(sini)
 
-            if 'P' in varkeys:
-                P = chain[:,varkeys.index('P')]
+            if 'P' in var_names:
+                P = chain[:,var_names.index('P')]
             else:
                 P = params['P'].value   # Needed for later calculations
 
