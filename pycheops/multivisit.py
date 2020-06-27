@@ -45,6 +45,7 @@ from lmfit.minimizer import MinimizerResult
 from celerite.terms import Term, SHOTerm, JitterTerm
 from .models import TransitModel, FactorModel, EclipseModel
 from celerite import GP
+from .funcs import rhostar, massradius
 from uncertainties import UFloat, ufloat
 from emcee import EnsembleSampler
 import corner
@@ -223,7 +224,9 @@ class MultiVisit(object):
 
     The parameter ident is used to collect star and planet properties from the
     relevant tables at DACE. If ident is None (default) then the target name
-    is used in place of ident. Set ident='none' to disable this feature.  
+    is used in place of ident. Set ident='none' to disable this feature.  See
+    also StarProperties for other options that can be set using id_kws, e.g.,
+    id_kws={'dace':False} to use SWEET-Cat instead of DACE.
 
     All dates and times in each of the dataset are stored as BJD-2457000 (same
     as TESS).
@@ -592,8 +595,10 @@ class MultiVisit(object):
                 
             for d in dfdp:
                 if d in p and p[d].vary:
-                    params.add(f'{d}_{i+1}', p[d].value,
-                            min=p[d].min, max=p[d].max)
+                    pj = f'{d}_{i+1}'
+                    params.add(pj, p[d].value, min=p[d].min, max=p[d].max)
+                    if pj in priors:
+                        params[pj].user_data = priors[pj]
                     vn.append(f'{d}_{i+1}')
                     if d == 'glint_scale' or d == 'c':
                         vv.append(1)
@@ -944,6 +949,7 @@ class MultiVisit(object):
         ax[-1].set_xlim(0, len(samples))
         ax[-1].set_xlabel("step number");
 
+        fig.tight_layout()
         return fig
 
     # ----------------------------------------------------------------
@@ -1051,7 +1057,7 @@ class MultiVisit(object):
         
     # ------------------------------------------------------------
     
-    def plot_fit(self, title=None, nsamples=32, detrend=False, 
+    def plot_fit(self, title=None, detrend=False, 
             binwidth=0.001, 
             add_gaps=True, gap_tol=0.005, renorm=True,
             data_offset=None, res_offset=None, phase0=None,
@@ -1059,7 +1065,17 @@ class MultiVisit(object):
         """
 
         If there are gaps in the data longer than gap_tol phase units and
-        add_gaps is True then put a gap in the lines used to plot the models. 
+        add_gaps is True then put a gap in the lines used to plot the fit. The
+        transit model is plotted using a thin line in these gaps.
+
+        Binned data are plotted in phase bins of width binwidth. Set
+        binwidth=False to disable this feature.
+
+        The data are plotted in the range phase0 to 1+phase0.
+
+        The offsets between the light curves from different datasets can be
+        set using the data_offset keyword. The offset between the residuals
+        from different datasets can be  set using the res_offset keyword..
 
         Set renorm=False to prevent automatic re-scaling of fluxes.
 
@@ -1189,6 +1205,108 @@ class MultiVisit(object):
         fig.tight_layout()
 
         return fig
+        
+    # ------------------------------------------------------------
+
+    def massradius(self, m_star=None, r_star=None, K=None, q=0, 
+            jovian=True, plot_kws=None, verbose=True):
+        '''
+        Use the results from the previous transit light curve fit to estimate
+        the mass and/or radius of the planet.
+
+        Requires that stellar properties are supplied using the keywords
+        m_star and/or r_star. If only one parameter is supplied then the other
+        is estimated using the stellar density derived from the transit light
+        curve analysis. The planet mass can only be estimated if the the
+        semi-amplitude of its orbit (in m/s) is supplied using the keyword
+        argument K. See pycheops.funcs.massradius for valid formats to specify
+        these parameters.
+
+        N.B. by default, the mean stellar density calculated from the light
+        curve fit is an uses the approximation q->0, where  q=m_p/m_star is
+        the mass ratio. If this approximation is not valid then supply an
+        estimate of the mass ratio using the keyword argment q.
+        
+        Output units are selected using the keyword argument jovian=True
+        (Jupiter mass/radius) or jovian=False (Earth mass/radius).
+
+        See pycheops.funcs.massradius for options available using the plot_kws
+        keyword argument.
+        '''
+
+        # Generate value(s) from previous emcee sampler run
+        def _v(p):
+            vn = self.result.var_names
+            chain = self.flatchain
+            pars = self.result.params
+            if (p in vn):
+                v = chain[:,vn.index(p)]
+            elif p in pars.valuesdict().keys():
+                v = pars[p].value
+            else:
+                raise AttributeError(
+                        'Parameter {} missing from dataset'.format(p))
+            return v
+    
+    
+        # Generate a sample of values for a parameter
+        def _s(x, nm=100_000):
+            if isinstance(x,float) or isinstance(x,int):
+                return np.full(nm, x, dtype=np.float)
+            elif isinstance(x, UFloat):
+                return np.random.normal(x.n, x.s, nm)
+            elif isinstance(x, np.ndarray):
+                if len(x) == nm:
+                    return x
+                elif len(x) > nm:
+                    return x[random_sample(range(len(x)), nm)]
+                else:
+                    return x[(np.random.random(nm)*len(x+1)).astype(int)]
+            elif isinstance(x, tuple):
+                if len(x) == 2:
+                    return np.random.normal(x[0], x[1], nm)
+                elif len(x) == 3:
+                    raise NotImplementedError
+            raise ValueError("Unrecognised type for parameter values")
+
+    
+        # Generate samples for derived parameters not specified by the user
+        # from the chain rather than the summary  statistics 
+        k = np.sqrt(_v('D'))
+        b = _v('b')
+        W = _v('W')
+        P = _v('P')
+        aR = np.sqrt((1+k)**2-b**2)/W/np.pi
+        sini = np.sqrt(1 - (b/aR)**2)
+        f_c = _v('f_c')
+        f_s = _v('f_s')
+        ecc = f_c**2 + f_s**2
+        _q = _s(q, len(self.flatchain))
+        rho_star = rhostar(1/aR,P,_q)
+        # N.B. use of np.abs to cope with values with large errors
+        if r_star is None and m_star is not None:
+            _m = np.abs(_s(m_star, len(self.flatchain)))
+            r_star = (_m/rho_star)**(1/3)
+        if m_star is None and r_star is not None:
+            _r = np.abs(_s(r_star, len(self.flatchain)))
+            m_star = rho_star*_r**3
+
+        if m_star is None and r_star is not None:
+            if isinstance(r_star, tuple):
+                _r = ufloat(r_star[0], r_star[1])
+            else:
+                _r = r_star
+            m_star = rho_star*_r**3
+        if verbose:
+            print('[[Mass/radius]]')
+       
+        if plot_kws is None:
+            plot_kws = {}
+       
+        return massradius(P=P, k=k, sini=sini, ecc=ecc,
+                m_star=m_star, r_star=r_star, K=K, aR=aR,
+                jovian=jovian, verbose=verbose, **plot_kws)
+    
         
     # ------------------------------------------------------------
 
