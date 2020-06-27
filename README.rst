@@ -21,3 +21,8 @@ StarProperties(dataset.target) produces "Segmentation fault: 11"
 -----------------------------------------------------------------
 
 You are running the wrong version of python, e.g., anaconda2 instead of anaconda3
+
+"TypeError: 'str' object is not callable" in animate frames 
+------------------------------------------------------------
+Install "pillow", e.g., conda install pillow.
+
