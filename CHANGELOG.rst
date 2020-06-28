@@ -9,6 +9,8 @@ Changes since 0.6.0 onwards.
 * Added option to set user-defined values using a 2-tuple in StarProperties 
 * Bug fixes for animate_frames 
 * Add requirement for matplotlib 3.2.2 to setup.py
+* Get fits extensions by name in dataset
+* Updated notebooks in examples/Notebooks
 
 0.7.8 (2020-06-03)
 ~~~~~~~~~~~~~~~~~~
