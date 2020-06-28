@@ -675,9 +675,17 @@ class Dataset(object):
             tar = tarfile.open(self.tgzfile)
             with tar.extractfile(datafile[0]) as fd:
                 hdul = fits.open(fd)
-                cube = hdul['SCI_COR_SubArray'].data
-                hdr = hdul['SCI_COR_SubArray'].header
-                meta = Table.read(hdul['SCI_COR_ImageMetadata'])
+                if 'SCI_COR_SubArray' in hdul:
+                    ext = 'SCI_COR_SubArray'
+                    mext = 'SCI_COR_ImageMetadata'
+                elif 'SCI_RAW_SubArray' in hdul:
+                    ext = 'SCI_RAW_SubArray'
+                    mext = 'SCI_RAW_ImageMetadata'
+                else:
+                    raise KeyError('No SubArray extension in file')
+                cube = hdul[ext].data
+                hdr = hdul[ext].header
+                meta = Table.read(hdul[mext])
                 hdul.writeto(subPath)
             tar.close()
             if verbose: print('Saved subarray data to ',subPath)
