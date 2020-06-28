@@ -130,7 +130,7 @@ def _make_labels(plotkeys, d0):
             labels.append(r'$d^2f\,/\,d{}^2_{}$'.format(p,n))
         elif rt.match(key):
             n = rt.match(key).group(1)
-            labels.append(r'$\delta T_{}$'.format(n))
+            labels.append(r'$\Delta\,T_{}$'.format(n))
         elif rl.match(key):
             n = rl.match(key).group(1)
             labels.append(r'$L_{}$'.format(n))
@@ -377,7 +377,7 @@ class MultiVisit(object):
         if verbose:
             print(self.star)
             print('''
- N  file_key                   Aperture last_fit GP  Glint pipe_ver
+ N  file_key                   Aperture last_ GP  Glint pipe_ver
  ---------------------------------------------------------------------------''')
 
         for n,fl in enumerate(glob(ptn)):
@@ -418,7 +418,7 @@ class MultiVisit(object):
                 gp = 'Yes' if ('gp' in dd and d.gp is not None) else 'No'
                 gl = 'Yes' if 'f_glint' in dd else 'No'
                 pv = d.pipe_ver
-                print(f' {n+1:2} {d.file_key} {ap:8} {lf:8} {gp:3} {gl:5} {pv}')
+                print(f' {n+1:2} {d.file_key} {ap:8} {lf:5} {gp:3} {gl:5} {pv}')
 
 #--------------------------------------------------------------------------
 # 
@@ -931,7 +931,7 @@ class MultiVisit(object):
     # ----------------------------------------------------------------
 
     def trail_plot(self, plotkeys=None, 
-            plot_kws={'color':'black', 'alpha':0.3}, width=8, height=1.5):
+            plot_kws={'alpha':0.1}, width=8, height=1.5):
         """
         Plot parameter values v. step number for each walker.
 
@@ -1120,10 +1120,10 @@ class MultiVisit(object):
         phfits = []  # For plotting fits with lines - may contain np.nan
         fluxes = []
         fits = []   
+        lcmods = []  
         trends = []  
         ph_plots = []
         lc_plots = []
-        consts = []  # Normalisation factor for nice display
         iqrmax = 0  
         phmin = np.inf
         phmax = -np.inf
@@ -1136,7 +1136,6 @@ class MultiVisit(object):
             phases.append(ph)
             flux = d.lc['flux']
             c = np.percentile(flux, 67) if renorm else 1
-            consts.append(c)
             fluxes.append(flux/c)
             iqrmax = np.max([iqrmax, iqr(flux)])
             fit = copy(result.bestfit[j])
@@ -1147,15 +1146,19 @@ class MultiVisit(object):
                 if p in result.var_names:
                      modpar[d].value = 1 if d == 'c' else 0
             model = self.models[j]
-            trend = fit - model.eval(modpar, t=t)
+            lcmod = model.eval(modpar, t=t)
+            trend = fit - lcmod
+            trend -= np.nanmedian(trend)
             # Insert np.nan where there are gaps in phase so that the plotted
             # lines have a break
             g = np.where((ph[1:]-ph[:-1]) > gap_tol)[0]
             if add_gaps and len(g) > 0:
                 ph = np.insert(ph, g+1, np.nan)
                 fit = np.insert(fit, g+1, np.nan)
+                lcmod = np.insert(lcmod, g+1, np.nan)
                 trend = np.insert(trend, g+1, np.nan)
             phfits.append(ph)
+            lcmods.append(lcmod)
             fits.append(fit/c)
             trends.append(trend)
             tp = np.linspace(T_0,T_0+P,65536,endpoint=False)
@@ -1167,16 +1170,15 @@ class MultiVisit(object):
 
         if detrend:
             for j, (trend, flx, fit) in enumerate(zip(trends, fluxes, fits)):
-                trend = trend - np.nanmedian(trend)
-                flx = flx - trend[np.isfinite(trend)]
-                fit = fit - trend
-                c = np.nanmedian(fit)
+                flx -= trend[np.isfinite(trend)]
+                fit -= trend
+                c = np.nanmax(fit)
                 fluxes[j] = flx/c
-                fits[j] = fit/c
+                fits[j] = fit/c 
 
         plt.rc('font', size=fontsize)    
         if figsize is None:
-            figsize = (8, 2*n)
+            figsize = (8, 2+1.5*n)
         fig,ax=plt.subplots(nrows=2,sharex=True, figsize=figsize,
                 gridspec_kw={'height_ratios':[2,1]})
 
@@ -1189,18 +1191,15 @@ class MultiVisit(object):
                 ax[0].errorbar(r_, f_+off, yerr=e_, fmt='o',
                         c='midnightblue', ms=5, capsize=2, zorder=3)
 
-        for j, (ph,fit, trend) in enumerate(zip(phfits, fits, trends)):
+        for j, (ph,fit,lcmod) in enumerate(zip(phfits,fits,lcmods)):
             off = j*doff
             ax[0].plot(ph,fit+off,c='saddlebrown', lw=2, zorder=4)
             if not detrend:
-                ft = fit - trend 
-                ft = ft/np.nanmedian(ft) + off
-                ax[0].plot(ph,ft,c='forestgreen',zorder=2, lw=2)
+                ax[0].plot(ph,lcmod+off,c='forestgreen',zorder=2, lw=2)
 
         for j, (ph, fp) in enumerate(zip(ph_plots, lc_plots)):
             off = j*doff
-            c = 'saddlebrown' if detrend else 'forestgreen'
-            ax[0].plot(ph,fp+off,c=c, lw=1, zorder=4)
+            ax[0].plot(ph,fp+off,c='forestgreen', lw=1, zorder=2)
 
 
         roff = 10*np.max(result.rms) if res_offset is None else res_offset
@@ -1236,6 +1235,25 @@ class MultiVisit(object):
         fig.tight_layout()
 
         return fig
+        
+    # ------------------------------------------------------------
+
+    def tzero(self, BJD_0, P):
+        '''
+        Return the time of mid-transit closest to the centre of the combined
+        dataset as BJD-2457000, i.e., on the same time scale as the data.
+
+        :param BJD_0: BJD of mid-transit - float or ufloat
+        :param P: orbital period in days - float or ufloat
+
+        Returns
+
+        :param T_0: time of mid-transit, BJD-2457000, float or ufloat
+        '''
+        t = np.mean([d.lc['time'].mean() for d in self.datasets]) 
+        c = (t-BJD_0+2457000)/P
+        if isinstance(c, UFloat): c = c.n
+        return BJD_0-2457000 + round(c)*P
         
     # ------------------------------------------------------------
 
