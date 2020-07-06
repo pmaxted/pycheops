@@ -433,7 +433,14 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg):
                 print(ta, tb, tc)
                 print(fa, fb, fc)
                 raise ValueError('tzero2tperi grid search fail')
-        theta = brent(_delta, args=(sin2i, omrad, ecc), brack=(ta, tb, tc))
+        try:
+            theta = brent(_delta, args=(sin2i, omrad, ecc), brack=(ta, tb, tc))
+        except ValueError:
+            print(sin2i, omrad, ecc)
+            print(ta, tb, tc)
+            print(fa, fb, fc)
+            raise ValueError('Not a bracketing interval.')
+
     if theta == np.pi:
         E = np.pi 
     else:

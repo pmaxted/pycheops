@@ -21,3 +21,18 @@ StarProperties(dataset.target) produces "Segmentation fault: 11"
 -----------------------------------------------------------------
 
 You are running the wrong version of python, e.g., anaconda2 instead of anaconda3
+
+"TypeError: 'str' object is not callable" in animate frames 
+------------------------------------------------------------
+Install "pillow", e.g., conda install pillow.
+
+"No matching distribution found for matplotlib>3,2 (from pycheops)" 
+--------------------------------------------------------------------
+ This error message may appear when upgrading to pycheops version 0.8.0 or
+ later.  Two solutions have been found ...
+
+ 1. "conda update --all" then "pip install pycheops --upgrade"
+
+ 2. "pip install matplotlib --upgrade" then "pip install pycheops --upgrade"
+
+
