@@ -48,6 +48,7 @@ from celerite import GP
 from .funcs import rhostar, massradius
 from uncertainties import UFloat, ufloat
 from emcee import EnsembleSampler
+from os.path import join
 import corner
 from sys import stdout
 import matplotlib.pyplot as plt
@@ -76,10 +77,10 @@ def fit_harmonics(t, y, omega, n):
     expr = 'c'
     init = {'c':0}
     for i in range(n):
-        expr += f' + a_{i+1}*sin({i+1}*omega*x)'
-        expr += f' + b_{i+1}*cos({i+1}*omega*x)'
-        init[f'a_{i+1}'] = 0
-        init[f'b_{i+1}'] = 0
+        expr += f' + a_{i+1:02d}*sin({i+1:02d}*omega*x)'
+        expr += f' + b_{i+1:02d}*cos({i+1:02d}*omega*x)'
+        init[f'a_{i+1:02d}'] = 0
+        init[f'b_{i+1:02d}'] = 0
     m = ExpressionModel(expr)
     p = m.make_params(**init)
     r = m.fit(y,p,x=x)
@@ -102,6 +103,8 @@ def _make_model(model_repr, lc, f_theta=None, f_glint=None):
         model = TransitModel()*factor_model
     elif '_eclipse_func' in model_repr:
         model = EclipseModel()*factor_model
+    elif '_hj_func' in model_repr:
+        model = TransitModel()*EclipseModel()*factor_model
     if 'glint_func' in model_repr:
         model += Model(_glint_func, independent_vars=['t'],
             f_theta=f_theta, f_glint=f_glint)
@@ -111,10 +114,11 @@ def _make_model(model_repr, lc, f_theta=None, f_glint=None):
 
 def _make_labels(plotkeys, d0):
     labels = []
-    r = re.compile('dfd(.*)_([0-9]+)')
-    r2 = re.compile('d2fd(.*)2_([0-9]+)')
-    rt = re.compile('ttv_([0-9]+)')
-    rl = re.compile('L_([0-9]+)')
+    r = re.compile('dfd(.*)_([0-9][0-9])')
+    r2 = re.compile('d2fd(.*)2_([0-9][0-9])')
+    rt = re.compile('ttv_([0-9][0-9])')
+    rl = re.compile('L_([0-9][0-9])')
+    rc = re.compile('c_([0-9][0-9])')
     for key in plotkeys:
         if key == 'T_0':
             labels.append(r'T$_0-{:.0f}$'.format(d0))
@@ -124,16 +128,19 @@ def _make_labels(plotkeys, d0):
             labels.append(r'$h_2$')
         elif r.match(key):
             p,n = r.match(key).group(1,2)
-            labels.append(r'$df\,/\,d{}_{}$'.format(p,n))
+            labels.append(r'$df\,/\,d{}_{{{}}}$'.format(p,n))
         elif r2.match(key):
             p,n = r2.match(key).group(1,2)
-            labels.append(r'$d^2f\,/\,d{}^2_{}$'.format(p,n))
+            labels.append(r'$d^2f\,/\,d{}^2_{{{}}}$'.format(p,n))
         elif rt.match(key):
             n = rt.match(key).group(1)
-            labels.append(r'$\Delta\,T_{}$'.format(n))
+            labels.append(r'$\Delta\,T_{{{}}}$'.format(n))
         elif rl.match(key):
             n = rl.match(key).group(1)
-            labels.append(r'$L_{}$'.format(n))
+            labels.append(r'$L_{{{}}}$'.format(n))
+        elif rc.match(key):
+            n = rc.match(key).group(1)
+            labels.append(r'$c_{{{}}}$'.format(n))
         elif key == 'log_sigma_w':
             labels.append(r'$\log\sigma_w$')
         elif key == 'log_omega0':
@@ -177,18 +184,18 @@ def _log_posterior(pos, gps, lcs, models, modpars, noisemodel, priors, vn,
         df = ('c', 'dfdbg', 'dfdcontam', 'glint_scale',
                 'dfdx', 'd2fdx2', 'dfdy', 'd2fdy2', 'dfdt', 'd2fdt2')
         for d in df:
-            p = f'{d}_{i+1}' 
+            p = f'{d}_{i+1:02d}' 
             if p in vn:
                 v = pos[vn.index(p)]
                 if (v < modpar[d].min) or (v > modpar[d].max): return -np.inf
                 modpar[d].value = v
 
-        p = f'ttv_{i+1}'
+        p = f'ttv_{i+1:02d}'
         if p in vn:
             v = pos[vn.index(p)]
             modpar['T_0'].value = modpar['T_0'].init_value + v/86400
 
-        p = f'L_{i+1}'
+        p = f'L_{i+1:02d}'
         if p in vn:
             modpar['L'].value = pos[vn.index(p)]
 
@@ -578,6 +585,9 @@ class MultiVisit(object):
                 ttv, ttv_prior = True, ttv_edv_prior
             if model_type == '_eclipse_func':
                 edv, edv_prior = True, ttv_edv_prior
+            if model_type == '_hj_func':
+                ttv, ttv_prior = True, ttv_edv_prior
+                edv, edv_prior = True, ttv_edv_prior
         
         gps = []      # Separate GPs because over o/h to compute matrices
         lcs = []
@@ -588,6 +598,7 @@ class MultiVisit(object):
         # FactorModel parameters excluding cos(j.phi), sin(j.phi) terms
         dfdp = ['c', 'dfdbg', 'dfdcontam', 'dfdx', 'd2fdx2', 'dfdy', 'd2fdy2',
                 'dfdt', 'd2fdt2', 'glint_scale']
+
         for i,p in enumerate(plist):
             lc = self.datasets[i].lc
             lcs.append(lc)
@@ -600,12 +611,18 @@ class MultiVisit(object):
             m = _make_model(model_type, lc, *glint)
             models.append(m)
             modpar = m.make_params(verbose=False, **vals)
+            # Copy min/max values from params to modpar
+            for pm in modpar:
+                if pm in params:
+                    modpar[pm].min = max(modpar[pm].min, params[pm].min)
+                    modpar[pm].max = min(modpar[pm].max, params[pm].max)
+
             if ttv: 
                 modpar['T_0'].init_value = modpar['T_0'].value
             modpars.append(modpar)
 
             if ttv:
-                t = f'ttv_{i+1}'
+                t = f'ttv_{i+1:02d}'
                 params.add(t, 0)
                 params[t].user_data = ufloat(0,ttv_prior)
                 vn.append(t)
@@ -614,7 +631,7 @@ class MultiVisit(object):
                 priors[t] = params[t].user_data
                 
             if edv:
-                t = f'L_{i+1}'
+                t = f'L_{i+1:02d}'
                 params.add(t, 0)
                 params[t].user_data = ufloat(vals['L'], edv_prior)
                 vn.append(t)
@@ -624,11 +641,11 @@ class MultiVisit(object):
                 
             for d in dfdp:
                 if d in p and p[d].vary:
-                    pj = f'{d}_{i+1}'
+                    pj = f'{d}_{i+1:02d}'
                     params.add(pj, p[d].value, min=p[d].min, max=p[d].max)
                     if pj in priors:
                         params[pj].user_data = priors[pj]
-                    vn.append(f'{d}_{i+1}')
+                    vn.append(pj)
                     if d == 'glint_scale' or d == 'c':
                         vv.append(1)
                     else:
@@ -683,11 +700,13 @@ class MultiVisit(object):
         result.method = 'emcee'
         result.errorbars = True
         result.bestfit = fits
-        result.chisqr = -2*np.max(self.sampler.get_log_prob())
-        result.redchi = result.chisqr/result.nfree
-        result.aic = 2*result.nfree + result.chisqr
-        result.bic = result.nfree*np.log(result.ndata) + result.chisqr
         result.residual = [(d.lc['flux']-f) for d,f in zip(self.datasets,fits)]
+        z = zip(self.datasets,result.residual)
+        result.chisqr = np.sum(((r/d.lc['flux_err'])**2).sum() for d,r in z)
+        result.redchi = result.chisqr/result.nfree
+        lnlike = np.max(self.sampler.get_log_prob())
+        result.aic = 2*result.nfree - 2*lnlike
+        result.bic = result.nfree*np.log(result.ndata) - 2*lnlike
         result.rms = [r.std() for r in result.residual]
         result.npriors = len(priors)
         result.priors = priors
@@ -899,6 +918,111 @@ class MultiVisit(object):
 
         return self.result
 
+#--------------------------------------------------------------------------
+
+    def fit_hj(self, steps=128, nwalkers=64, burn=256, 
+            T_0=None, P=None, D=None, W=None, b=None, 
+            h_1=None, h_2=None, ttv=False, ttv_prior=3600, 
+            L=None, a_c=0, edv=False, edv_prior=1e-3, extra_priors=None, 
+            log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
+            unroll=True, nroll=3,
+            init_scale=1e-2, progress=True):
+        """
+        Use emcee to fit the transits and eclipses in the current datasets
+        using a model for a hot Jupiter system.
+
+        The model does not account for the thermal/reflected phase effect.
+
+        If T_0 and P are both fixed parameters then ttv=True can be used to
+        include the free parameters ttv_i, the offset in seconds from the
+        predicted time of mid-transit for each dataset i = 1, ..., N. The
+        prior on the values of ttv_i is a Gaussian with a width ttv_prior in
+        seconds.
+
+        Eclipse depths variations can be included in the fit using the keyword
+        edv=True. In this case L must be a fixed parameter and the eclipse
+        depth for dataset i is L_i, i=1, ..., N. The prior on the values of
+        L_i is a Gaussian with mean value L and width edv_prior.
+
+
+        """
+        # Dict of initial parameter values for creation of models
+        # Calculation of mean T_0 needs P and W so T_0 is not first in the list
+        vals = {'D':D, 'W':W, 'b':b, 'P':P, 'T_0':T_0, 'f_c':f_c, 'f_s':f_s,
+                'h_1':h_1, 'h_2':h_2, 'L':L, 'a_c':a_c}
+        priors = {} if extra_priors is None else extra_priors
+        pmin = {'P':0, 'D':0, 'W':0, 'b':0, 'f_c':-1, 'f_s':-1,
+                'h_1':0, 'h_2':0, 'L':0}
+        pmax = {'D':0.1, 'W':0.1, 'b':1, 'f_c':1, 'f_s':1,
+                'h_1':1, 'h_2':1, 'L':0.1}
+        step = {'D':1e-4, 'W':1e-4, 'b':1e-2, 'P':1e-6, 'T_0':1e-4,
+                'f_c':1e-4, 'f_s':1e-3, 'h_1':1e-3, 'h_2':1e-2, 'L':1e-5}
+
+        vn,vv,vs,params = self.__make_params__(vals, priors, pmin, pmax, step,
+                extra_priors)
+
+        if ttv and (params['T_0'].vary or params['P'].vary):
+            raise ValueError('TTV not allowed if P or T_0 are variables')
+
+        _ = self.__make_noisemodel__(log_sigma_w, log_S0, log_omega0,
+                log_Q, params, priors, vn, vv, vs, unroll)
+        noisemodel, params, priors, vn, vv, vs = _
+
+        _ = self.__make_modpars__('_hj_func', vals, params, noisemodel,
+                vn, vv, vs, priors, ttv, ttv_prior, unroll, nroll)
+        params,gps,lcs,models,modpars,glints,omegas,vn,vv,vs,priors  = _
+
+        # Setup sampler
+        vv = np.array(vv)
+        vs = np.array(vs)
+        pos = []
+        n_varys = len(vv)
+        return_fit = False
+        args = (gps, lcs, models, modpars, noisemodel, priors, vn, return_fit)
+        for i in range(nwalkers):
+            lnlike_i = -np.inf
+            while lnlike_i == -np.inf:
+                pos_i = vv + vs*np.random.randn(n_varys)*init_scale
+                lnlike_i = _log_posterior(pos_i, *args)
+            pos.append(pos_i)
+
+        sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior,
+            args=args)
+
+        if progress:
+            print('Running burn-in ..')
+            stdout.flush()
+        pos, _, _ = sampler.run_mcmc(pos, burn, store=False, 
+            skip_initial_state_check=True, progress=progress)
+        sampler.reset()
+        if progress:
+            print('Running sampler ..')
+            stdout.flush()
+        state = sampler.run_mcmc(pos, steps, 
+            skip_initial_state_check=True, progress=progress)
+
+        flatchain = sampler.get_chain(flat=True)
+        pos = flatchain[np.argmax(sampler.get_log_prob()),:]
+
+        return_fit = True
+        args = (gps, lcs, models, modpars, noisemodel, priors, vn, return_fit)
+        fits = _log_posterior(pos, *args)
+
+
+        self.gps = gps
+        self.noisemodel = noisemodel
+        self.models = models
+        self.modpars = modpars
+        self.sampler = sampler
+        self.__fittype__ = 'transit'
+        self.flatchain = flatchain
+        self.result = self.__make_result__(vn, pos, vv, params, fits, priors)
+
+        return self.result
+
+#--------------------------------------------------------------------------
+
+
     # ----------------------------------------------------------------
 
     def fit_report(self, **kwargs):
@@ -930,6 +1054,30 @@ class MultiVisit(object):
 
     # ----------------------------------------------------------------
 
+    def ttv_plot(self, plot_kws=None, figsize=(8,5)):
+        """
+        Plot results of TTV analysis
+
+        The keyword plot_kws can be used to set keyword options in the call to
+        plt.errorbar().
+
+        """
+
+        if plot_kws is None:
+            plot_kws={'fmt':'bo', 'capsize':4}
+        fig,ax = plt.subplots(figsize=figsize)
+        for j in range(len(self.datasets)):
+            t = self.datasets[j].lc['time'].mean() - 1900
+            ttv = self.result.params[f'ttv_{j+1:02d}'].value
+            ttv_err = self.result.params[f'ttv_{j+1:02d}'].stderr
+            ax.errorbar(t,ttv,yerr=ttv_err, **plot_kws)
+            plt.axhline(0,c='darkcyan',ls=':')
+            ax.set_xlabel('BJD - 2458900')
+            ax.set_ylabel(r'$\Delta T$')
+        return fig
+
+    # ----------------------------------------------------------------
+
     def trail_plot(self, plotkeys=None, 
             plot_kws={'alpha':0.1}, width=8, height=1.5):
         """
@@ -958,9 +1106,9 @@ class MultiVisit(object):
             if self.__fittype__ == 'transit':
                 l = ['D', 'W', 'b', 'T_0', 'P', 'h_1', 'h_2']
             elif 'L_1' in var_names:
-                l = ['D','W','b']+[f'L_{j+1}' for j in range(n)]
+                l = ['D','W','b']+[f'L_{j+1:02d}' for j in range(n)]
             else:
-                l = ['L']+[f'c_{j+1}' for j in range(n)]
+                l = ['L']+[f'c_{j+1:02d}' for j in range(n)]
             plotkeys = list(set(var_names).intersection(l))
             plotkeys.sort()
 
@@ -999,9 +1147,9 @@ class MultiVisit(object):
             if self.__fittype__ == 'transit':
                 l = ['D', 'W', 'b', 'T_0', 'P', 'h_1', 'h_2']
             elif 'L_1' in var_names:
-                l = ['D','W','b']+[f'L_{j+1}' for j in range(n)]
+                l = ['D','W','b']+[f'L_{j+1:02d}' for j in range(n)]
             else:
-                l = ['L']+[f'c_{j+1}' for j in range(n)]
+                l = ['L']+[f'c_{j+1:02d}' for j in range(n)]
             plotkeys = list(set(var_names).intersection(l))
             plotkeys.sort()
 
@@ -1127,7 +1275,7 @@ class MultiVisit(object):
         iqrmax = 0  
         phmin = np.inf
         phmax = -np.inf
-        if phase0 is None: phase0 = -0.2
+        if phase0 is None: phase0 = -0.25
         for j,d in enumerate(self.datasets):
             t = d.lc['time']
             ph = phaser(t,P,T_0,phase0)
@@ -1142,7 +1290,7 @@ class MultiVisit(object):
             modpar = copy(self.modpars[j])
             for d in ('c', 'dfdbg', 'dfdcontam', 'glint_scale',
                     'dfdx', 'd2fdx2', 'dfdy', 'd2fdy2', 'dfdt', 'd2fdt2'):
-                p = f'{d}_{j+1}'
+                p = f'{d}_{j+1:02d}'
                 if p in result.var_names:
                      modpar[d].value = 1 if d == 'c' else 0
             model = self.models[j]
@@ -1153,7 +1301,8 @@ class MultiVisit(object):
             # lines have a break
             g = np.where((ph[1:]-ph[:-1]) > gap_tol)[0]
             if add_gaps and len(g) > 0:
-                ph = np.insert(ph, g+1, np.nan)
+                phmid = 0.5*(ph[1:]+ph[:-1])
+                ph = np.insert(ph, g+1, phmid[g])
                 fit = np.insert(fit, g+1, np.nan)
                 lcmod = np.insert(lcmod, g+1, np.nan)
                 trend = np.insert(trend, g+1, np.nan)
@@ -1193,9 +1342,10 @@ class MultiVisit(object):
 
         for j, (ph,fit,lcmod) in enumerate(zip(phfits,fits,lcmods)):
             off = j*doff
-            ax[0].plot(ph,fit+off,c='saddlebrown', lw=2, zorder=4)
+            k = np.argsort(ph)
+            ax[0].plot(ph[k],fit[k]+off,c='saddlebrown', lw=2, zorder=4)
             if not detrend:
-                ax[0].plot(ph,lcmod+off,c='forestgreen',zorder=2, lw=2)
+                ax[0].plot(ph[k],lcmod[k]+off,c='forestgreen',zorder=2, lw=2)
 
         for j, (ph, fp) in enumerate(zip(ph_plots, lc_plots)):
             off = j*doff
@@ -1224,6 +1374,7 @@ class MultiVisit(object):
 
         if ylim is not None: ax[0].set_ylim(*ylim)
         ax[0].set_ylabel('Flux')
+        ax[0].set_title(title)
         if roff > 0:
             ax[1].set_ylim(-0.75*roff, roff*(n-0.25))
         else:

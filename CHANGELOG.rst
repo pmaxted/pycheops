@@ -1,7 +1,16 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-0.8.0
+0.8.1 (2020-06-29)
+~~~~~~~~~~~~~~~~~~
+* Added multivisit.ttv_plot()
+* Changed parameter names to ttv_01, L_01, etc. in multivisit to cope with
+  multivisit objects with >9 datasets.
+* Added min/max values from params to modpars in multivisit
+* multivisit datadir join bug fix
+* Fixed title keyword option in multivisit.plot_fit()
+
+0.8.0 (2020-06-28)
 ~~~~~~~~~~~~~~~~~~
 * Added Multivisit class
 * Added load() and save() to dataset
