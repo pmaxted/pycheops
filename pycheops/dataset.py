@@ -2556,9 +2556,9 @@ class Dataset(object):
         cbad = 'xkcd:red'
         
         if flagged:
-            flux_measure = copy.copy(flux_table)
+            flux_measure = copy(flux_table)
         else:
-            flux_measure = copy.copy(flux)
+            flux_measure = copy(flux)
         ax[0,0].scatter(time,flux,s=2,c=cgood)
         if flagged:
             ax[0,0].scatter(tjdb_table,flux_bad_table,s=2,c=cbad)
@@ -2788,11 +2788,11 @@ class Dataset(object):
             result = model.fit(flux, params, t=time)
 
             if index == 0:
-                min_BIC = copy.copy(result.bic)
+                min_BIC = copy(result.bic)
                 decorr_params = []
             else:
                 if result.bic < min_BIC:
-                    min_BIC = copy.copy(result.bic)
+                    min_BIC = copy(result.bic)
                     decorr_params = []
                     for xindex, x in enumerate([dfdt, dfdx, dfdy, dfdsinphi, dfdcosphi, dfdbg,
                                                 dfdcontam, d2fdt2, d2fdx2, d2fdy2, dfdsin2phi, dfdcos2phi]):
