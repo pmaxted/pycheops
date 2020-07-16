@@ -2804,7 +2804,7 @@ class Dataset(object):
                                 decorr_params.append("dfdsinphi") 
                                 decorr_params.append("dfdcosphi")
                             elif params_d[xindex] == "dfdcosphi" and "dfdcosphi" in decorr_params:
-                                print()
+                                continue
                             elif params_d[xindex] == "dfdsin2phi":
                                 decorr_params.append("dfdsin2phi")
                                 decorr_params.append("dfdcos2phi")
@@ -2812,7 +2812,7 @@ class Dataset(object):
                                 decorr_params.append("dfdsin2phi")  
                                 decorr_params.append("dfdcos2phi")
                             elif params_d[xindex] == "dfdcos2phi" and "dfdcos2phi" in decorr_params:
-                                print()
+                                continue
                             else:
                                 decorr_params.append(params_d[xindex])
             
