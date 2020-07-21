@@ -372,7 +372,8 @@ class MultiVisit(object):
         if datadir is not None:
             ptn = join(datadir,ptn)
 
-        g = glob(ptn)
+        datatimes = [Dataset.load(i).bjd_ref for i in glob(ptn)]
+        g = [x for _,x in sorted(zip(datatimes,glob(ptn)))] 
         if len(g) == 0:
             warn(f'No matching dataset names for target {target}', UserWarning)
             return
@@ -387,7 +388,7 @@ class MultiVisit(object):
  N  file_key                   Aperture last_ GP  Glint pipe_ver
  ---------------------------------------------------------------------------''')
 
-        for n,fl in enumerate(glob(ptn)):
+        for n,fl in enumerate(g):
             d = Dataset.load(fl)
 
             # Make time scales consistent
