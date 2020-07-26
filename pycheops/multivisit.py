@@ -372,7 +372,8 @@ class MultiVisit(object):
         if datadir is not None:
             ptn = join(datadir,ptn)
 
-        g = glob(ptn)
+        datatimes = [Dataset.load(i).bjd_ref for i in glob(ptn)]
+        g = [x for _,x in sorted(zip(datatimes,glob(ptn)))] 
         if len(g) == 0:
             warn(f'No matching dataset names for target {target}', UserWarning)
             return
@@ -387,7 +388,7 @@ class MultiVisit(object):
  N  file_key                   Aperture last_ GP  Glint pipe_ver
  ---------------------------------------------------------------------------''')
 
-        for n,fl in enumerate(glob(ptn)):
+        for n,fl in enumerate(g):
             d = Dataset.load(fl)
 
             # Make time scales consistent
@@ -921,7 +922,7 @@ class MultiVisit(object):
 #--------------------------------------------------------------------------
 
     def fit_hj(self, steps=128, nwalkers=64, burn=256, 
-            T_0=None, P=None, D=None, W=None, b=None, 
+            T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None, 
             h_1=None, h_2=None, ttv=False, ttv_prior=3600, 
             L=None, a_c=0, edv=False, edv_prior=1e-3, extra_priors=None, 
             log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
