@@ -413,8 +413,15 @@ class MultiVisit(object):
                 p.init_value += dBJD
                 p.min += dBJD
                 p.max += dBJD
+                p = d.emcee.params_best['T_0']
+                p._val += dBJD
+                p.init_value += dBJD
+                p.min += dBJD
+                p.max += dBJD
                 if 'T_0' in d.emcee.var_names: 
-                    d.emcee.init_vals[d.emcee.var_names.index('T_0')] += dBJD
+                    j = d.emcee.var_names.index('T_0')
+                    d.emcee.init_vals[j] += dBJD
+                    d.emcee.chain[:,j] += dBJD
                 if 'T_0' in d.emcee.init_values: 
                     d.emcee.init_values['T_0'] += dBJD
 
