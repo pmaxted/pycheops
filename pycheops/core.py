@@ -30,6 +30,7 @@ import  os
 from configparser import ConfigParser
 from sys import platform
 import getpass
+from astropy.table import Table
 
 __all__ = ['load_config', 'setup_config', 'get_cache_path']
 
@@ -56,7 +57,7 @@ def load_config(configFile=None):
 
 
 def setup_config(configFile=None, overwrite=False, mode=0o600, 
-        data_cache_path=None, pdf_cmd=None):
+        data_cache_path=None, pdf_cmd=None, planet_table_path=None):
     """
     Create module configuration 
     
@@ -71,6 +72,8 @@ def setup_config(configFile=None, overwrite=False, mode=0o600,
     :param data_cache_path: user is prompted if None, use '' for default
 
     :param pdf_cmd: user is prompted if None, use '' for default
+
+    :param planet_table_path: user is prompted if None, use '' for default
 
     """
 
@@ -103,6 +106,22 @@ def setup_config(configFile=None, overwrite=False, mode=0o600,
     if pdf_cmd is '':
         pdf_cmd = pdf_cmd_default
 
+    planet_table_path_default = os.path.join(data_cache_path,'planet_table.csv')
+    prompt = ("Enter path to local planet data table [{}] > "
+            .format(planet_table_path_default))
+    if planet_table_path is None:
+        planet_table_path = input(prompt)
+    if planet_table_path is '':
+        planet_table_path = planet_table_path_default
+
+    # Create empty planet table if it does not exist already
+    if not os.path.isfile(planet_table_path):
+        names = ['target', 'gaia_id', 'planet_id', 'T0', 'e_T0', 'P', 'e_P',
+                'ecosw', 'e_ecosw', 'esinw', 'e_esinw', 'D', 'e_D', 'W', 'e_W',
+                'K', 'e_K', 'references', 'remarks']
+        T = Table(names=names)
+        T.write(planet_table_path)
+
     #default_username = getpass.getuser()
     #prompt = "Enter CHEOPS archive username [{}] > ".format(default_username)
     #username = input(prompt)
@@ -122,6 +141,9 @@ def setup_config(configFile=None, overwrite=False, mode=0o600,
     # TEPCat location and update interval in seconds
     url = 'https://www.astro.keele.ac.uk/jkt/tepcat/allplanets-csv.csv' 
     c['TEPCat'] = {'update_interval': 86400, 'download_url': url}
+
+    # Planet data table
+    c['PlanetData'] = {'planet_table_path': planet_table_path}
 
     #N.B. The archive username and password are stored in plain text so the
     #default mode value is 0o600 = user read/write permission only.
