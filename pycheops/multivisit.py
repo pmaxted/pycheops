@@ -395,7 +395,7 @@ class MultiVisit(object):
             dBJD = d.bjd_ref - 2457000
             d.bjd_ref = 2457000
             d.lc['time'] += dBJD
-            d.lc['bjd_ref'] = 0
+            d.lc['bjd_ref'] = dBJD
             if 'lmfit' in d.__dict__:
                 p = d.lmfit.params['T_0']
                 p._val += dBJD
