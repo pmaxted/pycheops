@@ -226,6 +226,11 @@ def _log_posterior(pos, gps, lcs, models, modpars, noisemodel, priors, vn,
     for p in priors:
         if p in vn:
             lnprob += -0.5*( (pos[vn.index(p)] - priors[p].n)/priors[p].s)**2
+        elif p in ('e', 'q_1', 'q_2', 'k', 'aR',  'rho',):
+            lnprob += -0.5*( (modpar[p] - priors[p].n)/priors[p].s)**2
+        elif p == 'logrho':
+            logrho = np.log10(modpar['rho'])
+            lnprob += -0.5*( (logrho - priors[p].n)/priors[p].s)**2
 
     return lnprob + lnprior
 

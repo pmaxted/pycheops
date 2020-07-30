@@ -3,8 +3,12 @@ Changes since 0.6.0 onwards.
 
 0.8.2 (2020-07-26)
 ~~~~~~~~~~~~~~~~~~
+
+0.8.2 (2020-07-26)
+~~~~~~~~~~~~~~~~~~
 * Read datasets into multivisit object in a logical order (#133)
 * Update T0 in dataset.emcee.params_best and dataset.emcee.chain in multivisit
+* Fix copy.copy bug in dataset.should_I_decorr() 
 
 0.8.1 (2020-06-29)
 ~~~~~~~~~~~~~~~~~~
