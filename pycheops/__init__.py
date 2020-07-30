@@ -64,7 +64,7 @@ if not path.isfile(pfile):
     contam = np.zeros_like(rad)
     contam[0] = 1.0
     for i,r in enumerate(rad[1:]):
-        nthe = max(4, round(r/5).astype(int))
+        nthe = max(4, int(round(r/5)))
         the = np.linspace(0,2*np.pi,nthe)
         pos= np.array((100+np.array(r*np.cos(the)),
                     100+np.array(r*np.sin(the)))).T
