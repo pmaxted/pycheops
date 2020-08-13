@@ -1399,6 +1399,110 @@ class MultiVisit(object):
         fig.tight_layout()
 
         return fig
+    # ------------------------------------------------------------
+   
+    def phase_fold_data(self, phase0=None, detrend=True, renorm=True, clip_outliers=True, clip=5, width = 15, verbose=True):
+        """
+
+        Phase-fold the transits in dataset.
+        
+        Parameters:
+        -----------
+        phase0: float;
+        	Start phase for the phase-folded data. If None, phase0 = -0.25.
+        
+        clip_outliers: bool;
+            specify if outliers in phase-folded data should be clipped
+        
+        clip: float;
+            datapoints greater than clip * mad from median smoothed version of light curve are removed. 
+            mad is the mean absolute deviation from the median-smoothed light curve. Follows same method as clip_outlier function in dataset.
+        
+        width: Int;
+            width of window for median-smoothing filter
+        
+        returns:
+        --------
+        output: namedtuple;
+        	contains 5 arrays with attributes: phases, fluxes, errors, model_phases, model_fits
+            
+
+        """
+        from collections import namedtuple
+        from scipy.signal import medfilt
+        
+        n = len(self.datasets)
+        result = self.result
+        par = result.parbest
+        P = par['P'].value
+        T_0 = par['T_0'].value
+        phases = []
+        phfits = []  # For plotting fits with lines - may contain np.nan
+        fluxes = []
+        errors = []    #tunde added 12/aug
+        fits = []   
+        lcmods = []  
+        trends = []  
+        ph_plots = []
+        lc_plots = []
+        if phase0 is None: phase0 = -0.25
+        for j,d in enumerate(self.datasets):
+            t = d.lc['time']
+            ph = phaser(t,P,T_0,phase0)
+            phases.append(ph)
+            errors.append(d.lc['flux_err'])    #tunde added 12/aug
+            flux = d.lc['flux']
+            c = np.percentile(flux, 67) if renorm else 1
+            fluxes.append(flux/c)
+            fit = copy(result.bestfit[j])
+            modpar = copy(self.modpars[j])
+            for d in ('c', 'dfdbg', 'dfdcontam', 'glint_scale',
+                    'dfdx', 'd2fdx2', 'dfdy', 'd2fdy2', 'dfdt', 'd2fdt2'):
+                p = f'{d}_{j+1:02d}'
+                if p in result.var_names:
+                     modpar[d].value = 1 if d == 'c' else 0
+            model = self.models[j]
+            lcmod = model.eval(modpar, t=t)
+            trend = fit - lcmod
+            trend -= np.nanmedian(trend)
+            
+            phfits.append(ph)
+            lcmods.append(lcmod)
+            fits.append(fit/c)
+            trends.append(trend)
+            tp = np.linspace(min(t),max(t),65536,endpoint=False)
+            ph = phaser(tp,P,T_0,phase0)
+            lc = model.eval(modpar, t=tp)
+            k = np.argsort(ph)
+            ph_plots.append(ph[k])
+            lc_plots.append(lc[k])
+
+        if detrend:
+            for j, (trend, flx, fit) in enumerate(zip(trends, fluxes, fits)):
+                flx -= trend[np.isfinite(trend)]
+                fit -= trend
+                c = np.nanmax(fit)
+                fluxes[j] = flx/c
+                fits[j] = fit/c 
+        #tunde added 12/aug
+        srt = np.argsort(np.concatenate(phases))
+        srt2 = np.argsort(np.concatenate(ph_plots))
+        
+        output = namedtuple('output', ['phases', 'fluxes', 'errors','model_phases','model_fits'])
+        out = output(phases=np.concatenate(phases)[srt], fluxes=np.concatenate(fluxes)[srt],
+                     errors=np.concatenate(errors)[srt], model_phases=np.concatenate(ph_plots)[srt2],
+                     model_fits=np.concatenate(lc_plots)[srt2])
+        
+        if clip_outliers:
+            dd = abs( medfilt(out.fluxes-1, width)+1 - out.fluxes)
+            mad=dd.mean()
+            ok= dd < clip*mad
+            out = out._replace(phases = out.phases[ok], fluxes= out.fluxes[ok], errors = out.errors[ok])
+            if verbose:
+                print('\nRejected {} points more than {:0.1f} x MAD = {:0.0f} ppm from the median'.format(sum(~ok),clip,1e6*mad*clip))
+        
+        return out
+                
         
     # ------------------------------------------------------------
 
