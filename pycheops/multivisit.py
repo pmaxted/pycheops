@@ -226,6 +226,11 @@ def _log_posterior(pos, gps, lcs, models, modpars, noisemodel, priors, vn,
     for p in priors:
         if p in vn:
             lnprob += -0.5*( (pos[vn.index(p)] - priors[p].n)/priors[p].s)**2
+        elif p in ('e', 'q_1', 'q_2', 'k', 'aR',  'rho',):
+            lnprob += -0.5*( (modpar[p] - priors[p].n)/priors[p].s)**2
+        elif p == 'logrho':
+            logrho = np.log10(modpar['rho'])
+            lnprob += -0.5*( (logrho - priors[p].n)/priors[p].s)**2
 
     return lnprob + lnprior
 
@@ -395,7 +400,7 @@ class MultiVisit(object):
             dBJD = d.bjd_ref - 2457000
             d.bjd_ref = 2457000
             d.lc['time'] += dBJD
-            d.lc['bjd_ref'] = 0
+            d.lc['bjd_ref'] = dBJD
             if 'lmfit' in d.__dict__:
                 p = d.lmfit.params['T_0']
                 p._val += dBJD
@@ -413,8 +418,15 @@ class MultiVisit(object):
                 p.init_value += dBJD
                 p.min += dBJD
                 p.max += dBJD
+                p = d.emcee.params_best['T_0']
+                p._val += dBJD
+                p.init_value += dBJD
+                p.min += dBJD
+                p.max += dBJD
                 if 'T_0' in d.emcee.var_names: 
-                    d.emcee.init_vals[d.emcee.var_names.index('T_0')] += dBJD
+                    j = d.emcee.var_names.index('T_0')
+                    d.emcee.init_vals[j] += dBJD
+                    d.emcee.chain[:,j] += dBJD
                 if 'T_0' in d.emcee.init_values: 
                     d.emcee.init_values['T_0'] += dBJD
 
