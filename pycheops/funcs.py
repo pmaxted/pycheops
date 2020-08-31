@@ -75,8 +75,7 @@ from os.path import getmtime
 from .core import load_config
 from matplotlib.patches import Ellipse
 from scipy.signal import argrelextrema
-
-
+import warnings
 
 __all__ = [ 'a_rsun','f_m','m1sin3i','m2sin3i','asini','rhostar','g_2',
         'K_kms','m_comp','transit_width','esolve','t2z',
@@ -904,10 +903,14 @@ def massradius(P=None, k=None, sini=None, ecc=None,
             download = True
         if download:
             url = config['TEPCat']['download_url']
-            req=requests.post(url)
-            with open(TEPCatPath, 'wb') as file:
-                file.write(req.content)
-            if verbose:
+            try:
+                req=requests.post(url)
+            except:
+                warnings.warn("Failed to update TEPCat data file from server")
+            else:
+                with open(TEPCatPath, 'wb') as file:
+                    file.write(req.content)
+                if verbose:
                     print('TEPCat data downloaded from \n {}'.format(url))
         # Awkward table to deal with because of repeated column names
         T = Table.read(TEPCatPath,format='ascii.no_header')

@@ -1642,6 +1642,7 @@ class Dataset(object):
 
         n = len(plotkeys)
         fig,ax = plt.subplots(nrows=n, figsize=(width,n*height), sharex=True)
+        if n == 1: ax = [ax,]
         labels = _make_labels(plotkeys, self.bjd_ref)
         for i,key in enumerate(plotkeys):
             ax[i].plot(samples[:,:,varkeys.index(key)],'k',alpha=0.1)
