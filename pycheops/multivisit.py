@@ -1128,6 +1128,7 @@ class MultiVisit(object):
 
         n = len(plotkeys)
         fig,ax = plt.subplots(nrows=n, figsize=(width,n*height), sharex=True)
+        if n == 1: ax = [ax,]
         d0 = 0 
         if 'T_0' in plotkeys:
             d0 = np.floor(np.nanmedian(samples[:,:,var_names.index('T_0')]))
@@ -1388,8 +1389,8 @@ class MultiVisit(object):
         if ylim is not None: ax[0].set_ylim(*ylim)
         ax[0].set_ylabel('Flux')
         ax[0].set_title(title)
-        if roff > 0:
-            ax[1].set_ylim(-0.75*roff, roff*(n-0.25))
+        if roff != 0:
+            ax[1].set_ylim(np.sort([-0.75*roff, roff*(n-0.25)]))
         else:
             rms = 10*np.max(result.rms)
             ax[1].set_ylim(-5*rms, 5*rms)

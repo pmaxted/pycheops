@@ -348,7 +348,7 @@ class TransitModel(Model):
             c2 = 1 - h_1 + h_2
             a2 = np.log2(c2/h_2)
             z,m = t2z(t, T_0, P, sini, r_star, ecc, om, returnMask = True)
-            # Set z values where planet is behind star to a large nominal value
+            # Set z values where planet is behind star to a big nominal value
             z[m]  = 100
             return qpower2(z, k, c2, a2)
 
@@ -356,24 +356,28 @@ class TransitModel(Model):
         self._set_paramhints_prefix()
 
     def _set_paramhints_prefix(self):
-        self.set_param_hint('P', min=1e-15)
-        self.set_param_hint('D', min=0, max=0.25)
-        self.set_param_hint('W', min=0, max=0.3)
-        self.set_param_hint('b', min=0, max=1.0)
-        self.set_param_hint('f_c', value=0, min=-1, max=1, vary=False)
-        self.set_param_hint('f_s', value=0, min=-1, max=1, vary=False)
-        self.set_param_hint('e',min=0,max=1,expr='f_c**2 + f_s**2')
-        self.set_param_hint('h_1', value=0.7224, min=0, max=1, vary=False)
-        self.set_param_hint('h_2', value=0.6713, min=0, max=1, vary=False)
-        self.set_param_hint('q_1',min=0,max=1,expr='(1-h_2)**2')
-        self.set_param_hint('q_2',min=0,max=1,expr='(h_1-h_2)/(1-h_2)')
+        p = self.prefix
+        self.set_param_hint(f'{p}P', value=1, min=1e-15)
+        self.set_param_hint(f'{p}D', value=0.01, min=0, max=0.25)
+        self.set_param_hint(f'{p}W', value=0.1, min=0, max=0.3)
+        self.set_param_hint(f'{p}b', value=0.3, min=0, max=1.0)
+        self.set_param_hint(f'{p}f_c', value=0, min=-1, max=1, vary=False)
+        self.set_param_hint(f'{p}f_s', value=0, min=-1, max=1, vary=False)
+        expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
+        self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
+        self.set_param_hint(f'{p}h_1', value=0.7224,min=0,max=1,vary=False)
+        self.set_param_hint(f'{p}h_2', value=0.6713,min=0,max=1,vary=False)
+        expr = "(1-{p:s}h_2)**2".format(p=self.prefix)
+        self.set_param_hint(f'{p}q_1',min=0,max=1,expr=expr)
+        expr = "({p:s}h_1-{p:s}h_2)/(1-{p:s}h_2)".format(p=self.prefix)
+        self.set_param_hint(f'{p}q_2',min=0,max=1,expr=expr)
         expr = "sqrt({p:s}D)".format(p=self.prefix)
-        self.set_param_hint('k'.format(p=self.prefix), 
+        self.set_param_hint(f'{p}k'.format(p=self.prefix), 
                 expr=expr, min=0, max=0.5)
         expr ="sqrt((1+{p:s}k)**2-{p:s}b**2)/{p:s}W/pi".format(p=self.prefix)
-        self.set_param_hint('aR',min=1, expr=expr)
+        self.set_param_hint(f'{p}aR',min=1, expr=expr)
         expr = "0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix)
-        self.set_param_hint('rho', min=0, expr = expr)
+        self.set_param_hint(f'{p}rho', min=0, expr = expr)
 
 
 #----------------------
@@ -448,24 +452,25 @@ class EclipseModel(Model):
         self._set_paramhints_prefix()
 
     def _set_paramhints_prefix(self):
-        self.set_param_hint('P', min=1e-15)
-        self.set_param_hint('D', min=0, max=0.25)
-        self.set_param_hint('W', min=0, max=0.3)
-        self.set_param_hint('b', min=0, max=1.0)
-        self.set_param_hint('L', min=0, max=1)
-        self.set_param_hint('f_c', value=0, min=-1, max=1, vary=False)
-        self.set_param_hint('f_s', value=0, min=-1, max=1, vary=False)
-        self.set_param_hint('e',min=0,max=1,expr='f_c**2 + f_s**2')
-        self.set_param_hint('a_c', value=0, min=0, vary=False)
+        p = self.prefix
+        self.set_param_hint(f'{p}P', value=1, min=1e-15)
+        self.set_param_hint(f'{p}D', value=0.01, min=0, max=0.25)
+        self.set_param_hint(f'{p}W', value=0.1, min=0, max=0.3)
+        self.set_param_hint(f'{p}b', value=0.3, min=0, max=1.0)
+        self.set_param_hint(f'{p}L', value=0.001, min=0, max=1)
+        self.set_param_hint(f'{p}f_c', value=0, min=-1, max=1, vary=False)
+        self.set_param_hint(f'{p}f_s', value=0, min=-1, max=1, vary=False)
+        expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
+        self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
+        self.set_param_hint(f'{p}a_c', value=0, min=0, vary=False)
         expr = "sqrt({prefix:s}D)".format(prefix=self.prefix)
-        self.set_param_hint('k', expr=expr, min=0, max=1)
+        self.set_param_hint(f'{p}k', expr=expr, min=0, max=1)
         expr = "{prefix:s}L/{prefix:s}D".format(prefix=self.prefix)
-        self.set_param_hint('J', expr=expr, min=0)
+        self.set_param_hint(f'{p}J', expr=expr, min=0)
         expr ="sqrt((1+{p:s}k)**2-{p:s}b**2)/{p:s}W/pi".format(p=self.prefix)
-        self.set_param_hint('aR',min=1, expr=expr)
-        self.set_param_hint('rho', min=0, expr = 
-                "0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix) )
-
+        self.set_param_hint(f'{p}aR',min=1, expr=expr)
+        expr ="0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix)
+        self.set_param_hint(f'{p}rho', min=0, expr = expr)
 
 #----------------------
 
@@ -600,18 +605,19 @@ class ThermalPhaseModel(Model):
         self._set_paramhints_prefix()
 
     def _set_paramhints_prefix(self):
-        self.set_param_hint('P', min=1e-15)
-        self.set_param_hint('a_th', value=0)
-        self.set_param_hint('b_th', value=0)
-        self.set_param_hint('c_th', value=0, min=0)
-        expr = "hypot({p:s}a_th,{p:s}b_th)".format(p=self.prefix)
-        self.set_param_hint('A', expr=expr)
-        expr = "{p:s}c_th+({p:s}a_th+{p:s}b_th+{p:s}A)/2".format(p=self.prefix)
-        self.set_param_hint('Fmax', expr=expr, min=0)
+        p = self.prefix
+        self.set_param_hint(f'{p}P', min=1e-15)
+        self.set_param_hint(f'{p}a_th', value=0)
+        self.set_param_hint(f'{p}b_th', value=0)
+        self.set_param_hint(f'{p}c_th', value=0, min=0)
+        expr="hypot({p:s}a_th,{p:s}b_th)".format(p=self.prefix)
+        self.set_param_hint(f'{p}A', expr=expr)
+        expr="{p:s}c_th+({p:s}a_th+{p:s}b_th+{p:s}A)/2".format(p=self.prefix)
+        self.set_param_hint(f'{p}Fmax', expr=expr, min=0)
         expr = "{p:s}Fmax - {p:s}A".format(p=self.prefix)
-        self.set_param_hint('Fmin', expr=expr, min=0)
+        self.set_param_hint(f'{p}Fmin', expr=expr, min=0)
         expr = "arctan2({p:s}b_th,-{p:s}a_th)/(2*pi)".format(p=self.prefix)
-        self.set_param_hint('ph_max', expr=expr)
+        self.set_param_hint(f'{p}ph_max', expr=expr)
 
     __init__.__doc__ = COMMON_INIT_DOC
 
@@ -662,12 +668,13 @@ class ReflectionModel(Model):
         self._set_paramhints_prefix()
 
     def _set_paramhints_prefix(self):
-        self.set_param_hint('P', min=1e-15)
-        self.set_param_hint('A_g', value=0.5, min=0, max=1)
-        self.set_param_hint('r_p', min=0, max=1)
-        self.set_param_hint('f_c', value=0, vary=False, min=-1, max=1)
-        self.set_param_hint('f_s', value=0, vary=False, min=-1, max=1)
-        self.set_param_hint('sini', value=1, vary=False, min=0, max=1)
+        p = self.prefix
+        self.set_param_hint(f'{p}P',value=1, min=1e-15)
+        self.set_param_hint(f'{p}A_g', value=0.5, min=0, max=1)
+        self.set_param_hint(f'{p}r_p', min=0, max=1)
+        self.set_param_hint(f'{p}f_c', value=0, vary=False, min=-1, max=1)
+        self.set_param_hint(f'{p}f_s', value=0, vary=False, min=-1, max=1)
+        self.set_param_hint(f'{p}sini', value=1, vary=False, min=0, max=1)
 
     __init__.__doc__ = COMMON_INIT_DOC
 
@@ -703,21 +710,18 @@ class RVModel(Model):
         self._set_paramhints_prefix()
 
     def _set_paramhints_prefix(self):
-        self.set_param_hint('P', min=1e-15)
-        self.set_param_hint('K', min=1e-15)
-        self.set_param_hint('f_c', value=0, vary=False, min=-1, max=1)
-        self.set_param_hint('f_s', value=0, vary=False, min=-1, max=1)
-        self.set_param_hint('e',min=0,max=1,expr='f_c**2 + f_s**2')
-        self.set_param_hint('sini', value=1, vary=False, min=0, max=1)
+        p = self.prefix
+        self.set_param_hint(f'{p}P', min=1e-15)
+        self.set_param_hint(f'{p}K', min=1e-15)
+        self.set_param_hint(f'{p}f_c', value=0, vary=False, min=-1, max=1)
+        self.set_param_hint(f'{p}f_s', value=0, vary=False, min=-1, max=1)
         expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
-        self.set_param_hint('{p:s}e'.format(p=self.prefix), expr=expr, 
-                min=0, max=1)
+        self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
+        self.set_param_hint(f'{p}sini', value=1, vary=False, min=0, max=1)
         expr = "180*atan2({p:s}f_s, {p:s}f_c)/pi".format(p=self.prefix)
-        self.set_param_hint('{p:s}omega'.format(p=self.prefix), expr=expr) 
+        self.set_param_hint(f'{p}omega', expr=expr) 
 
     __init__.__doc__ = COMMON_INIT_DOC
-
-
 
 #----------------------
 
@@ -751,17 +755,17 @@ class RVCompanion(Model):
         self._set_paramhints_prefix()
 
     def _set_paramhints_prefix(self):
-        self.set_param_hint('P', min=1e-15)
-        self.set_param_hint('K', min=1e-15)
-        self.set_param_hint('f_c', value=0, vary=False, min=-1, max=1)
-        self.set_param_hint('f_s', value=0, vary=False, min=-1, max=1)
-        self.set_param_hint('e',min=0,max=1,expr='f_c**2 + f_s**2')
-        self.set_param_hint('sini', value=1, vary=False, min=0, max=1)
+        p = self.prefix
+        self.set_param_hint(f'{p}P', min=1e-15)
+        self.set_param_hint(f'{p}K', min=1e-15)
+        self.set_param_hint(f'{p}f_c', value=0, vary=False, min=-1, max=1)
+        self.set_param_hint(f'{p}f_s', value=0, vary=False, min=-1, max=1)
+        self.set_param_hint(f'{p}sini', value=1, vary=False, min=0, max=1)
         expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
-        self.set_param_hint('{p:s}e'.format(p=self.prefix), expr=expr, 
+        self.set_param_hint(f'{p}e'.format(p=self.prefix), expr=expr, 
                 min=0, max=1)
         expr = "180*atan2({p:s}f_s, {p:s}f_c)/pi".format(p=self.prefix)
-        self.set_param_hint('{p:s}omega'.format(p=self.prefix), expr=expr)
+        self.set_param_hint(f'{p}omega'.format(p=self.prefix), expr=expr)
 
     __init__.__doc__ = COMMON_INIT_DOC
 
@@ -882,28 +886,33 @@ class PlanetModel(Model):
         self._set_paramhints_prefix()
 
     def _set_paramhints_prefix(self):
-        self.set_param_hint('P', min=1e-15)
-        self.set_param_hint('D', min=0, max=0.25)
-        self.set_param_hint('W', min=0, max=0.3)
-        self.set_param_hint('b', min=0, max=1.0)
-        self.set_param_hint('F_min', min=0)
-        self.set_param_hint('ph_off', min=-0.5, max=0.5)
-        self.set_param_hint('f_c', value=0, min=-1, max=1, vary=False)
-        self.set_param_hint('f_s', value=0, min=-1, max=1, vary=False)
-        self.set_param_hint('e',min=0,max=1,expr='f_c**2 + f_s**2')
-        self.set_param_hint('h_1', value=0.7224, min=0, max=1, vary=False)
-        self.set_param_hint('h_2', value=0.6713, min=0, max=1, vary=False)
-        self.set_param_hint('q_1',min=0,max=1,expr='(1-h_2)**2')
-        self.set_param_hint('q_2',min=0,max=1,expr='(h_1-h_2)/(1-h_2)')
-        self.set_param_hint('a_c', value=0, min=0, vary=False)
+        p = self.prefix
+        self.set_param_hint(f'{p}P', value=1, min=1e-15)
+        self.set_param_hint(f'{p}D', value=0.01, min=0, max=0.25)
+        self.set_param_hint(f'{p}W', value=0.1, min=0, max=0.3)
+        self.set_param_hint(f'{p}b', value=0.3, min=0, max=1.0)
+        self.set_param_hint(f'{p}F_min', value=0, min=0)
+        self.set_param_hint(f'{p}F_max', value=0, min=0)
+        self.set_param_hint(f'{p}ph_off', min=-0.5, max=0.5)
+        self.set_param_hint(f'{p}f_c', value=0, min=-1, max=1, vary=False)
+        self.set_param_hint(f'{p}f_s', value=0, min=-1, max=1, vary=False)
+        expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
+        self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
+        self.set_param_hint(f'{p}h_1', value=0.7224, min=0, max=1, vary=False)
+        self.set_param_hint(f'{p}h_2', value=0.6713, min=0, max=1, vary=False)
+        expr = "(1-{p:s}h_2)**2".format(p=self.prefix)
+        self.set_param_hint(f'{p}q_1',min=0,max=1,expr=expr)
+        expr = "({p:s}h_1-{p:s}h_2)/(1-{p:s}h_2)".format(p=self.prefix)
+        self.set_param_hint(f'{p}q_2',min=0,max=1,expr=expr)
+        self.set_param_hint(f'{p}a_c', value=0, min=0, vary=False)
         expr = "sqrt({prefix:s}D)".format(prefix=self.prefix)
-        self.set_param_hint('k', expr=expr, min=0, max=1)
+        self.set_param_hint(f'{p}k', expr=expr, min=0, max=1)
         expr ="sqrt((1+{p:s}k)**2-{p:s}b**2)/{p:s}W/pi".format(p=self.prefix)
-        self.set_param_hint('aR',min=1, expr=expr)
+        self.set_param_hint(f'{p}aR',min=1, expr=expr)
         expr = "{prefix:s}F_max-{prefix:s}F_min".format(prefix=self.prefix)
-        self.set_param_hint('A', expr=expr)
+        self.set_param_hint(f'{p}A', expr=expr)
         expr = "0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix)
-        self.set_param_hint('rho', min=0, expr = expr)
+        self.set_param_hint(f'{p}rho', min=0, expr = expr)
 
 #----------------------
 
@@ -988,26 +997,31 @@ class EBLMModel(Model):
         self._set_paramhints_prefix()
 
     def _set_paramhints_prefix(self):
-        self.set_param_hint('P', min=1e-15)
-        self.set_param_hint('D', min=0, max=0.25)
-        self.set_param_hint('W', min=0, max=0.3)
-        self.set_param_hint('b', min=0, max=1.0)
-        self.set_param_hint('L', min=0, max=1)
-        self.set_param_hint('f_c', value=0, min=-1, max=1, vary=False)
-        self.set_param_hint('f_s', value=0, min=-1, max=1, vary=False)
-        self.set_param_hint('e',min=0,max=1,expr='f_c**2 + f_s**2')
-        self.set_param_hint('h_1', value=0.7224, min=0, max=1, vary=False)
-        self.set_param_hint('h_2', value=0.6713, min=0, max=1, vary=False)
-        self.set_param_hint('q_1',min=0,max=1,expr='(1-h_2)**2')
-        self.set_param_hint('q_2',min=0,max=1,expr='(h_1-h_2)/(1-h_2)')
-        self.set_param_hint('a_c', value=0, min=0, vary=False)
+        p = self.prefix
+        self.set_param_hint(f'{p}P', value=1, min=1e-15)
+        self.set_param_hint(f'{p}D', value=0.01, min=0, max=0.25)
+        self.set_param_hint(f'{p}W', value=0.1, min=0, max=0.3)
+        self.set_param_hint(f'{p}b', value=0.3, min=0, max=1.0)
+        self.set_param_hint(f'{p}L', value=0.001, min=0, max=1)
+        self.set_param_hint(f'{p}f_c', value=0, min=-1, max=1, vary=False)
+        self.set_param_hint(f'{p}f_s', value=0, min=-1, max=1, vary=False)
+        expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
+        self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
+        self.set_param_hint(f'{p}h_1', value=0.7224,min=0,max=1,vary=False)
+        self.set_param_hint(f'{p}h_2', value=0.6713,min=0,max=1,vary=False)
+        expr = "(1-{p:s}h_2)**2".format(p=self.prefix)
+        self.set_param_hint(f'{p}q_1',min=0,max=1,expr=expr)
+        expr = "({p:s}h_1-{p:s}h_2)/(1-{p:s}h_2)".format(p=self.prefix)
+        self.set_param_hint(f'{p}q_2',min=0,max=1,expr=expr)
+        self.set_param_hint(f'{p}a_c', value=0, min=0, vary=False)
         expr = "sqrt({prefix:s}D)".format(prefix=self.prefix)
-        self.set_param_hint('k', expr=expr, min=0, max=1)
+        self.set_param_hint(f'{p}k', expr=expr, min=0, max=1)
         expr = "{prefix:s}L/{prefix:s}D".format(prefix=self.prefix)
-        self.set_param_hint('J', expr=expr, min=0)
+        self.set_param_hint(f'{p}J', expr=expr, min=0)
         expr ="sqrt((1+{p:s}k)**2-{p:s}b**2)/{p:s}W/pi".format(p=self.prefix)
-        self.set_param_hint('aR',min=1, expr=expr)
-
+        self.set_param_hint(f'{p}aR',min=1, expr=expr)
+        expr ="0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix)
+        self.set_param_hint(f'{p}rho', min=0, expr = expr)
 
 #----------------------
 

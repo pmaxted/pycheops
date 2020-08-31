@@ -1,6 +1,13 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.8.4 (2020-08-30)
+~~~~~~~~~~~~~~~~~~
+* Fix parameter hint prefix problem in models (#141)
+* Fix -ve offset ylimit problem in multivisit (#139)
+* Added warning is failed to update TEPCat in funcs.massradius (#137)
+* Fix bug in dataset and multivisit if only 1 variable in trailplot (#130)
+  
 0.8.3 (2020-07-30)
 ~~~~~~~~~~~~~~~~~~
 * Fix astype(int) problem in __init__.py for windows users
