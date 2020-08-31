@@ -1391,9 +1391,13 @@ class MultiVisit(object):
         ax[0].set_title(title)
         if roff != 0:
             ax[1].set_ylim(np.sort([-0.75*roff, roff*(n-0.25)]))
+
         else:
             rms = 10*np.max(result.rms)
             ax[1].set_ylim(-5*rms, 5*rms)
+        
+        if roff < 0:
+            ax[1].set_ylim(ax[1].get_ylim()[::-1])
 
         ax[1].set_xlabel('Phase')
         ax[1].set_ylabel('Residual')
