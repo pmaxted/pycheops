@@ -396,10 +396,10 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg):
      >>> tzero = 54321.6789
      >>> P = 1.23456
      >>> sini = 0.987
-     >>> ecc = 0.123
+     >>> ecc = 0.654
      >>> omdeg = 89.01
-     >>> print(tzero2tperi(tzero,P,sini,ecc,omdeg))
-     54321.6762764
+     >>> print("{:0.4f}".format(tzero2tperi(tzero,P,sini,ecc,omdeg)))
+     54321.6784
 
     """
     def _delta(th, sin2i, omrad, ecc):
@@ -446,7 +446,110 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg):
         E = 2*np.arctan(np.sqrt((1-ecc)/(1+ecc))*np.tan(theta/2))
     return tzero - (E - ecc*np.sin(E))*P/(2*np.pi)
 
+#---------
+
+def tperi2tzero(tperi,P,sini,ecc,omdeg,eclipse=False):
+    """
+    Calculate phase mid-eclipse from time of mid-transit
+
+    :param tzero: times of mid-transit
+    :param P: orbital period
+    :param sini: sine of orbital inclination 
+    :param ecc: eccentricity 
+    :param omdeg: longitude of periastron in degrees
+    :param eclipse: calculate time of mid-eclipse if True, else mid-transit
+
+    :returns: time of mid-eclipse 
+
+    :Example:
+     >>> from pycheops.funcs import tperi2tzero
+     >>> tperi = 54321.6784
+     >>> P = 1.23456
+     >>> sini = 0.987
+     >>> ecc = 0.654
+     >>> omdeg = 89.01
+     >>> t_transit = tperi2tzero(tperi,P,sini,ecc,omdeg)
+     >>> t_eclipse = tperi2tzero(tperi,P,sini,ecc,omdeg,eclipse=True)
+     >>> print(f"{t_transit:0.4f}, {t_eclipse:0.4f}")
+
+    """
+    def _delta(th, sin2i, omrad, ecc):
+        # Equation (4.9) from Hilditch
+        return (1-ecc**2)*(
+                np.sqrt(1-sin2i*np.sin(th+omrad)**2)/(1+ecc*np.cos(th)))
+
+    omrad = omdeg*np.pi/180
+    sin2i = sini**2
+    theta = 0.5*np.pi-omrad + np.pi*eclipse
+    if (1-sin2i) > np.finfo(0.).eps :
+        ta = theta-0.125*np.pi
+        tb = theta
+        tc = theta+0.125*np.pi
+        fa = _delta(ta, sin2i, omrad, ecc)
+        fb = _delta(tb, sin2i, omrad, ecc)
+        fc = _delta(tc, sin2i, omrad, ecc)
+        if ((fb>fa)|(fb>fc)):
+            t_ = np.linspace(0,2*np.pi,1024)
+            d_ = _delta(t_, sin2i, omrad, ecc)
+            try:
+                i_= argrelextrema(d_, np.less)[0]
+                t_ = t_[i_]
+                if len(t_)>1:
+                    i_ = (np.abs(t_ - tb)).argmin()
+                    t_ = t_[i_]
+                ta,tb,tc = (t_-0.01, t_, t_+0.01)
+            except:
+                print(sin2i, omrad, ecc)
+                print(ta, tb, tc)
+                print(fa, fb, fc)
+                raise ValueError('tzero2tperi grid search fail')
+        try:
+            theta = brent(_delta, args=(sin2i, omrad, ecc), brack=(ta, tb, tc))
+        except ValueError:
+            print(sin2i, omrad, ecc)
+            print(ta, tb, tc)
+            print(fa, fb, fc)
+            raise ValueError('Not a bracketing interval.')
+
+    if theta == np.pi:
+        E = np.pi 
+    else:
+        E = 2*np.arctan(np.sqrt((1-ecc)/(1+ecc))*np.tan(theta/2))
+    return tperi + (E - ecc*np.sin(E))*P/(2*np.pi)
+
 #---------------
+
+def eclipse_phase (tzero,P,sini,ecc,omdeg):
+    """
+    Calculate time of mid-transit/mid-eclipse from time of periastron
+
+    Uses the method by Lacy, 1992AJ....104.2213L
+
+    :param tzero: times of mid-transit
+    :param P: orbital period
+    :param sini: sine of orbital inclination 
+    :param ecc: eccentricity 
+    :param omdeg: longitude of periastron in degrees
+
+    :returns: phase of mid-eclipse
+
+    :Example:
+     >>> from pycheops.funcs import eclipse_phase
+     >>> tzero = 54321.6784
+     >>> P = 1.23456
+     >>> sini = 0.987
+     >>> ecc = 0.654
+     >>> omdeg = 89.01
+     >>> ph_ecl = eclipse_phase(tzero,P,sini,ecc,omdeg)
+     >>> print(f"Phase of eclipse = {ph_ecl:0.4f}")
+
+    """
+    t_peri = tzero2tperi(tzero,P,sini,ecc,omdeg)
+    t_ecl = tperi2tzero(t_peri,P,sini,ecc,omdeg,eclipse=True)
+    return (t_ecl-t_peri)/P % 1
+
+#---------------
+
 
 def nu_max(Teff, logg):
     """

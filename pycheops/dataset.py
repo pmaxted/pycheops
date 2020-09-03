@@ -1388,6 +1388,21 @@ class Dataset(object):
                     noPriors = False
                 report += "\n    %s:%s" % (p, ' '*(namelen-len(p)))
                 report += '%s +/-%s' % (gformat(u.n), gformat(u.s))
+        # Bayes factors
+        noBayes  = True
+        for p in params:
+            u = params[p].user_data
+            if isinstance(u, UFloat) and p.startswith('dfd'):
+                if noBayes:
+                    report+="\n[[Bayes Factors]]  "
+                    report+="(values >~1 => free parameter probably not useful)"
+                    noBayes = False
+                v = params[p].value
+                s = params[p].stderr
+                B = np.exp(-0.5*((v-u.n)/s)**2) * u.s/s
+                report += "\n    %s:%s" % (p, ' '*(namelen-len(p)))
+                report += ' %12.3f' % (B)
+
         report += '\n[[Software versions]]'
         report += '\n    CHEOPS DRP : %s' % self.pipe_ver
         report += '\n    pycheops   : %s' % __version__

@@ -43,9 +43,9 @@ import autograd.numpy as ag
 from lmfit.models import ExpressionModel, Model
 from lmfit.minimizer import MinimizerResult
 from celerite.terms import Term, SHOTerm, JitterTerm
-from .models import TransitModel, FactorModel, EclipseModel
+from .models import TransitModel, FactorModel, EclipseModel, EBLMModel
 from celerite import GP
-from .funcs import rhostar, massradius
+from .funcs import rhostar, massradius, eclipse_phase
 from uncertainties import UFloat, ufloat
 from emcee import EnsembleSampler
 from os.path import join
@@ -103,8 +103,8 @@ def _make_model(model_repr, lc, f_theta=None, f_glint=None):
         model = TransitModel()*factor_model
     elif '_eclipse_func' in model_repr:
         model = EclipseModel()*factor_model
-    elif '_hj_func' in model_repr:
-        model = TransitModel()*EclipseModel()*factor_model
+    elif '_eblm_func' in model_repr:
+        model = EBLMModel()*factor_model
     if 'glint_func' in model_repr:
         model += Model(_glint_func, independent_vars=['t'],
             f_theta=f_theta, f_glint=f_glint)
@@ -442,16 +442,15 @@ class MultiVisit(object):
 
 #--------------------------------------------------------------------------
 # 
-# Some big chunks of code here common to all the fitting routines, mostly just
-# parameter handling and model creation.
+#  Some big chunks of code here common to all the fitting routines, mostly
+#  parameter handling and model creation.
 #
 #  "params" is an lmfit Parameters object that is used for storing
 #   the results, initial values, etc. Not passed to the target
 #   log-posterior function.
 #
 #  "models" is a list of lmfit models that get evaluated in the target
-#  log-posterior function. These models including a TransitModel,
-#  FactorModel and may also have a GlintModel. 
+#  log-posterior function. 
 #
 #  "modpars" is a list of Parameters objects, one for each dataset.
 #  These parameters used to evaluate the models in "models". These all
@@ -487,10 +486,14 @@ class MultiVisit(object):
                     vmin = val - params['W']*params['P']/2
                     vmax = val + params['W']*params['P']/2
                 else:
-                    val = np.array([p[k].value for p in plist]).mean()
-                    vmin = np.array([p[k].min for p in plist]).max()
-                    vmax = np.array([p[k].max for p in plist]).min()
-                vary = True in [p[k].vary for p in plist]
+                    # Not all datasets have all parameters so ...
+                    v = [p[k].value if k in p else np.nan for p in plist]
+                    val = np.nanmean(v)
+                    v = [p[k].min if k in p else np.nan for p in plist]
+                    vmin = np.nanmin(v)
+                    v = [p[k].max if k in p else np.nan for p in plist]
+                    vmax = np.nanmax(v)
+                vary = True in [p[k].vary if k in p else False for p in plist]
                 params.add(k, val, vary=vary, min=vmin, max=vmax)
                 vals[k] = val
             else:
@@ -598,7 +601,7 @@ class MultiVisit(object):
                 ttv, ttv_prior = True, ttv_edv_prior
             if model_type == '_eclipse_func':
                 edv, edv_prior = True, ttv_edv_prior
-            if model_type == '_hj_func':
+            if model_type == '_eblm_func':
                 ttv, ttv_prior = True, ttv_edv_prior
                 edv, edv_prior = True, ttv_edv_prior
         
@@ -933,7 +936,7 @@ class MultiVisit(object):
 
 #--------------------------------------------------------------------------
 
-    def fit_hj(self, steps=128, nwalkers=64, burn=256, 
+    def fit_eblm(self, steps=128, nwalkers=64, burn=256, 
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None, 
             h_1=None, h_2=None, ttv=False, ttv_prior=3600, 
             L=None, a_c=0, edv=False, edv_prior=1e-3, extra_priors=None, 
@@ -942,7 +945,7 @@ class MultiVisit(object):
             init_scale=1e-2, progress=True):
         """
         Use emcee to fit the transits and eclipses in the current datasets
-        using a model for a hot Jupiter system.
+        using a model for an eclipsing binary with a low-mass companion.
 
         The model does not account for the thermal/reflected phase effect.
 
@@ -956,7 +959,6 @@ class MultiVisit(object):
         edv=True. In this case L must be a fixed parameter and the eclipse
         depth for dataset i is L_i, i=1, ..., N. The prior on the values of
         L_i is a Gaussian with mean value L and width edv_prior.
-
 
         """
         # Dict of initial parameter values for creation of models
@@ -976,12 +978,14 @@ class MultiVisit(object):
 
         if ttv and (params['T_0'].vary or params['P'].vary):
             raise ValueError('TTV not allowed if P or T_0 are variables')
+        if edv and params['L'].vary:
+            raise ValueError('L must be a fixed parameter of edv=True.')
 
         _ = self.__make_noisemodel__(log_sigma_w, log_S0, log_omega0,
                 log_Q, params, priors, vn, vv, vs, unroll)
         noisemodel, params, priors, vn, vv, vs = _
 
-        _ = self.__make_modpars__('_hj_func', vals, params, noisemodel,
+        _ = self.__make_modpars__('_eblm_func', vals, params, noisemodel,
                 vn, vv, vs, priors, ttv, ttv_prior, unroll, nroll)
         params,gps,lcs,models,modpars,glints,omegas,vn,vv,vs,priors  = _
 
@@ -1021,22 +1025,18 @@ class MultiVisit(object):
         args = (gps, lcs, models, modpars, noisemodel, priors, vn, return_fit)
         fits = _log_posterior(pos, *args)
 
-
         self.gps = gps
         self.noisemodel = noisemodel
         self.models = models
         self.modpars = modpars
         self.sampler = sampler
-        self.__fittype__ = 'transit'
+        self.__fittype__ = 'eblm'
         self.flatchain = flatchain
         self.result = self.__make_result__(vn, pos, vv, params, fits, priors)
 
         return self.result
 
 #--------------------------------------------------------------------------
-
-
-    # ----------------------------------------------------------------
 
     def fit_report(self, **kwargs):
         """
@@ -1250,12 +1250,10 @@ class MultiVisit(object):
     # ------------------------------------------------------------
     
     def plot_fit(self, title=None, detrend=False, 
-            binwidth=0.001, 
-            add_gaps=True, gap_tol=0.005, renorm=True,
+            binwidth=0.001, add_gaps=True, gap_tol=0.005, renorm=True,
             data_offset=None, res_offset=None, phase0=None,
             xlim=None, ylim=None, figsize=None, fontsize=12):
         """
-
         If there are gaps in the data longer than gap_tol phase units and
         add_gaps is True then put a gap in the lines used to plot the fit. The
         transit model is plotted using a thin line in these gaps.
@@ -1270,6 +1268,15 @@ class MultiVisit(object):
         from different datasets can be  set using the res_offset keyword..
 
         Set renorm=False to prevent automatic re-scaling of fluxes.
+
+        For fits to datasets containing a mixture of transits and eclipses,
+        data_offset and res_offset can be 2-tuples with the offsets for
+        transits and eclipses, respectively. 
+
+        For fits to datasets containing a mixture of transits and eclipses,
+        the x-axis and y-axis limits for the data plots are specifed in the
+        form ((min_left,max_left),(min_right,max-right))
+
 
         """
         n = len(self.datasets)
@@ -1340,69 +1347,198 @@ class MultiVisit(object):
                 fits[j] = fit/c 
 
         plt.rc('font', size=fontsize)    
-        if figsize is None:
-            figsize = (8, 2+1.5*n)
-        fig,ax=plt.subplots(nrows=2,sharex=True, figsize=figsize,
-                gridspec_kw={'height_ratios':[2,1]})
+        if self.__fittype__ == 'eblm':
 
-        doff = 2.5*iqrmax if data_offset is None else data_offset
-        for j, (ph, flx) in enumerate(zip(phases, fluxes)):
-            off = j*doff
-            ax[0].plot(ph, flx+off,'o',c='skyblue',ms=2, zorder=1)
-            if binwidth:
-                r_, f_, e_, n_ = lcbin(ph, flx, binwidth=binwidth)
-                ax[0].errorbar(r_, f_+off, yerr=e_, fmt='o',
-                        c='midnightblue', ms=5, capsize=2, zorder=3)
-
-        for j, (ph,fit,lcmod) in enumerate(zip(phfits,fits,lcmods)):
-            off = j*doff
-            k = np.argsort(ph)
-            ax[0].plot(ph[k],fit[k]+off,c='saddlebrown', lw=2, zorder=4)
-            if not detrend:
-                ax[0].plot(ph[k],lcmod[k]+off,c='forestgreen',zorder=2, lw=2)
-
-        for j, (ph, fp) in enumerate(zip(ph_plots, lc_plots)):
-            off = j*doff
-            ax[0].plot(ph,fp+off,c='forestgreen', lw=1, zorder=2)
-
-
-        roff = 10*np.max(result.rms) if res_offset is None else res_offset
-        for j, (ph,res) in enumerate(zip(phases, result.residual)):
-            off=j*roff
-            ax[1].plot(ph, res+off,'o',c='skyblue',ms=2)
-            ax[1].axhline(off, color='saddlebrown',ls=':')
-            if binwidth:
-                r_, f_, e_, n_ = lcbin(ph, res, binwidth=binwidth)
-                ax[1].errorbar(r_, f_+off, yerr=e_,
-                        fmt='o', c='midnightblue', ms=5, capsize=2)
-
-        if xlim is None:
-            pad = (phmax-phmin)/10
-            if self.__fittype__ == "transit":
-                pht = max([abs(phmin), abs(phmax)])
-                ax[1].set_xlim(-pht-pad,pht+pad)
+            f_c = par['f_c'].value
+            f_s = par['f_s'].value
+            ecc = f_c**2 + f_s**2
+            omdeg = np.arctan2(f_s, f_c)*180/np.pi
+            sini = par['sini'].value
+            ph_sec = eclipse_phase(T_0,P,sini,ecc,omdeg)
+            is_ecl = [min(abs(ph-ph_sec)) < 0.05 for ph in phases]
+            n_ecl = sum(is_ecl)
+            n_tr = n-n_ecl
+            if figsize is None:
+                figsize = (8, 2+1.5*max(n_ecl,n_tr))
+            fig,axes=plt.subplots(nrows=2,ncols=2, figsize=figsize,
+                    gridspec_kw={'height_ratios':[2,1]})
+            if data_offset is None:
+                doff_tr,doff_ecl  = 2.5*iqrmax,2.5*iqrmax
             else:
-                ax[1].set_xlim(phmin-pad,phmax+pad)
-        else:
-            ax[1].set_xlim(*xlim)
+                if np.isscalar(data_offset):
+                    doff_tr,doff_ecl = data_offset, data_offset
+                else:
+                    doff_tr,doff_ecl = data_offset
 
-        if ylim is not None: ax[0].set_ylim(*ylim)
-        ax[0].set_ylabel('Flux')
-        ax[0].set_title(title)
-        if roff != 0:
-            ax[1].set_ylim(np.sort([-0.75*roff, roff*(n-0.25)]))
+            phmin_tr,phmax_tr = phase0, 1-phase0
+            phmin_ecl,phmax_ecl = phase0, 1-phase0
+            j_ecl, j_tr = 0, 0
+            for j, (ph,flx,i) in enumerate(zip(phases, fluxes, is_ecl)):
+                if i:
+                    off = j_ecl*doff_ecl
+                    j_ecl += 1
+                    ax = axes[0,1]
+                    phmin_ecl,phmax_ecl = min(ph), max(ph)
+                else:
+                    off = j_tr*doff_tr
+                    j_tr += 1
+                    ax = axes[0,0]
+                    phmin_tr,phmax_tr = min(ph), max(ph)
+                ax.plot(ph, flx+off,'o',c='skyblue',ms=2, zorder=1)
+                if binwidth:
+                    r_, f_, e_, n_ = lcbin(ph, flx, binwidth=binwidth)
+                    ax.errorbar(r_, f_+off, yerr=e_, fmt='o',
+                            c='midnightblue', ms=5, capsize=2, zorder=3)
 
-        else:
-            rms = 10*np.max(result.rms)
-            ax[1].set_ylim(-5*rms, 5*rms)
+            j_ecl, j_tr = 0, 0
+            for j,(ph,fit,lcmod,i) in enumerate(zip(phfits,fits,lcmods,is_ecl)):
+                if i:
+                    off = j_ecl*doff_ecl
+                    j_ecl += 1
+                    ax = axes[0,1]
+                else:
+                    off = j_tr*doff_tr
+                    j_tr += 1
+                    ax = axes[0,0]
+                k = np.argsort(ph)
+                ax.plot(ph[k],fit[k]+off,c='saddlebrown', lw=2, zorder=4)
+                if not detrend:
+                    ax.plot(ph[k],lcmod[k]+off,c='forestgreen',zorder=2,lw=2)
+
+            j_ecl, j_tr = 0, 0
+            for j, (ph, fp, i) in enumerate(zip(ph_plots, lc_plots, is_ecl)):
+                if i:
+                    off = j_ecl*doff_ecl
+                    j_ecl += 1
+                    ax = axes[0,1]
+                else:
+                    off = j_tr*doff_tr
+                    j_tr += 1
+                    ax = axes[0,0]
+                ax.plot(ph,fp+off,c='forestgreen', lw=1, zorder=2)
+
+            roff = 10*np.max(result.rms)
+            if res_offset is None:
+                roff_tr,roff_ecl = roff,roff
+            else:
+                if np.isscalar(res_offset):
+                    roff_tr,roff_ecl = res_offset, res_offset
+                else:
+                    roff_tr,roff_ecl = res_offset
+            j_ecl = 0
+            j_tr = 0
+            for j,(ph,res,i) in enumerate(zip(phases,result.residual,is_ecl)):
+                if i:
+                    off = j_ecl*roff_ecl
+                    j_ecl += 1
+                    ax = axes[1,1]
+                else:
+                    off = j_tr*roff_tr
+                    j_tr += 1
+                    ax = axes[1,0]
+                ax.plot(ph, res+off,'o',c='skyblue',ms=2)
+                ax.axhline(off, color='saddlebrown',ls=':')
+                if binwidth:
+                    r_, f_, e_, n_ = lcbin(ph, res, binwidth=binwidth)
+                    ax.errorbar(r_, f_+off, yerr=e_,
+                            fmt='o', c='midnightblue', ms=5, capsize=2)
+
+            axes[0,0].set_xticklabels([])
+            axes[0,1].set_xticklabels([])
+
+            if xlim is None:
+                pad = (phmax_tr-phmin_tr)/10
+                pht = max([abs(phmin_tr), abs(phmax_tr)])
+                axes[0,0].set_xlim(-pht-pad,pht+pad)
+                axes[1,0].set_xlim(-pht-pad,pht+pad)
+                pad = (phmax_ecl-phmin_ecl)/10
+                pht = max([abs(phmin_ecl), abs(phmax_ecl)])
+                axes[0,1].set_xlim(phmin_ecl-pad,phmax_ecl+pad)
+                axes[1,1].set_xlim(phmin_ecl-pad,phmax_ecl+pad)
+            else:
+                axes[0,0].set_xlim(*xlim[0])
+                axes[1,0].set_xlim(*xlim[0])
+                axes[0,1].set_xlim(*xlim[1])
+                axes[1,1].set_xlim(*xlim[1])
         
-        if roff < 0:
-            ax[1].set_ylim(ax[1].get_ylim()[::-1])
+            if ylim is not None:
+                axes[0,0].set_ylim(*ylim[0])
+                axes[0,1].set_ylim(*ylim[1])
+            axes[0,0].set_ylabel('Flux')
+            axes[0,0].set_title(title)
+            if roff_tr != 0:
+                axes[1,0].set_ylim(np.sort([-0.75*roff_tr,roff_tr*(n_tr-0.25)]))
+            else:
+                axes[1,0].set_ylim(-roff, roff)
+            if roff_ecl != 0:
+                axes[1,1].set_ylim(np.sort([-0.75*roff_ecl, roff_ecl*(n_ecl-0.25)]))
+            else:
+                axes[1,1].set_ylim(-roff, roff)
+        
+            axes[1,0].set_xlabel('Phase')
+            axes[1,1].set_xlabel('Phase')
+            axes[1,0].set_ylabel('Residual')
 
-        ax[1].set_xlabel('Phase')
-        ax[1].set_ylabel('Residual')
+        else:
+
+            if figsize is None:
+                figsize = (8, 2+1.5*n)
+            fig,ax=plt.subplots(nrows=2,sharex=True, figsize=figsize,
+                    gridspec_kw={'height_ratios':[2,1]})
+        
+            doff = 2.5*iqrmax if data_offset is None else data_offset
+            for j, (ph, flx) in enumerate(zip(phases, fluxes)):
+                off = j*doff
+                ax[0].plot(ph, flx+off,'o',c='skyblue',ms=2, zorder=1)
+                if binwidth:
+                    r_, f_, e_, n_ = lcbin(ph, flx, binwidth=binwidth)
+                    ax[0].errorbar(r_, f_+off, yerr=e_, fmt='o',
+                            c='midnightblue', ms=5, capsize=2, zorder=3)
+        
+            for j, (ph,fit,lcmod) in enumerate(zip(phfits,fits,lcmods)):
+                off = j*doff
+                k = np.argsort(ph)
+                ax[0].plot(ph[k],fit[k]+off,c='saddlebrown', lw=2, zorder=4)
+                if not detrend:
+                    ax[0].plot(ph[k],lcmod[k]+off,c='forestgreen',zorder=2,lw=2)
+        
+            for j, (ph, fp) in enumerate(zip(ph_plots, lc_plots)):
+                off = j*doff
+                ax[0].plot(ph,fp+off,c='forestgreen', lw=1, zorder=2)
+        
+            roff = 10*np.max(result.rms) if res_offset is None else res_offset
+            for j, (ph,res) in enumerate(zip(phases, result.residual)):
+                off=j*roff
+                ax[1].plot(ph, res+off,'o',c='skyblue',ms=2)
+                ax[1].axhline(off, color='saddlebrown',ls=':')
+                if binwidth:
+                    r_, f_, e_, n_ = lcbin(ph, res, binwidth=binwidth)
+                    ax[1].errorbar(r_, f_+off, yerr=e_,
+                            fmt='o', c='midnightblue', ms=5, capsize=2)
+        
+            if xlim is None:
+                pad = (phmax-phmin)/10
+                if self.__fittype__ == "transit":
+                    pht = max([abs(phmin), abs(phmax)])
+                    ax[1].set_xlim(-pht-pad,pht+pad)
+                else:
+                    ax[1].set_xlim(phmin-pad,phmax+pad)
+            else:
+                ax[1].set_xlim(*xlim)
+        
+            if ylim is not None: ax[0].set_ylim(*ylim)
+            ax[0].set_ylabel('Flux')
+            ax[0].set_title(title)
+            if roff != 0:
+                ax[1].set_ylim(np.sort([-0.75*roff, roff*(n-0.25)]))
+            else:
+                rms = 10*np.max(result.rms)
+                ax[1].set_ylim(-5*rms, 5*rms)
+        
+            ax[1].set_xlabel('Phase')
+            ax[1].set_ylabel('Residual')
+
         fig.tight_layout()
-
         return fig
         
     # ------------------------------------------------------------
