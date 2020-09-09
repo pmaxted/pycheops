@@ -34,7 +34,7 @@ from .starproperties import StarProperties
 import re
 from warnings import warn
 from .dataset import _kw_to_Parameter,  _log_prior
-from .dataset import _make_interp, _glint_func
+from .dataset import _make_interp
 from lmfit import Parameters, Parameter
 from lmfit import fit_report as lmfit_report
 from lmfit import __version__ as _lmfit_version_
@@ -53,10 +53,9 @@ import corner
 from sys import stdout
 import matplotlib.pyplot as plt
 from lmfit.printfuncs import gformat
-from copy import copy
+from copy import copy, deepcopy
 from .utils import phaser, lcbin
 from scipy.stats import iqr
-
 
 #--------
 
@@ -90,9 +89,17 @@ def fit_harmonics(t, y, omega, n):
 
 SineModel = ExpressionModel('sin(2*pi*(x-x0)/P)')
 
+#---
+
+# Slight bodge needed here to cope with change of time system between Dataset
+# and Multivisit
+def _glint_func(t, glint_scale, f_theta=None, f_glint=None, delta_t=None):
+    glint = f_glint(f_theta(t-delta_t))
+    return glint_scale * glint
+
 #--------
 
-def _make_model(model_repr, lc, f_theta=None, f_glint=None):
+def _make_model(model_repr, lc, f_theta=None, f_glint=None, delta_t=None):
     t = lc['time']
     factor_model = FactorModel(
             dx = _make_interp(t,lc['xoff'], scale='range'),
@@ -107,7 +114,7 @@ def _make_model(model_repr, lc, f_theta=None, f_glint=None):
         model = EBLMModel()*factor_model
     if 'glint_func' in model_repr:
         model += Model(_glint_func, independent_vars=['t'],
-            f_theta=f_theta, f_glint=f_glint)
+            f_theta=f_theta, f_glint=f_glint, delta_t=delta_t)
     return model
 
 #---------------
@@ -167,6 +174,7 @@ def _log_posterior(pos, gps, lcs, models, modpars, noisemodel, priors, vn,
     lnprob = 0 
     lc_mods = []    # model light curves per dataset
     lc_fits = []    # lc fit per dataset
+    modpars_rtn = []   # Model parameters for return_fit
     for i, (gp,lc,model,modpar) in enumerate(zip(gps,lcs,models,modpars)):
 
         for p in ('T_0', 'P', 'D', 'W', 'b', 'f_c', 'f_s', 'h_1', 'h_2', 'L'):
@@ -217,9 +225,10 @@ def _log_posterior(pos, gps, lcs, models, modpars, noisemodel, priors, vn,
                 lc_fits.append(mod)
             else:
                 lc_fits.append(gp.predict(resid, return_cov=False) + mod)
+            modpars_rtn.append(modpar)
 
     if return_fit:
-        return lc_fits
+        return lc_fits, modpars_rtn
 
     args=[modpar[p] for p in ('D','W','b')]
     lnprior = _log_prior(*args)
@@ -361,6 +370,16 @@ class MultiVisit(object):
     parameter, depending on whether it was a fixed or a free parameter in
     the last fit to that dataset.
 
+    Note that the "unroll" method implicitly assumes that the rate of change
+    of roll angle, Omega = d(phi)/dt, is constant. This is a reasonable
+    approximation but can introduce some extra noise in cases where
+    instrumental noise correlated with roll angle is large, e.g., observations
+    of faint stars in croweded fields. In this case it may be better to
+    divide-out the decorrelation against roll angle from the last fit in each
+    dataset before using "unroll", i.e., to use "unroll" as a small correction
+    to the roll-angle decorrelation. This case be done using the keyword
+    argument unwrap=True.
+
     """
 
     def __init__(self, target=None, datadir=None,
@@ -398,6 +417,7 @@ class MultiVisit(object):
 
             # Make time scales consistent
             dBJD = d.bjd_ref - 2457000
+            d._old_bjd_ref = d.bjd_ref
             d.bjd_ref = 2457000
             d.lc['time'] += dBJD
             d.lc['bjd_ref'] = dBJD
@@ -591,7 +611,8 @@ class MultiVisit(object):
 #--------------------------------------------------------------------------
 
     def __make_modpars__(self, model_type, vals, params, noisemodel,
-             vn, vv, vs, priors, ttv_edv, ttv_edv_prior, unroll, nroll):
+             vn, vv, vs, priors, ttv_edv, ttv_edv_prior,
+             unroll, nroll, unwrap):
         plist = [d.emcee.params if d.__lastfit__ == 'emcee' else 
                  d.lmfit.params for d in self.datasets]
 
@@ -616,13 +637,22 @@ class MultiVisit(object):
                 'dfdt', 'd2fdt2', 'glint_scale']
 
         for i,p in enumerate(plist):
-            lc = self.datasets[i].lc
+            lc = deepcopy(self.datasets[i].lc)
+            if unwrap:
+                phi = lc['roll_angle']*np.pi/180
+                for j in range(1,4):
+                    k = 'dfdsinphi' if j < 2 else f'df2sin{j}phi'
+                    if k in p: lc['flux'] -= p[k]*np.sin(j*phi)
+                    k = 'dfdcosphi' if j < 2 else f'df2cos{j}phi'
+                    if k in p: lc['flux'] -= p[k]*np.cos(j*phi)
             lcs.append(lc)
             if 'glint_scale' in p:
                 model_type += ' glint_func'
-                glint = (self.datasets[i].f_theta, self.datasets[i].f_glint)
+                d = self.datasets[i]
+                delta_t = d._old_bjd_ref - d.bjd_ref
+                glint = (d.f_theta, self.datasets[i].f_glint, delta_t)
             else:
-                glint = (None, None)
+                glint = (None, None, 0)
             glints.append(glint)
             m = _make_model(model_type, lc, *glint)
             models.append(m)
@@ -756,7 +786,7 @@ class MultiVisit(object):
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
             h_1=None, h_2=None, ttv=False, ttv_prior=3600, extra_priors=None, 
             log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
-            unroll=True, nroll=3,
+            unroll=True, nroll=3, unwrap=False, 
             init_scale=1e-2, progress=True):
         """
         Use emcee to fit the transits in the current datasets 
@@ -791,7 +821,7 @@ class MultiVisit(object):
         noisemodel, params, priors, vn, vv, vs = _
 
         _ = self.__make_modpars__('_transit_func', vals, params, noisemodel,
-                vn, vv, vs, priors, ttv, ttv_prior, unroll, nroll)
+                vn, vv, vs, priors, ttv, ttv_prior, unroll, nroll, unwrap)
         params,gps,lcs,models,modpars,glints,omegas,vn,vv,vs,priors  = _
 
         # Setup sampler
@@ -828,10 +858,10 @@ class MultiVisit(object):
 
         return_fit = True
         args = (gps, lcs, models, modpars, noisemodel, priors, vn, return_fit)
-        fits = _log_posterior(pos, *args)
-
+        fits, modpars = _log_posterior(pos, *args)
 
         self.gps = gps
+        self.__fitted_flux__ = [lc['flux'] for lc in lcs]
         self.noisemodel = noisemodel
         self.models = models
         self.modpars = modpars
@@ -849,7 +879,7 @@ class MultiVisit(object):
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
             L=None, a_c=0, edv=False, edv_prior=1e-3, extra_priors=None, 
             log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
-            unroll=True, nroll=3,
+            unroll=True, nroll=3, unwrap=False, 
             init_scale=1e-2, progress=True):
         """
         Use emcee to fit the eclipses in the current datasets 
@@ -884,7 +914,7 @@ class MultiVisit(object):
         noisemodel, params, priors, vn, vv, vs = _
 
         _ = self.__make_modpars__('_eclipse_func', vals, params, noisemodel,
-                vn, vv, vs, priors, edv, edv_prior, unroll, nroll)
+                vn, vv, vs, priors, edv, edv_prior, unroll, nroll, unwrap)
         params,gps,lcs,models,modpars,glints,omegas,vn,vv,vs,priors  = _
 
         # Setup sampler
@@ -921,9 +951,10 @@ class MultiVisit(object):
 
         return_fit = True
         args = (gps, lcs, models, modpars, noisemodel, priors, vn, return_fit)
-        fits = _log_posterior(pos, *args)
+        fits, modpars = _log_posterior(pos, *args)
 
         self.gps = gps
+        self.__fitted_flux__ = [lc['flux'] for lc in lcs]
         self.noisemodel = noisemodel
         self.models = models
         self.modpars = modpars
@@ -941,7 +972,7 @@ class MultiVisit(object):
             h_1=None, h_2=None, ttv=False, ttv_prior=3600, 
             L=None, a_c=0, edv=False, edv_prior=1e-3, extra_priors=None, 
             log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
-            unroll=True, nroll=3,
+            unroll=True, nroll=3, unwrap=False, 
             init_scale=1e-2, progress=True):
         """
         Use emcee to fit the transits and eclipses in the current datasets
@@ -986,7 +1017,7 @@ class MultiVisit(object):
         noisemodel, params, priors, vn, vv, vs = _
 
         _ = self.__make_modpars__('_eblm_func', vals, params, noisemodel,
-                vn, vv, vs, priors, ttv, ttv_prior, unroll, nroll)
+                vn, vv, vs, priors, ttv, ttv_prior, unroll, nroll, unwrap)
         params,gps,lcs,models,modpars,glints,omegas,vn,vv,vs,priors  = _
 
         # Setup sampler
@@ -1023,9 +1054,10 @@ class MultiVisit(object):
 
         return_fit = True
         args = (gps, lcs, models, modpars, noisemodel, priors, vn, return_fit)
-        fits = _log_posterior(pos, *args)
+        fits, modpars = _log_posterior(pos, *args)
 
         self.gps = gps
+        self.__fitted_flux__ = [lc['flux'] for lc in lcs]
         self.noisemodel = noisemodel
         self.models = models
         self.modpars = modpars
@@ -1277,7 +1309,6 @@ class MultiVisit(object):
         the x-axis and y-axis limits for the data plots are specifed in the
         form ((min_left,max_left),(min_right,max-right))
 
-
         """
         n = len(self.datasets)
         result = self.result
@@ -1303,7 +1334,7 @@ class MultiVisit(object):
             phmax = max(ph)
             phmin = min(ph)
             phases.append(ph)
-            flux = d.lc['flux']
+            flux = copy(self.__fitted_flux__[j])
             c = np.percentile(flux, 67) if renorm else 1
             fluxes.append(flux/c)
             iqrmax = np.max([iqrmax, iqr(flux)])
@@ -1354,7 +1385,7 @@ class MultiVisit(object):
             ecc = f_c**2 + f_s**2
             omdeg = np.arctan2(f_s, f_c)*180/np.pi
             sini = par['sini'].value
-            ph_sec = eclipse_phase(T_0,P,sini,ecc,omdeg)
+            ph_sec = eclipse_phase(P,sini,ecc,omdeg)
             is_ecl = [min(abs(ph-ph_sec)) < 0.05 for ph in phases]
             n_ecl = sum(is_ecl)
             n_tr = n-n_ecl
@@ -1471,7 +1502,8 @@ class MultiVisit(object):
             else:
                 axes[1,0].set_ylim(-roff, roff)
             if roff_ecl != 0:
-                axes[1,1].set_ylim(np.sort([-0.75*roff_ecl, roff_ecl*(n_ecl-0.25)]))
+                ax = axes[1,1]
+                ax.set_ylim(np.sort([-0.75*roff_ecl, roff_ecl*(n_ecl-0.25)]))
             else:
                 axes[1,1].set_ylim(-roff, roff)
         

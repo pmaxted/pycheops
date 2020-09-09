@@ -519,7 +519,7 @@ def tperi2tzero(tperi,P,sini,ecc,omdeg,eclipse=False):
 
 #---------------
 
-def eclipse_phase (tzero,P,sini,ecc,omdeg):
+def eclipse_phase (P,sini,ecc,omdeg):
     """
     Calculate time of mid-transit/mid-eclipse from time of periastron
 
@@ -535,7 +535,6 @@ def eclipse_phase (tzero,P,sini,ecc,omdeg):
 
     :Example:
      >>> from pycheops.funcs import eclipse_phase
-     >>> tzero = 54321.6784
      >>> P = 1.23456
      >>> sini = 0.987
      >>> ecc = 0.654
@@ -544,9 +543,9 @@ def eclipse_phase (tzero,P,sini,ecc,omdeg):
      >>> print(f"Phase of eclipse = {ph_ecl:0.4f}")
 
     """
-    t_peri = tzero2tperi(tzero,P,sini,ecc,omdeg)
+    t_peri = tzero2tperi(0,P,sini,ecc,omdeg)
     t_ecl = tperi2tzero(t_peri,P,sini,ecc,omdeg,eclipse=True)
-    return (t_ecl-t_peri)/P % 1
+    return t_ecl/P % 1
 
 #---------------
 

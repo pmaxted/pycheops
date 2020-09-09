@@ -88,7 +88,8 @@ setup(
             'photutils',
             'matplotlib>3.2',
             'celerite>=0.3.1',
-            'autograd'],
+            'autograd',
+            'tqdm'],
             # 'ellc>=1.8.5'],
 
     # List additional groups of dependencies here (e.g. development
