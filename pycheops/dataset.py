@@ -504,6 +504,19 @@ class Dataset(object):
         m = _file_key_re.search(file_key)
         l = [int(i) for i in m.groups()]
 
+        pdfFile = "{}_DataReduction.pdf".format(file_key)
+        pdfPath = Path(_cache_path,pdfFile)
+        if pdfPath.is_file():
+            if verbose: print('{} already downloaded'.format(pdfFile))
+        else:
+            _re = re.compile(r'CH_.*RPT_COR_DataReduction.*pdf')
+            pdffiles = list(filter(_re.match, filelist))
+            if len(pdffiles) > 0: 
+                cmd = 'RETR {}'.format(pdffiles[0])
+                if verbose: print('Downloading {} ...'.format(pdfFile))
+                ftp.retrbinary(cmd, open(str(pdfPath), 'wb').write)
+        ftp.quit()
+        
         tgzPath = Path(_cache_path,file_key).with_suffix('.tgz')
         tgzfile = str(tgzPath)
 
