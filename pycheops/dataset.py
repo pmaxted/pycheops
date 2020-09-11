@@ -517,6 +517,7 @@ class Dataset(object):
             _re = re.compile(r'CH_.*RPT_COR_DataReduction.*pdf')
             pdffiles = list(filter(_re.match, filelist))
             if len(pdffiles) > 0:
+
                 cmd = 'RETR {}'.format(pdffiles[0])
                 if verbose: print('Downloading {} ...'.format(pdfFile))
                 ftp.retrbinary(cmd, open(str(pdfPath), 'wb').write)
