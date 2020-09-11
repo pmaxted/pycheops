@@ -1,6 +1,19 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.9.1 (2020-09-10)
+~~~~~~~~~~~~~~~~~~
+* celerite -> celerite2
+* Fix missing DRP report due to new file structure for simulation data (#146)
+
+0.9.0 (2020-09-09)
+~~~~~~~~~~~~~~~~~~
+* Added tqdm to requirements in setup.py
+* Added "unwrap" option to Multivisit fit routines fit_transit(), etc. 
+* Set mean value of glint function to 0 in dataset.add_glint().
+* Fixed bug with evaluation of glint function in Multivisit 
+* Fixed bug in Multivisit.plot_fit() - model plotted using old parameters
+
 0.8.5 (2020-09-02)
 ~~~~~~~~~~~~~~~~~~
 * Added funcs.tperi2tzero() and funcs.eclipse_phase()
