@@ -39,12 +39,11 @@ from lmfit import Parameters, Parameter
 from lmfit import fit_report as lmfit_report
 from lmfit import __version__ as _lmfit_version_
 from . import __version__
-import autograd.numpy as ag
 from lmfit.models import ExpressionModel, Model
 from lmfit.minimizer import MinimizerResult
-from celerite.terms import Term, SHOTerm, JitterTerm
 from .models import TransitModel, FactorModel, EclipseModel, EBLMModel
-from celerite import GP
+from celerite2.terms import Term, SHOTerm
+from celerite2 import GaussianProcess
 from .funcs import rhostar, massradius, eclipse_phase
 from uncertainties import UFloat, ufloat
 from emcee import EnsembleSampler
@@ -60,39 +59,26 @@ from scipy.stats import iqr
 #--------
 
 class CosineTerm(Term):
-    def __init__(self, *args, **kwargs):
-        self.parameter_names = ("log_omega_j", "log_sigma_j")
-        super(CosineTerm, self).__init__(*args, **kwargs)
-    def __repr__(self):
-        return ("CosineTerm({0.log_omega_j}, {0.log_sigma_j})"
-                .format(self))
-    def get_complex_coefficients(self, params):
-        log_omega_j, log_sigma_j = params
-        return ag.exp(log_sigma_j), 0., 0., ag.exp(log_omega_j)
-
-#--------
-
-def fit_harmonics(t, y, omega, n):
-    expr = 'c'
-    init = {'c':0}
-    for i in range(n):
-        expr += f' + a_{i+1:02d}*sin({i+1:02d}*omega*x)'
-        expr += f' + b_{i+1:02d}*cos({i+1:02d}*omega*x)'
-        init[f'a_{i+1:02d}'] = 0
-        init[f'b_{i+1:02d}'] = 0
-    m = ExpressionModel(expr)
-    p = m.make_params(**init)
-    r = m.fit(y,p,x=x)
-    return r.residual
+    def __init__(self, omega_j, sigma_j):
+        self.omega_j = omega_j
+        self.sigma_j = sigma_j
+    def get_coefficients(self):
+        ar = np.empty(0)
+        cr = np.empty(0)
+        ac = np.array([self.sigma_j])
+        bc = np.zeros(1)
+        cc = np.zeros(1)
+        dc = np.array([self.omega_j])
+        return (ar, cr, ac, bc, cc, dc)
 
 #--------
 
 SineModel = ExpressionModel('sin(2*pi*(x-x0)/P)')
 
-#---
+#--------
 
-# Slight bodge needed here to cope with change of time system between Dataset
-# and Multivisit
+# Parameter delta_t needed here to cope with change of time system between
+# Dataset and Multivisit
 def _glint_func(t, glint_scale, f_theta=None, f_glint=None, delta_t=None):
     glint = f_glint(f_theta(t-delta_t))
     return glint_scale * glint
@@ -168,14 +154,14 @@ def _make_labels(plotkeys, d0):
 
 #--------
 
-def _log_posterior(pos, gps, lcs, models, modpars, noisemodel, priors, vn,
+def _log_posterior(pos, lcs, rolls, models, modpars, noisemodel, priors, vn,
         return_fit):
 
     lnprob = 0 
     lc_mods = []    # model light curves per dataset
     lc_fits = []    # lc fit per dataset
     modpars_rtn = []   # Model parameters for return_fit
-    for i, (gp,lc,model,modpar) in enumerate(zip(gps,lcs,models,modpars)):
+    for i, (roll,lc,model,modpar) in enumerate(zip(rolls,lcs,models,modpars)):
 
         for p in ('T_0', 'P', 'D', 'W', 'b', 'f_c', 'f_s', 'h_1', 'h_2', 'L'):
             if p in vn:
@@ -207,31 +193,51 @@ def _log_posterior(pos, gps, lcs, models, modpars, noisemodel, priors, vn,
         if p in vn:
             modpar['L'].value = pos[vn.index(p)]
 
-        # Noise model parameters
+        # Update noisemodel parameters
         for p in ('log_sigma_w', 'log_omega0', 'log_S0', 'log_Q'):
             if p in vn:
-                v = pos[vn.index(p)] if p in vn else noisemodel[p].value
+                v = pos[vn.index(p)] 
                 if (v < noisemodel[p].min) or (v > noisemodel[p].max):
                     return -np.inf
-                gp.set_parameter(noisemodel[p].user_data['kname'], v)
+                noisemodel[p].set(value=v)
 
         mod = model.eval(modpar, t=lc['time'])
         resid = lc['flux'] - mod
-        lnprob += gp.log_likelihood(resid)
+        yvar = np.exp(2*noisemodel['log_sigma_w']) + lc['flux_err']**2
+
+        if 'log_Q' in noisemodel:
+            sho = SHOTerm(
+                    S0=np.exp(noisemodel['log_S0'].value),
+                    Q=np.exp(noisemodel['log_Q'].value),
+                    w0=np.exp(noisemodel['log_omega0'].value))
+        else:
+            sho = None
+
+        if roll or sho:
+            if roll and sho:
+                kernel = sho + roll
+            elif sho:
+                kernel = sho
+            else:
+                kernel = roll
+            gp = GaussianProcess(kernel, mean=0)
+            gp.compute(lc['time'], diag=yvar, quiet=True)
+            lnprob += gp.log_likelihood(resid)
+            if return_fit:
+                lc_fits.append(gp.predict(resid, return_cov=False) + mod)
+        else:
+            lnprob += -0.5*(np.sum(resid**2/yvar + np.log(2*np.pi*yvar)))
+            if return_fit:
+                lc_fits.append(mod)
 
         if return_fit:
-            k = noisemodel['log_sigma_w'].user_data['kname']
-            if k == 'kernel:log_sigma':
-                lc_fits.append(mod)
-            else:
-                lc_fits.append(gp.predict(resid, return_cov=False) + mod)
             modpars_rtn.append(modpar)
 
     if return_fit:
         return lc_fits, modpars_rtn
 
     args=[modpar[p] for p in ('D','W','b')]
-    lnprior = _log_prior(*args)
+    lnprior = _log_prior(*args)  # Priors on D, W and b
     for p in priors:
         if p in vn:
             lnprob += -0.5*( (pos[vn.index(p)] - priors[p].n)/priors[p].s)**2
@@ -321,11 +327,12 @@ class MultiVisit(object):
     Noise model
     ~~~~~~~~~~~
 
-    The noise model is calculated with celerite using the a white-noise
-    term JitterTerm(log_sigma_w) plus, optionally, a GP with kernel
+    The noise model assumes that the error bars on each data point have
+    addition white noise with standard deviation log_sigma_w. Optionally,
+    correlated noise can be included using celerite2 with kernel
     SHOTerm(log_omega0, log_S0, log_Q). The same values of log_sigma_w,
-    log_omega0, log_S0 and log_Q are used for all the datasets in the
-    combined fit.
+    log_omega0, log_S0 and log_Q are used for all the datasets in the combined
+    fit.
     
     The fit to the combined datasets will only include a GP if log_omega0 and
     log_S0 are both specified as arguments in the call to the fitting method.
@@ -455,7 +462,10 @@ class MultiVisit(object):
                 dd = d.__dict__
                 ap = d.lc['aperture'] if 'lc' in dd else '---'
                 lf = d.__lastfit__ if '__lastfit__' in dd else '---'
-                gp = 'Yes' if ('gp' in dd and d.gp is not None) else 'No'
+                try: 
+                    gp = 'Yes' if d.gp else 'No'
+                except AttributeError:
+                    gp = 'No'
                 gl = 'Yes' if 'f_glint' in dd else 'No'
                 pv = d.pipe_ver
                 print(f' {n+1:2} {d.file_key} {ap:8} {lf:5} {gp:3} {gl:5} {pv}')
@@ -479,11 +489,7 @@ class MultiVisit(object):
 #
 #  "noisemodel" is an lmfit Parameters object used for passing the
 #  noise model parameters log_sigma_w, log_omega0, etc. to the target
-#  log-posterior function. The user_data attribute of each parameter
-#  is a dict that has at least one entry "kname" with the name of the
-#  parameter as it appears in the celerite GP kernel object. It may
-#  also contain an entry "prior" with the Gaussian prior on the value
-#  stored as a ufloat. 
+#  log-posterior function. The user_data may be a ufloat with the "prior".
 #
 # "priors" is a list of priors stored as ufloat values. 
 #
@@ -572,20 +578,14 @@ class MultiVisit(object):
             if not np.isfinite(noisemodel[k].min):
                 noisemodel[k].min = np.min([noisemodel[k].value-10, -30])
         params[k] = copy(noisemodel[k])
-        # Convert user_data to a dict so we can put kernel name there
         if isinstance(noisemodel[k].user_data, UFloat):
             priors[k] = noisemodel[k].user_data
-            noisemodel[k].user_data = {'prior':noisemodel[k].user_data}
-        else:
-            noisemodel[k].user_data = {}
         if noisemodel[k].vary:
             vn.append(k)
             vv.append(noisemodel[k].value)
             vs.append(1)
 
         if log_S0 is not None and log_omega0 is not None:
-            k = 'log_sigma_w'
-            noisemodel[k].user_data['kname'] = 'kernel:terms[0]:log_sigma'
             if log_Q is None: log_Q = 1/np.sqrt(2)
             nvals = {'log_S0':log_S0, 'log_omega0':log_omega0, 'log_Q':log_Q}
             for k in nvals:
@@ -593,26 +593,17 @@ class MultiVisit(object):
                 params[k] = copy(noisemodel[k])
                 if isinstance(noisemodel[k].user_data, UFloat):
                     priors[k] = noisemodel[k].user_data
-                    noisemodel[k].user_data = {'prior':noisemodel[k].user_data}
-                else:
-                    noisemodel[k].user_data = {}
                 if noisemodel[k].vary:
                     vn.append(k)
                     vv.append(noisemodel[k].value)
                     vs.append(1)
-                noisemodel[k].user_data['kname'] = f'kernel:terms[1]:{k}'
-        else:
-            k = 'log_sigma_w'
-            n = 'kernel:terms[0]:log_sigma' if unroll else 'kernel:log_sigma'
-            noisemodel[k].user_data['kname'] = n
 
         return noisemodel, params, priors, vn, vv, vs
 
 #--------------------------------------------------------------------------
 
-    def __make_modpars__(self, model_type, vals, params, noisemodel,
-             vn, vv, vs, priors, ttv_edv, ttv_edv_prior,
-             unroll, nroll, unwrap):
+    def __make_modpars__(self, model_type, vals, params, vn, vv, vs,
+            priors, ttv_edv, ttv_edv_prior, unroll, nroll, unwrap):
         plist = [d.emcee.params if d.__lastfit__ == 'emcee' else 
                  d.lmfit.params for d in self.datasets]
 
@@ -626,12 +617,13 @@ class MultiVisit(object):
                 ttv, ttv_prior = True, ttv_edv_prior
                 edv, edv_prior = True, ttv_edv_prior
         
-        gps = []      # Separate GPs because over o/h to compute matrices
+        rolls = []
         lcs = []
         models = []
         modpars = []
         glints = []
         omegas = []
+        fluxrms = []
         # FactorModel parameters excluding cos(j.phi), sin(j.phi) terms
         dfdp = ['c', 'dfdbg', 'dfdcontam', 'dfdx', 'd2fdx2', 'dfdy', 'd2fdy2',
                 'dfdt', 'd2fdt2', 'glint_scale']
@@ -692,44 +684,36 @@ class MultiVisit(object):
                     if pj in priors:
                         params[pj].user_data = priors[pj]
                     vn.append(pj)
-                    if d == 'glint_scale' or d == 'c':
+                    if d == 'c':
                         vv.append(1)
+                        vs.append(1e-6)
+                    elif d == 'glint_scale':
+                        vv.append(1)
+                        vs.append(0.01)
                     else:
                         vv.append(0)
-                    vs.append(1e-6)
+                        vs.append(1e-6)
 
-            # Set up GP for each dataset
-            kernel = JitterTerm(noisemodel['log_sigma_w'].value)
-            if 'log_Q' in params:
-                kernel += SHOTerm(
-                        log_S0=params['log_S0'].value,
-                        log_Q=params['log_Q'].value,
-                        log_omega0=params['log_omega0'].value)
             if unroll:
-                # log_sigma_j is the width of the Gaussian priors on the 
-                # coefficients for the linear roll-noise model
-                log_sigma_j = np.log(np.nanstd(lc['flux']))
                 sinphi = np.sin(np.radians(lc['roll_angle']))
-                # Best-fit spin period for this dataset
                 s = SineModel.fit(sinphi, P=99/1440, x0=0, x=lc['time'])
                 Omega= 2*np.pi/s.params['P']
-                omegas.append(Omega)
-                for j in range(1,nroll+1 if unroll else 0): 
-                    kernel += CosineTerm(log_omega_j=np.log(j*Omega),
-                        log_sigma_j=log_sigma_j)
-            self.omegas = omegas
-            gp = GP(kernel)
-            gp.compute(lc['time'],yerr=lc['flux_err'])
-            gps.append(gp)
+                fluxrms = np.nanstd(lc['flux'])
+                roll = CosineTerm(omega_j=Omega, sigma_j=fluxrms)
+                for j in range(2,nroll+1):
+                    roll = roll + CosineTerm(omega_j=j*Omega, sigma_j=fluxrms)
+                rolls.append(roll)
+            else:
+                rolls.append(None)
 
-        return params,gps,lcs,models,modpars,glints,omegas,vn,vv,vs,priors
+        return params,rolls,lcs,models,modpars,glints,omegas,vn,vv,vs,priors
 
 #--------------------------------------------------------------------------
 
     def __make_result__(self, vn, pos, vv, params, fits, priors):
         # lmfit MinimizerResult object summary of results for printing and
-        # plotting. Data/objects required to re-run the analysis, e.g., gps,
-        # go directly into self.
+        # plotting. Data/objects required to re-run the analysis go directly
+        # into self.
         result = MinimizerResult()
         result.status = 0
         result.var_names = vn
@@ -820,9 +804,9 @@ class MultiVisit(object):
                 log_Q, params, priors, vn, vv, vs, unroll)
         noisemodel, params, priors, vn, vv, vs = _
 
-        _ = self.__make_modpars__('_transit_func', vals, params, noisemodel,
-                vn, vv, vs, priors, ttv, ttv_prior, unroll, nroll, unwrap)
-        params,gps,lcs,models,modpars,glints,omegas,vn,vv,vs,priors  = _
+        _ = self.__make_modpars__('_transit_func', vals, params, vn, vv, vs,
+                priors, ttv, ttv_prior, unroll, nroll, unwrap)
+        params,rolls,lcs,models,modpars,glints,omegas,vn,vv,vs,priors  = _
 
         # Setup sampler
         vv = np.array(vv)
@@ -830,7 +814,7 @@ class MultiVisit(object):
         pos = []
         n_varys = len(vv)
         return_fit = False
-        args = (gps, lcs, models, modpars, noisemodel, priors, vn, return_fit)
+        args = (lcs, rolls, models, modpars, noisemodel, priors, vn, return_fit)
         for i in range(nwalkers):
             lnlike_i = -np.inf
             while lnlike_i == -np.inf:
@@ -857,10 +841,9 @@ class MultiVisit(object):
         pos = flatchain[np.argmax(sampler.get_log_prob()),:]
 
         return_fit = True
-        args = (gps, lcs, models, modpars, noisemodel, priors, vn, return_fit)
+        args = (lcs, rolls, models, modpars, noisemodel, priors, vn, return_fit)
         fits, modpars = _log_posterior(pos, *args)
 
-        self.gps = gps
         self.__fitted_flux__ = [lc['flux'] for lc in lcs]
         self.noisemodel = noisemodel
         self.models = models
@@ -913,9 +896,9 @@ class MultiVisit(object):
                 log_Q, params, priors, vn, vv, vs, unroll)
         noisemodel, params, priors, vn, vv, vs = _
 
-        _ = self.__make_modpars__('_eclipse_func', vals, params, noisemodel,
-                vn, vv, vs, priors, edv, edv_prior, unroll, nroll, unwrap)
-        params,gps,lcs,models,modpars,glints,omegas,vn,vv,vs,priors  = _
+        _ = self.__make_modpars__('_eclipse_func', vals, params, vn, vv, vs,
+                priors, edv, edv_prior, unroll, nroll, unwrap)
+        params,rolls,lcs,models,modpars,glints,omegas,vn,vv,vs,priors  = _
 
         # Setup sampler
         vv = np.array(vv)
@@ -923,7 +906,7 @@ class MultiVisit(object):
         pos = []
         n_varys = len(vv)
         return_fit = False
-        args = (gps, lcs, models, modpars, noisemodel, priors, vn, return_fit)
+        args = (lcs, rolls, models, modpars, noisemodel, priors, vn, return_fit)
         for i in range(nwalkers):
             lnlike_i = -np.inf
             while lnlike_i == -np.inf:
@@ -950,10 +933,9 @@ class MultiVisit(object):
         pos = flatchain[np.argmax(sampler.get_log_prob()),:]
 
         return_fit = True
-        args = (gps, lcs, models, modpars, noisemodel, priors, vn, return_fit)
+        args = (lcs, rolls, models, modpars, noisemodel, priors, vn, return_fit)
         fits, modpars = _log_posterior(pos, *args)
 
-        self.gps = gps
         self.__fitted_flux__ = [lc['flux'] for lc in lcs]
         self.noisemodel = noisemodel
         self.models = models
@@ -1016,9 +998,9 @@ class MultiVisit(object):
                 log_Q, params, priors, vn, vv, vs, unroll)
         noisemodel, params, priors, vn, vv, vs = _
 
-        _ = self.__make_modpars__('_eblm_func', vals, params, noisemodel,
-                vn, vv, vs, priors, ttv, ttv_prior, unroll, nroll, unwrap)
-        params,gps,lcs,models,modpars,glints,omegas,vn,vv,vs,priors  = _
+        _ = self.__make_modpars__('_eblm_func', vals, params, vn, vv, vs,
+                priors, ttv, ttv_prior, unroll, nroll, unwrap)
+        params,rolls,lcs,models,modpars,glints,omegas,vn,vv,vs,priors  = _
 
         # Setup sampler
         vv = np.array(vv)
@@ -1026,7 +1008,7 @@ class MultiVisit(object):
         pos = []
         n_varys = len(vv)
         return_fit = False
-        args = (gps, lcs, models, modpars, noisemodel, priors, vn, return_fit)
+        args = (lcs, rolls, models, modpars, noisemodel, priors, vn, return_fit)
         for i in range(nwalkers):
             lnlike_i = -np.inf
             while lnlike_i == -np.inf:
@@ -1053,10 +1035,9 @@ class MultiVisit(object):
         pos = flatchain[np.argmax(sampler.get_log_prob()),:]
 
         return_fit = True
-        args = (gps, lcs, models, modpars, noisemodel, priors, vn, return_fit)
+        args = (lcs, rolls, models, modpars, noisemodel, priors, vn, return_fit)
         fits, modpars = _log_posterior(pos, *args)
 
-        self.gps = gps
         self.__fitted_flux__ = [lc['flux'] for lc in lcs]
         self.noisemodel = noisemodel
         self.models = models

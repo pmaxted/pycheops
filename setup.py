@@ -87,7 +87,7 @@ setup(
             'corner', 
             'photutils',
             'matplotlib>3.2',
-            'celerite>=0.3.1',
+            'celerite2',
             'autograd',
             'tqdm'],
             # 'ellc>=1.8.5'],

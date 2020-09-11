@@ -1,6 +1,11 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.9.1 (2020-09-10)
+~~~~~~~~~~~~~~~~~~
+* celerite -> celerite2
+* Fix missing DRP report due to new file structure for simulation data (#146)
+
 0.9.0 (2020-09-09)
 ~~~~~~~~~~~~~~~~~~
 * Added tqdm to requirements in setup.py
