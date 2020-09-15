@@ -35,9 +35,7 @@ Install "pillow", e.g., conda install pillow.
 
  2. "pip install matplotlib --upgrade" then "pip install pycheops --upgrade"
 
-
-Installation fails with "ERROR: Could not build wheels for celerite2 which 
-use PEP 517 and cannot be installed directly" 
+Installation fails with "ERROR: Could not build wheels for celerite2 which use PEP 517 and cannot be installed directly" 
 --------------------------------------------------------------------
  This error message may appear when upgrading to pycheops version 0.9.1 or
  later. The working solution is to install celerite2 prior to installing/
