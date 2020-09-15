@@ -47,7 +47,8 @@ import matplotlib.pyplot as plt
 from emcee import EnsembleSampler
 import corner
 from copy import copy
-from celerite import terms, GP
+from celerite2 import terms, GaussianProcess
+from celerite2.terms import SHOTerm
 from sys import stdout 
 from astropy.coordinates import SkyCoord, get_body, Angle
 from lmfit.printfuncs import gformat
@@ -188,7 +189,7 @@ def _log_posterior_jitter(pos, model, time, flux, flux_err,  params, vn,
 
 #----
 
-def _log_posterior_SHOTerm(pos, model, time, flux, flux_err,  params, vn, gp, 
+def _log_posterior_SHOTerm(pos, model, time, flux, flux_err,  params, vn, 
         return_fit):
 
     parcopy, lnprior = _make_trial_params(pos, params, vn)
@@ -202,9 +203,13 @@ def _log_posterior_SHOTerm(pos, model, time, flux, flux_err,  params, vn, gp,
         return -np.inf
     
     resid = flux-fit
-    for p in ['log_S0', 'log_Q', 'log_omega0', 'log_sigma']:
-        k = 1 if p == 'log_sigma' else 0
-        gp.set_parameter(f'kernel:terms[{k}]:{p}', parcopy[p].value)
+    kernel = SHOTerm(
+                    S0=np.exp(parcopy['log_S0'].value),
+                    Q=np.exp(parcopy['log_Q'].value),
+                    w0=np.exp(parcopy['log_omega0'].value))
+    gp = GaussianProcess(kernel, mean=0)
+    yvar = flux_err**2+np.exp(2*parcopy['log_sigma'].value)
+    gp.compute(time, diag=yvar, quiet=True)
     return gp.log_likelihood(resid) + lnprior
     
 #---------------
@@ -511,12 +516,13 @@ class Dataset(object):
         else:
             _re = re.compile(r'CH_.*RPT_COR_DataReduction.*pdf')
             pdffiles = list(filter(_re.match, filelist))
-            if len(pdffiles) > 0: 
+            if len(pdffiles) > 0:
+
                 cmd = 'RETR {}'.format(pdffiles[0])
                 if verbose: print('Downloading {} ...'.format(pdfFile))
                 ftp.retrbinary(cmd, open(str(pdfPath), 'wb').write)
         ftp.quit()
-        
+
         tgzPath = Path(_cache_path,file_key).with_suffix('.tgz')
         tgzfile = str(tgzPath)
 
@@ -1518,19 +1524,11 @@ class Dataset(object):
         args=(model, time, flux, flux_err,  params, vn)
         p = list(params.keys())
         if 'log_S0' in p and 'log_omega0' in p and 'log_Q' in p :
-            kernel = terms.SHOTerm(
-                    log_S0=params['log_S0'].value,
-                    log_Q=params['log_Q'].value,
-                    log_omega0=params['log_omega0'].value)
-            kernel += terms.JitterTerm(log_sigma=params['log_sigma'].value)
-
-            gp = GP(kernel, mean=0, fit_mean=False)
-            gp.compute(time, flux_err)
             log_posterior_func = _log_posterior_SHOTerm
-            args += (gp,)
+            self.gp = True
         else:
             log_posterior_func = _log_posterior_jitter
-            gp = None
+            self.gp = False
         return_fit = False
         args += (return_fit, )
     
@@ -1563,13 +1561,8 @@ class Dataset(object):
 
         flatchain = sampler.get_chain(flat=True).reshape((-1, len(vn)))
         pos_i = flatchain[np.argmax(sampler.get_log_prob()),:]
-        return_fit = True
-        if gp is None:
-            fit = _log_posterior_jitter(pos_i, model, time, flux, flux_err,
-                    params, vn, return_fit)
-        else:
-            fit = _log_posterior_SHOTerm(pos_i, model, time, flux, flux_err,
-                    params, vn, gp, return_fit)
+        fit = log_posterior_func(pos_i, model, time, flux, flux_err,
+                params, vn, return_fit=True)
 
         # Use scaled resiudals for consistency with lmfit
         result.residual = (flux - fit)/flux_err
@@ -1611,7 +1604,6 @@ class Dataset(object):
         self.emcee = result
         self.sampler = sampler
         self.__lastfit__ = 'emcee'
-        self.gp = gp
         return result
 
     # ----------------------------------------------------------------
@@ -1976,30 +1968,15 @@ class Dataset(object):
 
         nchain = self.emcee.chain.shape[0]
         partmp = parbest.copy()
-        if self.gp is None:
-            for i in np.linspace(0,nchain,nsamples,endpoint=False,
-                    dtype=np.int):
-                for j, n in enumerate(self.emcee.var_names):
-                    partmp[n].value = self.emcee.chain[i,j]
-                    fp = model.eval(partmp,t=tp)
-                    if detrend:
-                        if glint:
-                            fp -= model.right.eval(partmp, t=tp)
-                            fp /= model.left.right.eval(partmp, t=tp) 
-                        else: 
-                            fp /= model.right.eval(partmp, t=tp)
-                ax[0].plot(tp,fp,c='saddlebrown',zorder=1,alpha=0.1)
-        else:
-            self.gp.set_parameter('kernel:terms[0]:log_S0',
-                    parbest['log_S0'].value)
-            self.gp.set_parameter('kernel:terms[0]:log_Q',
-                    parbest['log_Q'].value)
-            self.gp.set_parameter('kernel:terms[0]:log_omega0',
-                    parbest['log_omega0'].value)
-            self.gp.set_parameter('kernel:terms[1]:log_sigma',
-                    parbest['log_sigma'].value)
-
-            mu0 = self.gp.predict(res,tp,return_cov=False,return_var=False)
+        if self.gp:
+            kernel = SHOTerm(
+                    S0=np.exp(parbest['log_S0'].value),
+                    Q=np.exp(parbest['log_Q'].value),
+                    w0=np.exp(parbest['log_omega0'].value))
+            gp = GaussianProcess(kernel, mean=0)
+            yvar = flux_err**2+np.exp(2*parbest['log_sigma'].value)
+            gp.compute(time, diag=yvar, quiet=True)
+            mu0 = gp.predict(res,tp,return_cov=False,return_var=False)
             pp = mu0 + model.eval(parbest,t=tp)
             if detrend:
                 if glint:
@@ -2013,15 +1990,14 @@ class Dataset(object):
                 for j, n in enumerate(self.emcee.var_names):
                     partmp[n].value = self.emcee.chain[i,j]
                 rr = flux0 - model.eval(partmp, t=time)
-                self.gp.set_parameter('kernel:terms[0]:log_S0',
-                        partmp['log_S0'].value)
-                self.gp.set_parameter('kernel:terms[0]:log_Q',
-                        partmp['log_Q'].value)
-                self.gp.set_parameter('kernel:terms[0]:log_omega0',
-                        partmp['log_omega0'].value)
-                self.gp.set_parameter('kernel:terms[1]:log_sigma',
-                        partmp['log_sigma'].value)
-                mu = self.gp.predict(rr,tp,return_var=False,return_cov=False)
+                kernel = SHOTerm(
+                    S0=np.exp(partmp['log_S0'].value),
+                    Q=np.exp(partmp['log_Q'].value),
+                    w0=np.exp(partmp['log_omega0'].value))
+                gp = GaussianProcess(kernel, mean=0)
+                yvar = flux_err**2+np.exp(2*partmp['log_sigma'].value)
+                gp.compute(time, diag=yvar, quiet=True)
+                mu = gp.predict(rr,tp,return_var=False,return_cov=False)
                 pp = mu + model.eval(partmp, t=tp)
                 if detrend:
                     if glint:
@@ -2031,6 +2007,20 @@ class Dataset(object):
                         pp /= model.right.eval(partmp, t=tp) 
                 ax[0].plot(tp,pp,c='saddlebrown',zorder=1,alpha=0.1)
                 
+        else:
+            for i in np.linspace(0,nchain,nsamples,endpoint=False,
+                    dtype=np.int):
+                for j, n in enumerate(self.emcee.var_names):
+                    partmp[n].value = self.emcee.chain[i,j]
+                    fp = model.eval(partmp,t=tp)
+                    if detrend:
+                        if glint:
+                            fp -= model.right.eval(partmp, t=tp)
+                            fp /= model.left.right.eval(partmp, t=tp) 
+                        else: 
+                            fp /= model.right.eval(partmp, t=tp)
+                ax[0].plot(tp,fp,c='saddlebrown',zorder=1,alpha=0.1)
+
         ymin = np.min(flux-flux_err)-0.05*np.ptp(flux)
         ymax = np.max(flux+flux_err)+0.05*np.ptp(flux)
         ax[0].set_xlim(tmin, tmax)
@@ -2044,7 +2034,7 @@ class Dataset(object):
         else:
             ax[0].set_ylabel('Flux')
         ax[1].plot(time,res,'o',c='skyblue',ms=2,zorder=0)
-        if self.gp is not None:
+        if self.gp:
             ax[1].plot(tp,mu0,c='saddlebrown', zorder=1)
         ax[1].plot([tmin,tmax],[0,0],ls=':',c='saddlebrown', zorder=1)
         if binwidth:
