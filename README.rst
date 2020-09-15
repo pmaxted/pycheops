@@ -41,8 +41,8 @@ Installation fails with "ERROR: Could not build wheels for celerite2 which use P
  later. The working solution is to install celerite2 prior to installing/
  updating pycheops using:
 
- 1. git clone --recursive https://github.com/dfm/celerite2.git
+ ``git clone --recursive https://github.com/dfm/celerite2.git``
 
- 2. cd celerite2
+ ``cd celerite2``
 
- 3. python -m pip install celerite2==0.0.1rc1
+ ``python -m pip install celerite2==0.0.1rc1``
