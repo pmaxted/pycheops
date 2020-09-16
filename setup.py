@@ -88,7 +88,6 @@ setup(
             'photutils',
             'matplotlib>3.2',
             'celerite2',
-            'autograd',
             'tqdm'],
             # 'ellc>=1.8.5'],
 

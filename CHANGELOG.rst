@@ -1,6 +1,11 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.9.2 DATEDATEDATEDATE
+~~~~~~~~~~~~~~~~~~
+* Removes autograd from requirements in setup.py
+* Added solar options to funcs.massradius()
+
 0.9.1 (2020-09-10)
 ~~~~~~~~~~~~~~~~~~
 * celerite -> celerite2
