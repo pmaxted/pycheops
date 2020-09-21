@@ -37,10 +37,13 @@ __all__ = ['load_config', 'setup_config', 'get_cache_path']
 
 def find_config():
     """
-    If we don't have a config file to load, check if old '~/pycheops.cfg' exists
-    if it does, use that, else 
-    if environment variable 'XDG_CONFIG_HOME' is set, use '$XDG_CONFIG_HOME/pycheops.cfg' 
-    else, default to '~/.config/pycheops.cfg'
+    Find pycheops.cfg from a hierarchy of places
+    
+    First, try `~/pycheops.cfg`
+    if that fails, path is platform dependent
+    Linux: `$XDG_CONFIG_HOME/pycheops.cfg` (defaults to `~/.config/pycheops.cfg` if `$XDG_DATA_HOME` is not set)
+    Windows: `%APPDATA%\pycheops\pycheops.cfg` (usually `C:\Users\user\AppData\Roaming\pycheops\pycheops.cfg`)
+    Other: `~/pycheops/pycheops.cfg`
     """
 
     dirname='~'
@@ -71,7 +74,7 @@ def load_config(configFile=None):
     """
     Load module configuration from configFile 
     
-    If configFile is None, look for pycheops.cfg in the user's home directory
+    If configFile is None, find pycheops.cfg
 
     :param configFile: Full path to configuration file
 
@@ -94,7 +97,7 @@ def setup_config(configFile=None, overwrite=False, mode=0o600,
     """
     Create module configuration 
     
-    If configFile is None, use pycheops.cfg in the user's home directory
+    If configFile is None, find pycheops.cfg
 
     :param configFile: Full path to configuration file
 
@@ -115,6 +118,12 @@ def setup_config(configFile=None, overwrite=False, mode=0o600,
     if os.path.isfile(configFile) and not overwrite:
         raise ValueError('Configuration file exists and overwrite is not set')
 
+    """
+    `data_cache_default` is platform dependent and not in `~`
+    Linux: `$XDG_DATA_HOME/pycheops` (defaults to `~/.local/share/pycheops` if `$XDG_DATA_HOME` is not set)
+    Windows: `%APPDATA%\pycheops\data` (usually `C:\Users\user\AppData\Roaming\pycheops\data`)
+    Other: `~/pycheops/data`
+    """
     if platform == "linux" or platform == "linux2":
         data_cache_default = os.path.join(os.getenv('XDG_DATA_HOME', os.path.expanduser(os.path.join('~', '.local', 'share'))), 'pycheops')
     elif platform == "win32":
