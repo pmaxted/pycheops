@@ -34,6 +34,39 @@ import getpass
 __all__ = ['load_config', 'setup_config', 'get_cache_path']
 
 
+
+def find_config():
+    """
+    If we don't have a config file to load, check if old '~/pycheops.cfg' exists
+    if it does, use that, else 
+    if environment variable 'XDG_CONFIG_HOME' is set, use '$XDG_CONFIG_HOME/pycheops.cfg' 
+    else, default to '~/.config/pycheops.cfg'
+    """
+
+    dirname='~'
+    fname='pycheops.cfg'
+
+    tryConfigFile = os.path.expanduser(os.path.join(dirname, fname))
+    if os.path.isfile(tryConfigFile):
+        configFile = tryConfigFile
+        return configFile
+
+
+    if platform == "linux" or platform == "linux2":
+        dirname = os.getenv('XDG_CONFIG_HOME', os.path.expanduser(os.path.join('~', '.config')))
+    elif platform == "win32":
+        dirname = os.path.expandvars(os.path.join('%APPDATA%', 'pycheops'))
+    else:
+        dirname = os.path.expanduser(os.path.join('~', 'pycheops'))
+
+
+    tryConfigFile = os.path.join(dirname, fname)
+    if not os.path.isdir(dirname):
+        os.mkdir(dirname)
+    configFile = tryConfigFile
+    return configFile
+
+
 def load_config(configFile=None):
     """
     Load module configuration from configFile 
@@ -44,8 +77,9 @@ def load_config(configFile=None):
 
     """
 
+
     if configFile is None:
-        configFile = os.path.expanduser(os.path.join('~','pycheops.cfg'))
+        configFile = find_config()
 
     if not os.path.isfile(configFile):
         raise ValueError('Configuration file not found - run core.setup_config')
@@ -75,13 +109,19 @@ def setup_config(configFile=None, overwrite=False, mode=0o600,
     """
 
     if configFile is None:
-        configFile = os.path.expanduser(os.path.join('~','pycheops.cfg'))
+        configFile = find_config()
     print('Creating configuration file {}'.format(configFile))
 
     if os.path.isfile(configFile) and not overwrite:
         raise ValueError('Configuration file exists and overwrite is not set')
 
-    data_cache_default = os.path.expanduser(os.path.join('~','pycheops_data'))
+    if platform == "linux" or platform == "linux2":
+        data_cache_default = os.path.join(os.getenv('XDG_DATA_HOME', os.path.expanduser(os.path.join('~', '.local', 'share'))), 'pycheops')
+    elif platform == "win32":
+        data_cache_default = os.path.expandvars(os.path.join('%APPDATA%', 'pycheops', 'data'))
+    else:
+        data_cache_default = os.path.expanduser(os.path.join('~', 'pycheops', 'data'))
+
     prompt = "Enter data cache directory [{}] > ".format(data_cache_default)
     if data_cache_path is None:
         data_cache_path = input(prompt)
