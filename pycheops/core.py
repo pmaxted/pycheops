@@ -36,7 +36,7 @@ __all__ = ['load_config', 'setup_config', 'get_cache_path']
 
 
 def find_config():
-    """
+    r"""
     Find pycheops.cfg from a hierarchy of places
     
     First, try `~/pycheops.cfg`
@@ -118,7 +118,7 @@ def setup_config(configFile=None, overwrite=False, mode=0o600,
     if os.path.isfile(configFile) and not overwrite:
         raise ValueError('Configuration file exists and overwrite is not set')
 
-    """
+    r"""
     `data_cache_default` is platform dependent and not in `~`
     Linux: `$XDG_DATA_HOME/pycheops` (defaults to `~/.local/share/pycheops` if `$XDG_DATA_HOME` is not set)
     Windows: `%APPDATA%\pycheops\data` (usually `C:\Users\user\AppData\Roaming\pycheops\data`)

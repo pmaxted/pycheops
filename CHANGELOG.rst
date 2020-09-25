@@ -8,6 +8,7 @@ Changes since 0.6.0 onwards.
 * Changed default thin=4 to thin=1 in dataset.emcee_sampler()
 * Fixed bug in Multivisit for default log_Q value (#155)
 * Added PlanetProperties
+* Updated KELT-11b-tutorial.ipynb to show use of PlanetProperties
 
 0.9.1 (2020-09-10)
 ~~~~~~~~~~~~~~~~~~
