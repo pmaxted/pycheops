@@ -122,6 +122,8 @@ def setup_config(configFile=None, overwrite=False, mode=0o600,
     # TEPCat location and update interval in seconds
     url = 'https://www.astro.keele.ac.uk/jkt/tepcat/allplanets-csv.csv' 
     c['TEPCat'] = {'update_interval': 86400, 'download_url': url}
+    url = 'https://www.astro.keele.ac.uk/jkt/tepcat/observables.csv' 
+    c['TEPCatObs'] = {'update_interval': 86400, 'download_url': url}
 
     #N.B. The archive username and password are stored in plain text so the
     #default mode value is 0o600 = user read/write permission only.

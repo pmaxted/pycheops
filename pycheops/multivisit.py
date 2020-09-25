@@ -421,6 +421,7 @@ class MultiVisit(object):
 
         for n,fl in enumerate(g):
             d = Dataset.load(fl)
+            print ('DEBUG 1', d.lmfit.params['T_0'],d.emcee.params['T_0'])
 
             # Make time scales consistent
             dBJD = d.bjd_ref - 2457000
@@ -429,27 +430,37 @@ class MultiVisit(object):
             d.lc['time'] += dBJD
             d.lc['bjd_ref'] = dBJD
             if 'lmfit' in d.__dict__:
-                p = d.lmfit.params['T_0']
+                p = deepcopy(d.lmfit.params['T_0'])
+                print ('DEBUG 2', d.lmfit.params['T_0'],d.emcee.params['T_0'])
                 p._val += dBJD
                 p.init_value += dBJD
                 p.min += dBJD
                 p.max += dBJD
+                d.lmfit.params['T_0'] = p
+                print ('DEBUG 3', d.lmfit.params['T_0'],d.emcee.params['T_0'])
                 if 'T_0' in d.lmfit.var_names: 
                     d.lmfit.init_vals[d.lmfit.var_names.index('T_0')] += dBJD
                 if 'T_0' in d.lmfit.init_values: 
                     d.lmfit.init_values['T_0'] += dBJD
+            print ('DEBUG 4', d.lmfit.params['T_0'],d.emcee.params['T_0'])
 
             if 'emcee' in d.__dict__:
-                p = d.emcee.params['T_0']
+                p = deepcopy(d.emcee.params['T_0'])
+                print ('DEBUG 4a', p)
                 p._val += dBJD
                 p.init_value += dBJD
                 p.min += dBJD
                 p.max += dBJD
-                p = d.emcee.params_best['T_0']
+                d.emcee.params['T_0'] = p
+                print ('DEBUG 4b', p)
+                print ('DEBUG 5', d.lmfit.params['T_0'],d.emcee.params['T_0'])
+                p = deepcopy(d.emcee.params_best['T_0'])
                 p._val += dBJD
                 p.init_value += dBJD
                 p.min += dBJD
                 p.max += dBJD
+                d.emcee.params_best['T_0'] = p
+                print ('DEBUG 6', d.lmfit.params['T_0'],d.emcee.params['T_0'])
                 if 'T_0' in d.emcee.var_names: 
                     j = d.emcee.var_names.index('T_0')
                     d.emcee.init_vals[j] += dBJD
@@ -457,6 +468,7 @@ class MultiVisit(object):
                 if 'T_0' in d.emcee.init_values: 
                     d.emcee.init_values['T_0'] += dBJD
 
+            print ('DEBUG 7', d.lmfit.params['T_0'],d.emcee.params['T_0'])
             self.datasets.append(d)
             if verbose:
                 dd = d.__dict__
@@ -586,7 +598,7 @@ class MultiVisit(object):
             vs.append(1)
 
         if log_S0 is not None and log_omega0 is not None:
-            if log_Q is None: log_Q = 1/np.sqrt(2)
+            if log_Q is None: log_Q = np.log(1/np.sqrt(2))
             nvals = {'log_S0':log_S0, 'log_omega0':log_omega0, 'log_Q':log_Q}
             for k in nvals:
                 noisemodel[k] = _kw_to_Parameter(k, nvals[k])
