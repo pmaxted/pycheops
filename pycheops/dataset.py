@@ -46,7 +46,7 @@ from scipy.interpolate import interp1d, LSQUnivariateSpline
 import matplotlib.pyplot as plt
 from emcee import EnsembleSampler
 import corner
-from copy import copy
+from copy import copy, deepcopy
 from celerite2 import terms, GaussianProcess
 from celerite2.terms import SHOTerm
 from sys import stdout 
@@ -1431,7 +1431,7 @@ class Dataset(object):
     # ----------------------------------------------------------------
 
     def emcee_sampler(self, params=None,
-            steps=128, nwalkers=64, burn=256, thin=4, log_sigma=None, 
+            steps=128, nwalkers=64, burn=256, thin=1, log_sigma=None, 
             add_shoterm=False, log_omega0=None, log_S0=None, log_Q=None,
             init_scale=1e-2, progress=True):
 
@@ -1450,7 +1450,7 @@ class Dataset(object):
 
         # Make a copy of the lmfit Minimizer result as a template for the
         # output of this method
-        result = copy(self.lmfit)
+        result = deepcopy(self.lmfit)
         result.method ='emcee'
         # Remove components on result not relevant for emcee
         result.status = None
