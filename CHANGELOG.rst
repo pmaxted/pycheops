@@ -9,6 +9,7 @@ Changes since 0.6.0 onwards.
 * Fixed bug in Multivisit for default log_Q value (#155)
 * Added PlanetProperties
 * Updated KELT-11b-tutorial.ipynb to show use of PlanetProperties
+* Update example TESS notebooks to celerite2
 
 0.9.1 (2020-09-10)
 ~~~~~~~~~~~~~~~~~~
