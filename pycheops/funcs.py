@@ -79,7 +79,7 @@ import warnings
 
 __all__ = [ 'a_rsun','f_m','m1sin3i','m2sin3i','asini','rhostar','g_2',
         'K_kms','m_comp','transit_width','esolve','t2z',
-        'tzero2tperi', 'vrad', 'xyz_planet']
+        'tperi2tzero','tzero2tperi', 'vrad', 'xyz_planet']
 
 _arsun   = (GM_SunN*mean_solar_day**2/(4*np.pi**2))**(1/3.)/R_SunN
 _f_m     = mean_solar_day*1e9/(2*np.pi)/GM_SunN
@@ -452,7 +452,7 @@ def tperi2tzero(tperi,P,sini,ecc,omdeg,eclipse=False):
     """
     Calculate phase mid-eclipse from time of mid-transit
 
-    :param tzero: times of mid-transit
+    :param tperi: times of periastron passage
     :param P: orbital period
     :param sini: sine of orbital inclination 
     :param ecc: eccentricity 

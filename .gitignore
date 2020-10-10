@@ -14,3 +14,4 @@ pyvenv
 pycheops/examples/Notebooks/HD97658_lmfit.eps
 pycheops/examples/Notebooks/mastDownload/
 docs/_build
+pycheops/examples/Notebooks/CH_*.tgz
