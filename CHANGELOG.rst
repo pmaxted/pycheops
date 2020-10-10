@@ -1,6 +1,11 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.9.3 (2020-10-10)
+~~~~~~~~~~~~~~~~~~
+* Fixed missing Bayes factor for d2fdt2 (#159)
+* Changed aperture used to extract metadata to DEFAULT in dataset
+
 0.9.2 (2020-09-25)
 ~~~~~~~~~~~~~~~~~~
 * Removes autograd from requirements in setup.py

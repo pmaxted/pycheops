@@ -330,9 +330,9 @@ class Dataset(object):
             with open(str(lisPath), 'w') as fh:  
                 fh.writelines("%s\n" % l for l in self.list)
 
-        # Extract OPTIMAL light curve data file from .tgz file so we can
+        # Extract DEFAULT light curve data file from .tgz file so we can
         # access the FITS file header information
-        aperture='OPTIMAL'
+        aperture='DEFAULT'
         lcFile = "{}-{}.fits".format(self.file_key,aperture)
         lcPath = Path(self.tgzfile).parent/lcFile
         if lcPath.is_file():
@@ -1411,7 +1411,8 @@ class Dataset(object):
         noBayes  = True
         for p in params:
             u = params[p].user_data
-            if isinstance(u, UFloat) and p.startswith('dfd'):
+            if (isinstance(u, UFloat) and 
+                    (p.startswith('dfd') or p.startswith('d2f'))):
                 if noBayes:
                     report+="\n[[Bayes Factors]]  "
                     report+="(values >~1 => free parameter probably not useful)"
