@@ -1,6 +1,11 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.9.4 
+~~~~~~~~~~~~~~~~~~
+* Changed calculation of _log_prior in dataset to allow fitting of grazing
+  transits with 1 < b < 1+k
+
 0.9.3 (2020-10-10)
 ~~~~~~~~~~~~~~~~~~
 * Fixed missing Bayes factor for d2fdt2 (#159)
