@@ -655,8 +655,8 @@ class MultiVisit(object):
             # Copy min/max values from params to modpar
             for pm in modpar:
                 if pm in params:
-                    modpar[pm].min = max(modpar[pm].min, params[pm].min)
-                    modpar[pm].max = min(modpar[pm].max, params[pm].max)
+                    modpar[pm].min = params[pm].min
+                    modpar[pm].max = params[pm].max
 
             if ttv: 
                 modpar['T_0'].init_value = modpar['T_0'].value

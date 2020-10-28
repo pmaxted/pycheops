@@ -5,6 +5,9 @@ Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~
 * Changed calculation of _log_prior in dataset to allow fitting of grazing
   transits with 1 < b < 1+k
+* Changed the way min/max values of parameters are handled in multivisit to
+  enable user-defined values to be set via keyword arguments.  
+* Correct docstring for h1h2_to_q1q2
 
 0.9.3 (2020-10-10)
 ~~~~~~~~~~~~~~~~~~
