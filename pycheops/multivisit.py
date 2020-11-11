@@ -87,13 +87,16 @@ def _glint_func(t, glint_scale, f_theta=None, f_glint=None, delta_t=None):
 
 def _make_model(model_repr, lc, f_theta=None, f_glint=None, delta_t=None):
     t = lc['time']
+    try:
+        smear = lc['smear']
+    except KeyError:
+        smear = np.zeros_like(t)
     factor_model = FactorModel(
             dx = _make_interp(t,lc['xoff'], scale='range'),
             dy = _make_interp(t,lc['yoff'], scale='range'),
             bg = _make_interp(t,lc['bg'], scale='max'),
-            smear = _make_interp(t,lc['smear'], scale='max'),
             contam = _make_interp(t,lc['contam'], scale='max'),
-            smear = _make_interp(t,lc['smear'], scale='max'))
+            smear = _make_interp(t,smear, scale='max'))
     if '_transit_func' in model_repr:
         model = TransitModel()*factor_model
     elif '_eclipse_func' in model_repr:
