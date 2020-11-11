@@ -79,7 +79,7 @@ import warnings
 
 __all__ = [ 'a_rsun','f_m','m1sin3i','m2sin3i','asini','rhostar','g_2',
         'K_kms','m_comp','transit_width','esolve','t2z',
-        'tzero2tperi', 'vrad', 'xyz_planet']
+        'tperi2tzero','tzero2tperi', 'vrad', 'xyz_planet']
 
 _arsun   = (GM_SunN*mean_solar_day**2/(4*np.pi**2))**(1/3.)/R_SunN
 _f_m     = mean_solar_day*1e9/(2*np.pi)/GM_SunN
@@ -452,7 +452,7 @@ def tperi2tzero(tperi,P,sini,ecc,omdeg,eclipse=False):
     """
     Calculate phase mid-eclipse from time of mid-transit
 
-    :param tzero: times of mid-transit
+    :param tperi: times of periastron passage
     :param P: orbital period
     :param sini: sine of orbital inclination 
     :param ecc: eccentricity 
@@ -657,7 +657,7 @@ def xyz_planet(t, tzero, P, sini, ecc=0, omdeg=90):
 
 def massradius(P=None, k=None, sini=None, ecc=None,
         m_star=None, r_star=None, K=None, aR=None,
-        jovian=False, verbose=True, return_samples=False,
+        jovian=False, solar=False, verbose=True, return_samples=False,
         plot=True, figsize=(8,6), xlim=None, ylim=None, 
         errorbar=True, err_kws={'capsize':4, 'color':'darkred', 'fmt':'o'},
         logmass=False, logradius=False, title=None,
@@ -721,6 +721,7 @@ def massradius(P=None, k=None, sini=None, ecc=None,
     mass, Earth radius and Earth density. Jovian mass, radius and density
     units can be selected by setting jovian=True. In both cases, the radius
     units are those for a sphere with the same volume as the Earth or Jupiter.
+    Alternatively, solar units can be selected using solar=True.
 
     The following statistics are calculated for each of the input and output
     quantities and are returned as a python dict.  
@@ -848,10 +849,15 @@ def massradius(P=None, k=None, sini=None, ecc=None,
         ps[n] = None if pv[_i] is None else np.abs(_s(pv[_i]))
 
     if jovian:
+        if solar: raise ValueError("Cannot specify both jovian and solar units")
         mfac = M_SunN/M_JupN 
         rfac = R_SunN/R_JupN 
         mstr = ' M_Jup'
         rstr = ' R_Jup'
+    elif solar:
+        mfac, rfac = 1, 1
+        mstr = ' M_Sun'
+        rstr = ' R_Sun'
     else:
         mfac = M_SunN/M_EarthN
         rfac = R_SunN/R_EarthN
@@ -919,6 +925,9 @@ def massradius(P=None, k=None, sini=None, ecc=None,
                 rho_Jup  = M_JupN / (4/3*np.pi*R_JupN**3)
                 ps['rho_p'] = _rho/rho_Jup
                 rhostr = ' rho_Jup'
+            elif solar:
+                ps['rho_p'] = _rho
+                rhostr = ' rho_Sun'
             else:
                 rho_Earth  = M_EarthN / (4/3*np.pi*R_EarthN**3)
                 ps['rho_p'] = _rho/rho_Earth
@@ -960,6 +969,9 @@ def massradius(P=None, k=None, sini=None, ecc=None,
     if jovian:
         ax.set_xlabel(r"$M/M_{\rm Jup}$", **lab_kws)
         ax.set_ylabel(r"$R/R_{\rm Jup}$", **lab_kws)
+    elif solar:
+        ax.set_xlabel(r"$M/M_{\odot}$", **lab_kws)
+        ax.set_ylabel(r"$R/R_{\odot}$", **lab_kws)
     else:
         ax.set_xlabel(r"$M/M_{\oplus}$", **lab_kws)
         ax.set_ylabel(r"$R/R_{\oplus}$", **lab_kws)
@@ -970,6 +982,8 @@ def massradius(P=None, k=None, sini=None, ecc=None,
     if zeng_models is not None:
         if jovian:
             mfac, rfac = M_EarthN/M_JupN, R_EarthN/R_JupN
+        elif solar:
+            mfac, rfac = M_EarthN/M_SunN, R_EarthN/R_SunN
         else:
             mfac, rfac = 1,1
         mfile = join(_model_path,'apj522803t2_mrt.txt')
@@ -982,6 +996,8 @@ def massradius(P=None, k=None, sini=None, ecc=None,
     if baraffe_models is not None:
         if jovian:
             mfac, rfac = M_EarthN/M_JupN, 1
+        elif solar:
+            mfac, rfac = M_EarthN/M_SunN, R_JupN/R_SunN
         else:
             mfac, rfac = 1, R_JupN/R_EarthN
         mfile = join(_model_path,'aa9321-07_table4.csv')
@@ -1023,6 +1039,9 @@ def massradius(P=None, k=None, sini=None, ecc=None,
         R_b = R_b[ok]
         if jovian:
             R_b = R_b*R_eJupN/R_JupN 
+        elif solar:
+            M_b = M_b*M_JupN/M_SunN
+            R_b = R_b*R_eJupN/R_SunN
         else:
             M_b = M_b*M_JupN/M_EarthN
             R_b = R_b*R_eJupN/R_EarthN 

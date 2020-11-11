@@ -1,6 +1,31 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.9.4 
+~~~~~~~~~~~~~~~~~~
+* Changed calculation of _log_prior in dataset to allow fitting of grazing
+  transits with 1 < b < 1+k
+* Changed the way min/max values of parameters are handled in multivisit to
+  enable user-defined values to be set via keyword arguments.  
+* Correct docstring for h1h2_to_q1q2
+* dataset.get_lightcurve, require user to specify decontaminate True or False
+* Added dataset.smear attribute and dfdsmear
+
+0.9.3 (2020-10-10)
+~~~~~~~~~~~~~~~~~~
+* Fixed missing Bayes factor for d2fdt2 (#159)
+* Changed aperture used to extract metadata to DEFAULT in dataset
+
+0.9.2 (2020-09-25)
+~~~~~~~~~~~~~~~~~~
+* Removes autograd from requirements in setup.py
+* Added solar options to funcs.massradius()
+* Changed default thin=4 to thin=1 in dataset.emcee_sampler()
+* Fixed bug in Multivisit for default log_Q value (#155)
+* Added PlanetProperties
+* Updated KELT-11b-tutorial.ipynb to show use of PlanetProperties
+* Update example TESS notebooks to celerite2
+
 0.9.1 (2020-09-10)
 ~~~~~~~~~~~~~~~~~~
 * celerite -> celerite2

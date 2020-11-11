@@ -157,7 +157,7 @@ def q1q2_to_h1h2(q1, q2):
     :param q1: (1 - h2)**2
     :param q2: (h1 - h2)/(1-h2)
 
-    returns: q1, q2
+    returns: h1, h2
 
     """
     return 1 - np.sqrt(q1) + q2*np.sqrt(q1), 1 - np.sqrt(q1)

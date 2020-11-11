@@ -46,7 +46,7 @@ from scipy.interpolate import interp1d, LSQUnivariateSpline
 import matplotlib.pyplot as plt
 from emcee import EnsembleSampler
 import corner
-from copy import copy
+from copy import copy, deepcopy
 from celerite2 import terms, GaussianProcess
 from celerite2.terms import SHOTerm
 from sys import stdout 
@@ -101,6 +101,8 @@ def _kw_to_Parameter(name, kwarg):
 def _make_interp(t,x,scale=None):
     if scale is None:
         z = x
+    elif np.ptp(x) == 0:
+        z = np.zeros_like(x)
     elif scale == 'max':
         z = (x-min(x))/np.ptp(x) 
     elif scale == 'range':
@@ -159,9 +161,9 @@ def _make_trial_params(pos, params, vn):
 # J = d(D, W, b)/d(cosi, k, aR)
 def _log_prior(D, W, b):
     if (D < 2e-6) or (D > 0.2): return -np.inf
-    if (b < 0) or (b > 1): return -np.inf
-    if (W < 1e-4): return -np.inf
     k = np.sqrt(D)
+    if (b < 0) or (b > 1+k): return -np.inf
+    if (W < 1e-4): return -np.inf
     aR = np.sqrt((1+k)**2 - b**2)/(np.pi*W)
     if (aR < 2): return -np.inf
     return -np.log(2*k*W) - np.log(k) - np.log(aR)
@@ -330,9 +332,9 @@ class Dataset(object):
             with open(str(lisPath), 'w') as fh:  
                 fh.writelines("%s\n" % l for l in self.list)
 
-        # Extract OPTIMAL light curve data file from .tgz file so we can
+        # Extract DEFAULT light curve data file from .tgz file so we can
         # access the FITS file header information
-        aperture='OPTIMAL'
+        aperture='DEFAULT'
         lcFile = "{}-{}.fits".format(self.file_key,aperture)
         lcPath = Path(self.tgzfile).parent/lcFile
         if lcPath.is_file():
@@ -714,11 +716,11 @@ class Dataset(object):
 
         return cube
 
-    def get_lightcurve(self, aperture=None, decontaminate=True,
+    def get_lightcurve(self, aperture=None, decontaminate=None,
             returnTable=False, reject_highpoints=False, verbose=True):
         """
         :param aperture: 'OPTIMAL', 'DEFAULT', 'RSUP' or 'RINF'
-        :param decontaminate: subtract estimated flux from background stars 
+        :param decontaminate: if True, subtract flux from background stars 
         :param returnTable: 
         :param reject_highpoints: 
         :param verbose:
@@ -726,6 +728,9 @@ class Dataset(object):
 
         if aperture not in ('OPTIMAL','RSUP','RINF','DEFAULT'):
             raise ValueError('Invalid/missing aperture name')
+
+        if decontaminate not in (True, False):
+            raise ValueError('Set decontaminate =True or =False')
 
         lcFile = "{}-{}.fits".format(self.file_key,aperture)
         lcPath = Path(self.tgzfile).parent / lcFile
@@ -762,12 +767,15 @@ class Dataset(object):
         time = bjd-bjd_ref
         flux = np.array(table['FLUX'][ok])
         flux_err = np.array(table['FLUXERR'][ok])
-        fluxmed = np.nanmedian(flux)
         xoff = np.array(table['CENTROID_X'][ok]- table['LOCATION_X'][ok])
         yoff = np.array(table['CENTROID_Y'][ok]- table['LOCATION_Y'][ok])
         roll_angle = np.array(table['ROLL_ANGLE'][ok])
         bg = np.array(table['BACKGROUND'][ok])
         contam = np.array(table['CONTA_LC'][ok])
+        try:
+            smear = np.array(table['SMEARING_LC'][ok])
+        except:
+            smear = np.zeros_like(bjd)
         ap_rad = hdr['AP_RADI']
         self.bjd_ref = bjd_ref
         self.ap_rad = ap_rad
@@ -793,28 +801,36 @@ class Dataset(object):
             roll_angle = roll_angle[ok]
             bg = bg[ok]
             contam = contam[ok]
+            smear = smear[ok]
             N_cut = len(bjd) - len(time)
+
+        fluxmed = np.nanmedian(flux)
+        self.flux_mean = flux.mean()
+        self.flux_median = fluxmed
+        self.flux_rms = np.std(flux)
+        self.flux_mse = np.nanmedian(flux_err)
+
         if verbose:
             if reject_highpoints:
                 print('C_cut = {:0.0f}'.format(C_cut))
                 print('N(C > C_cut) = {}'.format(N_cut))
-            print('Mean counts = {:0.1f}'.format(flux.mean()))
+            print('Mean counts = {:0.1f}'.format(self.flux_mean))
             print('Median counts = {:0.1f}'.format(fluxmed))
             print('RMS counts = {:0.1f} [{:0.0f} ppm]'.format(np.nanstd(flux), 
                 1e6*np.nanstd(flux)/fluxmed))
             print('Median standard error = {:0.1f} [{:0.0f} ppm]'.format(
                 np.nanmedian(flux_err), 1e6*np.nanmedian(flux_err)/fluxmed))
             print('Mean contamination = {:0.1f} ppm'.format(1e6*contam.mean()))
+            print('Mean smearing correction = {:0.1f} ppm'.
+                    format(1e6*smear.mean()))
 
-        self.flux_mean = flux.mean()
-        self.flux_median = fluxmed
-        self.flux_rms = np.std(flux)
-        self.flux_mse = np.nanmedian(flux_err)
         flux = flux/fluxmed
         flux_err = flux_err/fluxmed
+        smear = smear/fluxmed
         self.lc = {'time':time, 'flux':flux, 'flux_err':flux_err,
                 'bjd_ref':bjd_ref, 'table':table, 'header':hdr,
-                'xoff':xoff, 'yoff':yoff, 'bg':bg, 'contam':contam,
+                'xoff':xoff, 'yoff':yoff, 'bg':bg,
+                'contam':contam, 'smear':smear,
                 'centroid_x':np.array(table['CENTROID_X'][ok]),
                 'centroid_y':np.array(table['CENTROID_Y'][ok]),
                 'roll_angle':roll_angle, 'aperture':aperture}
@@ -941,20 +957,26 @@ class Dataset(object):
     def __factor_model__(self):
         time = np.array(self.lc['time'])
         phi = self.lc['roll_angle']*np.pi/180
+        # For backwards compatibility
+        try:
+            smear = self.lc['smear']
+        except KeyError:
+            smear = np.zeros_like(time)
         return FactorModel(
             dx = _make_interp(time, self.lc['xoff'], scale='range'),
             dy = _make_interp(time, self.lc['yoff'], scale='range'),
             sinphi = _make_interp(time,np.sin(phi)),
             cosphi = _make_interp(time,np.cos(phi)),
             bg = _make_interp(time,self.lc['bg'], scale='max'),
-            contam = _make_interp(time,self.lc['contam'], scale='max'))
+            contam = _make_interp(time,self.lc['contam'], scale='max'),
+            smear = _make_interp(time,smear, scale='max'))
 
     #---
 
     def lmfit_transit(self, 
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
             h_1=None, h_2=None,
-            c=None, dfdbg=None, dfdcontam=None, 
+            c=None, dfdbg=None, dfdcontam=None, dfdsmear=None,
             dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
             dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None, 
@@ -1002,6 +1024,7 @@ class Dataset(object):
             phi = self.lc['roll_angle']*np.pi/180
             bg = self.lc['bg']
             contam = self.lc['contam']
+            smear = self.lc['smear']
         except AttributeError:
             raise AttributeError("Use get_lightcurve() to load data first.")
 
@@ -1054,6 +1077,8 @@ class Dataset(object):
             params['dfdbg'] = _kw_to_Parameter('dfdbg', dfdbg)
         if dfdcontam is not None:
             params['dfdcontam'] = _kw_to_Parameter('dfdcontam', dfdcontam)
+        if dfdsmear is not None:
+            params['dfdsmear'] = _kw_to_Parameter('dfdsmear', dfdsmear)
         if dfdx is not None:
             params['dfdx'] = _kw_to_Parameter('dfdx', dfdx)
         if dfdy is not None:
@@ -1251,7 +1276,8 @@ class Dataset(object):
 
     def lmfit_eclipse(self, 
             T_0=None, P=None, D=None, W=None, b=None, L=None,
-            f_c=None, f_s=None, a_c=None, dfdbg=None, dfdcontam=None, 
+            f_c=None, f_s=None, a_c=None, dfdbg=None,
+            dfdcontam=None, dfdsmear=None, 
             c=None, dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
             dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None,
@@ -1274,6 +1300,7 @@ class Dataset(object):
             phi = self.lc['roll_angle']*np.pi/180
             bg = self.lc['bg']
             contam = self.lc['contam']
+            smear = self.lc['smear']
         except AttributeError:
             raise AttributeError("Use get_lightcurve() to load data first.")
 
@@ -1326,6 +1353,8 @@ class Dataset(object):
             params['dfdbg'] = _kw_to_Parameter('dfdbg', dfdbg)
         if dfdcontam is not None:
             params['dfdcontam'] = _kw_to_Parameter('dfdcontam', dfdcontam)
+        if dfdsmear is not None:
+            params['dfdsmear'] = _kw_to_Parameter('dfdsmear', dfdsmear)
         if dfdx is not None:
             params['dfdx'] = _kw_to_Parameter('dfdx', dfdx)
         if dfdy is not None:
@@ -1411,7 +1440,8 @@ class Dataset(object):
         noBayes  = True
         for p in params:
             u = params[p].user_data
-            if isinstance(u, UFloat) and p.startswith('dfd'):
+            if (isinstance(u, UFloat) and 
+                    (p.startswith('dfd') or p.startswith('d2f'))):
                 if noBayes:
                     report+="\n[[Bayes Factors]]  "
                     report+="(values >~1 => free parameter probably not useful)"
@@ -1431,7 +1461,7 @@ class Dataset(object):
     # ----------------------------------------------------------------
 
     def emcee_sampler(self, params=None,
-            steps=128, nwalkers=64, burn=256, thin=4, log_sigma=None, 
+            steps=128, nwalkers=64, burn=256, thin=1, log_sigma=None, 
             add_shoterm=False, log_omega0=None, log_S0=None, log_Q=None,
             init_scale=1e-2, progress=True):
 
@@ -1450,7 +1480,7 @@ class Dataset(object):
 
         # Make a copy of the lmfit Minimizer result as a template for the
         # output of this method
-        result = copy(self.lmfit)
+        result = deepcopy(self.lmfit)
         result.method ='emcee'
         # Remove components on result not relevant for emcee
         result.status = None
