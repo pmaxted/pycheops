@@ -8,6 +8,8 @@ Changes since 0.6.0 onwards.
 * Changed the way min/max values of parameters are handled in multivisit to
   enable user-defined values to be set via keyword arguments.  
 * Correct docstring for h1h2_to_q1q2
+* dataset.get_lightcurve, require user to specify decontaminate True or False
+* Added dataset.smear attribute and dfdsmear
 
 0.9.3 (2020-10-10)
 ~~~~~~~~~~~~~~~~~~

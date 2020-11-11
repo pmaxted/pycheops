@@ -714,11 +714,11 @@ class Dataset(object):
 
         return cube
 
-    def get_lightcurve(self, aperture=None, decontaminate=True,
+    def get_lightcurve(self, aperture=None, decontaminate=None,
             returnTable=False, reject_highpoints=False, verbose=True):
         """
         :param aperture: 'OPTIMAL', 'DEFAULT', 'RSUP' or 'RINF'
-        :param decontaminate: subtract estimated flux from background stars 
+        :param decontaminate: if True, subtract flux from background stars 
         :param returnTable: 
         :param reject_highpoints: 
         :param verbose:
@@ -726,6 +726,9 @@ class Dataset(object):
 
         if aperture not in ('OPTIMAL','RSUP','RINF','DEFAULT'):
             raise ValueError('Invalid/missing aperture name')
+
+        if decontaminate not in (True, False):
+            raise ValueError('Set decontaminate =True or =False')
 
         lcFile = "{}-{}.fits".format(self.file_key,aperture)
         lcPath = Path(self.tgzfile).parent / lcFile
@@ -762,12 +765,15 @@ class Dataset(object):
         time = bjd-bjd_ref
         flux = np.array(table['FLUX'][ok])
         flux_err = np.array(table['FLUXERR'][ok])
-        fluxmed = np.nanmedian(flux)
         xoff = np.array(table['CENTROID_X'][ok]- table['LOCATION_X'][ok])
         yoff = np.array(table['CENTROID_Y'][ok]- table['LOCATION_Y'][ok])
         roll_angle = np.array(table['ROLL_ANGLE'][ok])
         bg = np.array(table['BACKGROUND'][ok])
         contam = np.array(table['CONTA_LC'][ok])
+        try:
+            smear = np.array(table['SMEARING_LC'][ok])
+        except:
+            smear = np.zeros_like(bjd)
         ap_rad = hdr['AP_RADI']
         self.bjd_ref = bjd_ref
         self.ap_rad = ap_rad
@@ -793,28 +799,36 @@ class Dataset(object):
             roll_angle = roll_angle[ok]
             bg = bg[ok]
             contam = contam[ok]
+            smear = smear[ok]
             N_cut = len(bjd) - len(time)
+
+        fluxmed = np.nanmedian(flux)
+        self.flux_mean = flux.mean()
+        self.flux_median = fluxmed
+        self.flux_rms = np.std(flux)
+        self.flux_mse = np.nanmedian(flux_err)
+
         if verbose:
             if reject_highpoints:
                 print('C_cut = {:0.0f}'.format(C_cut))
                 print('N(C > C_cut) = {}'.format(N_cut))
-            print('Mean counts = {:0.1f}'.format(flux.mean()))
+            print('Mean counts = {:0.1f}'.format(self.flux_mean))
             print('Median counts = {:0.1f}'.format(fluxmed))
             print('RMS counts = {:0.1f} [{:0.0f} ppm]'.format(np.nanstd(flux), 
                 1e6*np.nanstd(flux)/fluxmed))
             print('Median standard error = {:0.1f} [{:0.0f} ppm]'.format(
                 np.nanmedian(flux_err), 1e6*np.nanmedian(flux_err)/fluxmed))
             print('Mean contamination = {:0.1f} ppm'.format(1e6*contam.mean()))
+            print('Mean smearing correction = {:0.1f} ppm'.
+                    format(1e6*smear.mean()))
 
-        self.flux_mean = flux.mean()
-        self.flux_median = fluxmed
-        self.flux_rms = np.std(flux)
-        self.flux_mse = np.nanmedian(flux_err)
         flux = flux/fluxmed
         flux_err = flux_err/fluxmed
+        smear = smear/fluxmed
         self.lc = {'time':time, 'flux':flux, 'flux_err':flux_err,
                 'bjd_ref':bjd_ref, 'table':table, 'header':hdr,
-                'xoff':xoff, 'yoff':yoff, 'bg':bg, 'contam':contam,
+                'xoff':xoff, 'yoff':yoff, 'bg':bg,
+                'contam':contam, 'smear':smear,
                 'centroid_x':np.array(table['CENTROID_X'][ok]),
                 'centroid_y':np.array(table['CENTROID_Y'][ok]),
                 'roll_angle':roll_angle, 'aperture':aperture}
@@ -947,14 +961,15 @@ class Dataset(object):
             sinphi = _make_interp(time,np.sin(phi)),
             cosphi = _make_interp(time,np.cos(phi)),
             bg = _make_interp(time,self.lc['bg'], scale='max'),
-            contam = _make_interp(time,self.lc['contam'], scale='max'))
+            contam = _make_interp(time,self.lc['contam'], scale='max'),
+            smear = _make_interp(time,self.lc['smear'], scale='max'))
 
     #---
 
     def lmfit_transit(self, 
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
             h_1=None, h_2=None,
-            c=None, dfdbg=None, dfdcontam=None, 
+            c=None, dfdbg=None, dfdcontam=None, dfdsmear=None,
             dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
             dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None, 
@@ -1002,6 +1017,7 @@ class Dataset(object):
             phi = self.lc['roll_angle']*np.pi/180
             bg = self.lc['bg']
             contam = self.lc['contam']
+            smear = self.lc['smear']
         except AttributeError:
             raise AttributeError("Use get_lightcurve() to load data first.")
 
@@ -1054,6 +1070,8 @@ class Dataset(object):
             params['dfdbg'] = _kw_to_Parameter('dfdbg', dfdbg)
         if dfdcontam is not None:
             params['dfdcontam'] = _kw_to_Parameter('dfdcontam', dfdcontam)
+        if dfdsmear is not None:
+            params['dfdsmear'] = _kw_to_Parameter('dfdsmear', dfdsmear)
         if dfdx is not None:
             params['dfdx'] = _kw_to_Parameter('dfdx', dfdx)
         if dfdy is not None:
@@ -1251,7 +1269,8 @@ class Dataset(object):
 
     def lmfit_eclipse(self, 
             T_0=None, P=None, D=None, W=None, b=None, L=None,
-            f_c=None, f_s=None, a_c=None, dfdbg=None, dfdcontam=None, 
+            f_c=None, f_s=None, a_c=None, dfdbg=None,
+            dfdcontam=None, dfdsmear=None, 
             c=None, dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
             dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None,
@@ -1274,6 +1293,7 @@ class Dataset(object):
             phi = self.lc['roll_angle']*np.pi/180
             bg = self.lc['bg']
             contam = self.lc['contam']
+            smear = self.lc['smear']
         except AttributeError:
             raise AttributeError("Use get_lightcurve() to load data first.")
 
@@ -1326,6 +1346,8 @@ class Dataset(object):
             params['dfdbg'] = _kw_to_Parameter('dfdbg', dfdbg)
         if dfdcontam is not None:
             params['dfdcontam'] = _kw_to_Parameter('dfdcontam', dfdcontam)
+        if dfdsmear is not None:
+            params['dfdsmear'] = _kw_to_Parameter('dfdsmear', dfdsmear)
         if dfdx is not None:
             params['dfdx'] = _kw_to_Parameter('dfdx', dfdx)
         if dfdy is not None:
