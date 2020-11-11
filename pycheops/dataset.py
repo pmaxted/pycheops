@@ -955,6 +955,11 @@ class Dataset(object):
     def __factor_model__(self):
         time = np.array(self.lc['time'])
         phi = self.lc['roll_angle']*np.pi/180
+        # For backwards compatibility
+        try:
+            smear = self.lc['smear']
+        except KeyError:
+            smear = np.zeros_like(time)
         return FactorModel(
             dx = _make_interp(time, self.lc['xoff'], scale='range'),
             dy = _make_interp(time, self.lc['yoff'], scale='range'),
@@ -962,7 +967,7 @@ class Dataset(object):
             cosphi = _make_interp(time,np.cos(phi)),
             bg = _make_interp(time,self.lc['bg'], scale='max'),
             contam = _make_interp(time,self.lc['contam'], scale='max'),
-            smear = _make_interp(time,self.lc['smear'], scale='max'))
+            smear = _make_interp(time,smear, scale='max'))
 
     #---
 
