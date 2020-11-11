@@ -101,6 +101,8 @@ def _kw_to_Parameter(name, kwarg):
 def _make_interp(t,x,scale=None):
     if scale is None:
         z = x
+    elif np.ptp(x) == 0:
+        z = np.zeros_like(x)
     elif scale == 'max':
         z = (x-min(x))/np.ptp(x) 
     elif scale == 'range':
