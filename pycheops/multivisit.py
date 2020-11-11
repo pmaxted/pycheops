@@ -91,7 +91,9 @@ def _make_model(model_repr, lc, f_theta=None, f_glint=None, delta_t=None):
             dx = _make_interp(t,lc['xoff'], scale='range'),
             dy = _make_interp(t,lc['yoff'], scale='range'),
             bg = _make_interp(t,lc['bg'], scale='max'),
-            contam = _make_interp(t,lc['contam'], scale='max'))
+            smear = _make_interp(t,lc['smear'], scale='max'),
+            contam = _make_interp(t,lc['contam'], scale='max'),
+            smear = _make_interp(t,lc['smear'], scale='max'))
     if '_transit_func' in model_repr:
         model = TransitModel()*factor_model
     elif '_eclipse_func' in model_repr:
@@ -175,7 +177,7 @@ def _log_posterior(pos, lcs, rolls, models, modpars, noisemodel, priors, vn,
                 v = modpar[p].value
                 if (v < modpar[p].min) or (v > modpar[p].max): return -np.inf
 
-        df = ('c', 'dfdbg', 'dfdcontam', 'glint_scale',
+        df = ('c', 'dfdbg', 'dfdcontam', 'dfdsmear', 'glint_scale',
                 'dfdx', 'd2fdx2', 'dfdy', 'd2fdy2', 'dfdt', 'd2fdt2')
         for d in df:
             p = f'{d}_{i+1:02d}' 
@@ -628,8 +630,8 @@ class MultiVisit(object):
         omegas = []
         fluxrms = []
         # FactorModel parameters excluding cos(j.phi), sin(j.phi) terms
-        dfdp = ['c', 'dfdbg', 'dfdcontam', 'dfdx', 'd2fdx2', 'dfdy', 'd2fdy2',
-                'dfdt', 'd2fdt2', 'glint_scale']
+        dfdp = ['c', 'dfdbg', 'dfdcontam', 'dfdsmear', 'dfdx', 'd2fdx2',
+                'dfdy', 'd2fdy2', 'dfdt', 'd2fdt2', 'glint_scale']
 
         for i,p in enumerate(plist):
             lc = deepcopy(self.datasets[i].lc)
@@ -1324,7 +1326,7 @@ class MultiVisit(object):
             iqrmax = np.max([iqrmax, iqr(flux)])
             fit = copy(result.bestfit[j])
             modpar = copy(self.modpars[j])
-            for d in ('c', 'dfdbg', 'dfdcontam', 'glint_scale',
+            for d in ('c', 'dfdbg', 'dfdcontam', 'dfdsmear', 'glint_scale',
                     'dfdx', 'd2fdx2', 'dfdy', 'd2fdy2', 'dfdt', 'd2fdt2'):
                 p = f'{d}_{j+1:02d}'
                 if p in result.var_names:
