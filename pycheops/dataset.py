@@ -2582,9 +2582,9 @@ class Dataset(object):
         contam_table = D['CONTA_LC']
         contam_err_table = D['CONTA_LC_ERR']
         try:
-            smear_table = np.array(table['SMEARING_LC'][ok])
+            smear_table = D['SMEARING_LC']
         except:
-            smear_table = np.zeros_like(bjd)
+            smear_table = np.zeros_like(tjdb_table)
 
         flux_bad_table = D['FLUX_BAD']
         back_bad_table = D['BACKGROUND_BAD']
