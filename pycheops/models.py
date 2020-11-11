@@ -477,34 +477,37 @@ class EclipseModel(Model):
 class FactorModel(Model):
     r"""Flux scaling and trend factor model
 
-    f = c*(1 + dfdt*dt + d2fdt2*dt**2 + dfdbg*bg(t)  + dfdcontam*contam(t) +
+    f = c*(1 + dfdt*dt + d2fdt2*dt**2 + dfdbg*bg(t) +
+               dfdcontam*contam(t) + dfdsmear*smear(t) +
                dfdx*dx(t) + dfdy*dy(t) +
                d2fdx2*dx(t)**2 + d2f2y2*dy(t)**2 + d2fdxdy*x(t)*dy(t) +
                dfdsinphi*sin(phi(t)) + dfdcosphi*cos(phi(t)) +
                dfdsin2phi*sin(2.phi(t)) + dfdcos2phi*cos(2.phi(t)) + 
                dfdsin3phi*sin(3.phi(t)) + dfdcos3phi*cos(3.phi(t)) ) 
 
-    The detrending coefficients dfdx, etc. are 0 and fixed by default. If
-    any of the coefficients dfdx, d2fdxdy or d2f2x2 is not 0, a function to
+    The detrending coefficients dfdx, etc. are 0 and fixed by default. If any
+    of the coefficients dfdx, d2fdxdy or d2f2x2 is not 0, a function to
     calculate the x-position offset as a function of time, dx(t), must be
     passed as a keyword argument, and similarly for the y-position offset,
     dy(t). For detrending against the spacecraft roll angle, phi(t), the
     functions to be provided as keywords arguments are sinphi(t) and
     cosphi(t). The linear trend dfdbg is proportional to the estimated
     background flux in the aperture, bg(t). The linear trend dfdcontam is
-    proportional to the estimated contamination in the aperture contam(t).
-    The time trend decribed by dfdt and d2fdt2 is calculated using the
-    variable dt = t - median(t).
+    proportional to the estimated contamination in the aperture contam(t). The
+    linear trend dfdsmear is proportional to the estimated smearing correction
+    in the aperture, smear(t). The time trend decribed by dfdt and d2fdt2 is
+    calculated using the variable dt = t - median(t).
 
     """
 
     def __init__(self, independent_vars=['t'], prefix='', nan_policy='raise',
                  dx=None, dy=None, sinphi=None, cosphi=None, bg=None,
-                 contam=None,  **kwargs):
+                 contam=None, smear=None,  **kwargs):
         kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
                        'independent_vars': independent_vars})
 
-        def factor(t, c=1.0,dfdt=0, d2fdt2=0, dfdbg=0, dfdcontam=0,
+        def factor(t, c=1.0,dfdt=0, d2fdt2=0, dfdbg=0,
+                dfdcontam=0, dfdsmear=0,
                 dfdx=0, dfdy=0, d2fdxdy=0, d2fdx2=0, d2fdy2=0,
                 dfdcosphi=0, dfdsinphi=0, dfdcos2phi=0, dfdsin2phi=0,
                 dfdcos3phi=0, dfdsin3phi=0):
@@ -515,6 +518,8 @@ class FactorModel(Model):
                 trend += dfdbg*self.bg(t)
             if dfdcontam != 0:
                 trend += dfdcontam*self.contam(t)
+            if dfdsmear != 0:
+                trend += dfdsmear*self.smear(t)
             if dfdx != 0 or d2fdx2 != 0:
                 trend += dfdx*self.dx(t) + d2fdx2*self.dx(t)**2
             if dfdy != 0 or d2fdy2 != 0:
@@ -541,12 +546,13 @@ class FactorModel(Model):
 
         self.bg = bg
         self.contam = contam
+        self.smear = smear
         self.dx = dx
         self.dy = dy
         self.sinphi = sinphi
         self.cosphi = cosphi
         self.set_param_hint('c', min=0)
-        for p in ['dfdt', 'd2fdt2', 'dfdbg', 'dfdcontam',
+        for p in ['dfdt', 'd2fdt2', 'dfdbg', 'dfdcontam', 'dfdsmear',
                   'dfdx', 'dfdy', 'd2fdx2', 'd2fdxdy',  'd2fdy2', 
                   'dfdsinphi', 'dfdcosphi', 'dfdcos2phi', 'dfdsin2phi',
                   'dfdcos3phi', 'dfdsin3phi']:
@@ -557,7 +563,7 @@ class FactorModel(Model):
         pars = self.make_params()
 
         pars['%sc' % self.prefix].set(value=data.median())
-        for p in ['dfdt', 'd2fdt2' 'dfdbg', 'dfdcontam',
+        for p in ['dfdt', 'd2fdt2' 'dfdbg', 'dfdcontam', 'dfdsmear',
                 'dfdx', 'dfdy', 'd2fdx2', 'd2fdy2', 
                 'dfdsinphi', 'dfdcosphi', 'dfdcos2phi', 'dfdsin2phi',
                 'dfdcos3phi', 'dfdsin3phi']:
