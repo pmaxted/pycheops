@@ -2581,12 +2581,16 @@ class Dataset(object):
         ycen_table = D['CENTROID_Y']
         contam_table = D['CONTA_LC']
         contam_err_table = D['CONTA_LC_ERR']
+        try:
+            smear_table = np.array(table['SMEARING_LC'][ok])
+        except:
+            smear_table = np.zeros_like(bjd)
 
         flux_bad_table = D['FLUX_BAD']
         back_bad_table = D['BACKGROUND_BAD']
 
         xloc_table = D['LOCATION_X']
-        yloc_table = D['LOCATION_Y']       
+        yloc_table = D['LOCATION_Y']
 
         time = np.array(self.lc['time'])+self.lc['bjd_ref']
         flux = np.array(self.lc['flux'])*np.nanmean(flux_table)
@@ -2595,15 +2599,19 @@ class Dataset(object):
         xcen = np.array(self.lc['centroid_x'])
         ycen = np.array(self.lc['centroid_y'])
         xoff = np.array(self.lc['xoff'])
-        yoff = np.array(self.lc['yoff'])        
+        yoff = np.array(self.lc['yoff'])
         bg = np.array(self.lc['bg'])
-        contam = np.array(self.lc['contam'])            
-        
-        plt.rc('font', size=fontsize)    
-        fig, ax = plt.subplots(4,2,figsize=figsize)
+        contam = np.array(self.lc['contam'])
+        try:
+            smear = np.array(self.lc['smear'])
+        except KeyError:
+            smear = np.zeros_like(time)
+
+        plt.rc('font', size=fontsize)
+        fig, ax = plt.subplots(5,2,figsize=figsize)
         cgood = 'midnightblue'
         cbad = 'xkcd:red'
-        
+
         if flagged:
             flux_measure = copy(flux_table)
         else:
@@ -2665,10 +2673,24 @@ class Dataset(object):
         ax[3,0].set_ylim(0.998*np.quantile(flux_measure,0.16),
                          1.002*np.quantile(flux_measure,0.84))     
         
-        ax[3,1].scatter(rollangle,xoff,s=2,c=cgood)
-        ax[3,1].scatter(rollangle,yoff,s=2,c=cbad)
-        ax[3,1].set_xlabel('Roll angle in degrees')
-        ax[3,1].set_ylabel('X (cyan) and y (red) offset')
+        ax[3,1].scatter(smear,flux,s=2,c=cgood)
+        if flagged:
+            ax[3,1].scatter(smear_table,flux_bad_table,s=2,c=cbad)
+        ax[3,1].set_xlabel('Smear estimate')
+        ax[3,1].set_ylabel('Flux in ADU')
+        ax[3,1].set_xlim(np.min(smear),np.max(smear))
+        ax[3,1].set_ylim(0.998*np.quantile(flux_measure,0.16),
+                         1.002*np.quantile(flux_measure,0.84))
+
+        ax[4,0].scatter(rollangle,xoff,s=2,c=cgood)
+        #ax[4,0].scatter(rollangle,yoff,s=2,c=cbad)
+        ax[4,0].set_xlabel('Roll angle in degrees')
+        ax[4,0].set_ylabel('X centroid offset')
+
+        #ax[4,1].scatter(rollangle,xoff,s=2,c=cgood)
+        ax[4,1].scatter(rollangle,yoff,s=2,c=cbad)
+        ax[4,1].set_xlabel('Roll angle in degrees')
+        ax[4,1].set_ylabel('Y centroid offset')
 
         fig.tight_layout()
         if fname is None:
@@ -2682,7 +2704,7 @@ class Dataset(object):
                 dfdy=False, d2fdy2=False, d2fdxdy=False, dfdsinphi=False, 
                 dfdcosphi=False, dfdsin2phi=False, dfdcos2phi=False,
                 dfdsin3phi=False, dfdcos3phi=False, dfdbg=False,
-                dfdcontam=False):
+                dfdcontam=False, dfdsmear=False):
 
         time = np.array(self.lc['time'])
         flux = np.array(self.lc['flux'])
@@ -2711,6 +2733,7 @@ class Dataset(object):
         params.add('dfdcos3phi', value=0, vary=dfdcos3phi)
         params.add('dfdbg', value=0, vary=dfdbg)
         params.add('dfdcontam', value=0, vary=dfdcontam)
+        params.add('dfdsmear', value=0, vary=dfdsmear)
         
         result = model.fit(flux, params, t=time)
         print("Fit Report")
@@ -2754,6 +2777,8 @@ class Dataset(object):
                       bounds_error=False)
         contam = interp1d(np.array(self.lc['time']),self.lc['contam'], fill_value=0,
                           bounds_error=False)
+        smear = interp1d(np.array(self.lc['time']),self.lc['smear'], fill_value=0,
+                          bounds_error=False)
         dx = interp1d(np.array(self.lc['time']),self.lc['xoff'], fill_value=0,
                       bounds_error=False)
         dy = interp1d(np.array(self.lc['time']),self.lc['yoff'], fill_value=0,
@@ -2791,7 +2816,7 @@ class Dataset(object):
 
 
         params_d = ['dfdt', 'dfdx', 'dfdy', 'dfdsinphi', 'dfdcosphi', 'dfdbg', 'dfdcontam',
-                    'd2fdt2', 'd2fdx2', 'd2fdy2', 'dfdsin2phi', 'dfdcos2phi']
+                    'dfdsmear', 'd2fdt2', 'd2fdx2', 'd2fdy2', 'dfdsin2phi', 'dfdcos2phi']
         boolean = [[False, True]]*len(params_d)
         decorr_arr = [[]]*len(params_d)
 
@@ -2813,11 +2838,12 @@ class Dataset(object):
             dfdcosphi=decorr_arr[4][index]
             dfdbg=decorr_arr[5][index]
             dfdcontam=decorr_arr[6][index]
-            d2fdt2=decorr_arr[7][index]
-            d2fdx2=decorr_arr[8][index]
-            d2fdy2=decorr_arr[9][index]
-            dfdsin2phi=decorr_arr[10][index]
-            dfdcos2phi=decorr_arr[11][index]
+            dfdsmear=decorr_arr[7][index]
+            d2fdt2=decorr_arr[8][index]
+            d2fdx2=decorr_arr[9][index]
+            d2fdy2=decorr_arr[10][index]
+            dfdsin2phi=decorr_arr[11][index]
+            dfdcos2phi=decorr_arr[12][index]
             
             model = self.__factor_model__()
             params = model.make_params()
@@ -2828,6 +2854,7 @@ class Dataset(object):
             params.add('dfdcosphi', value=0, vary=dfdcosphi)
             params.add('dfdbg', value=0, vary=dfdbg)
             params.add('dfdcontam', value=0, vary=dfdcontam)
+            params.add('dfdsmear', value=0, vary=dfdsmear)
             params.add('d2fdt2', value=0, vary=d2fdt2)
             params.add('d2fdx2', value=0, vary=d2fdx2)
             params.add('d2fdy2', value=0, vary=d2fdy2)
@@ -2843,8 +2870,8 @@ class Dataset(object):
                 if result.bic < min_BIC:
                     min_BIC = copy(result.bic)
                     decorr_params = []
-                    for xindex, x in enumerate([dfdt, dfdx, dfdy, dfdsinphi, dfdcosphi, dfdbg,
-                                                dfdcontam, d2fdt2, d2fdx2, d2fdy2, dfdsin2phi, dfdcos2phi]):
+                    for xindex, x in enumerate([dfdt, dfdx, dfdy, dfdsinphi, dfdcosphi, dfdbg, dfdcontam,
+                                                dfdsmear, d2fdt2, d2fdx2, d2fdy2, dfdsin2phi, dfdcos2phi]):
                         if x == True:
                             if params_d[xindex] == "dfdsinphi":
                                 decorr_params.append("dfdsinphi")
