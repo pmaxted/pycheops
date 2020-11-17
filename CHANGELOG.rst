@@ -1,6 +1,10 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.9.5 
+~~~~~~~~~~~~~~~~~~
+* Add "thin" keyword option to multivisit fit routines.
+
 0.9.4 
 ~~~~~~~~~~~~~~~~~~
 * Changed calculation of _log_prior in dataset to allow fitting of grazing

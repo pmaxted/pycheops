@@ -778,7 +778,7 @@ class MultiVisit(object):
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
             h_1=None, h_2=None, ttv=False, ttv_prior=3600, extra_priors=None, 
             log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
-            unroll=True, nroll=3, unwrap=False, 
+            unroll=True, nroll=3, unwrap=False, thin=None, 
             init_scale=1e-2, progress=True):
         """
         Use emcee to fit the transits in the current datasets 
@@ -831,7 +831,7 @@ class MultiVisit(object):
             pos.append(pos_i)
 
         sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior,
-            args=args)
+                thin_by=thin, args=args)
 
         if progress:
             print('Running burn-in ..')
@@ -870,7 +870,7 @@ class MultiVisit(object):
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
             L=None, a_c=0, edv=False, edv_prior=1e-3, extra_priors=None, 
             log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
-            unroll=True, nroll=3, unwrap=False, 
+            unroll=True, nroll=3, unwrap=False, thin=None, 
             init_scale=1e-2, progress=True):
         """
         Use emcee to fit the eclipses in the current datasets 
@@ -923,7 +923,7 @@ class MultiVisit(object):
             pos.append(pos_i)
 
         sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior,
-            args=args)
+                thin_by=thin, args=args)
 
         if progress:
             print('Running burn-in ..')
@@ -962,7 +962,7 @@ class MultiVisit(object):
             h_1=None, h_2=None, ttv=False, ttv_prior=3600, 
             L=None, a_c=0, edv=False, edv_prior=1e-3, extra_priors=None, 
             log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
-            unroll=True, nroll=3, unwrap=False, 
+            unroll=True, nroll=3, unwrap=False, thin=None, 
             init_scale=1e-2, progress=True):
         """
         Use emcee to fit the transits and eclipses in the current datasets
@@ -1025,7 +1025,7 @@ class MultiVisit(object):
             pos.append(pos_i)
 
         sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior,
-            args=args)
+                thin_by=thin, args=args)
 
         if progress:
             print('Running burn-in ..')
