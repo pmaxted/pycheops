@@ -830,19 +830,18 @@ class MultiVisit(object):
                 lnlike_i = _log_posterior(pos_i, *args)
             pos.append(pos_i)
 
-        sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior,
-                thin_by=thin, args=args)
+        sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior, args=args)
 
         if progress:
             print('Running burn-in ..')
             stdout.flush()
-        pos, _, _ = sampler.run_mcmc(pos, burn, store=False, 
+        pos, _, _ = sampler.run_mcmc(pos, burn, store=False, thin_by=thin, 
             skip_initial_state_check=True, progress=progress)
         sampler.reset()
         if progress:
             print('Running sampler ..')
             stdout.flush()
-        state = sampler.run_mcmc(pos, steps, 
+        state = sampler.run_mcmc(pos, steps,  thin_by=thin, 
             skip_initial_state_check=True, progress=progress)
 
         flatchain = sampler.get_chain(flat=True)
@@ -922,19 +921,18 @@ class MultiVisit(object):
                 lnlike_i = _log_posterior(pos_i, *args)
             pos.append(pos_i)
 
-        sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior,
-                thin_by=thin, args=args)
+        sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior, args=args)
 
         if progress:
             print('Running burn-in ..')
             stdout.flush()
-        pos, _, _ = sampler.run_mcmc(pos, burn, store=False, 
+        pos, _, _ = sampler.run_mcmc(pos, burn, store=False, thin_by=thin, 
             skip_initial_state_check=True, progress=progress)
         sampler.reset()
         if progress:
             print('Running sampler ..')
             stdout.flush()
-        state = sampler.run_mcmc(pos, steps, 
+        state = sampler.run_mcmc(pos, steps, thin_by=thin, 
             skip_initial_state_check=True, progress=progress)
 
         flatchain = sampler.get_chain(flat=True)
@@ -1024,19 +1022,18 @@ class MultiVisit(object):
                 lnlike_i = _log_posterior(pos_i, *args)
             pos.append(pos_i)
 
-        sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior,
-                thin_by=thin, args=args)
+        sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior, args=args)
 
         if progress:
             print('Running burn-in ..')
             stdout.flush()
-        pos, _, _ = sampler.run_mcmc(pos, burn, store=False, 
+        pos, _, _ = sampler.run_mcmc(pos, burn, store=False, thin_by=thin, 
             skip_initial_state_check=True, progress=progress)
         sampler.reset()
         if progress:
             print('Running sampler ..')
             stdout.flush()
-        state = sampler.run_mcmc(pos, steps, 
+        state = sampler.run_mcmc(pos, steps, thin_by=thin, 
             skip_initial_state_check=True, progress=progress)
 
         flatchain = sampler.get_chain(flat=True)
