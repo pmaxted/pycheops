@@ -392,6 +392,11 @@ class MultiVisit(object):
     to the roll-angle decorrelation. This case be done using the keyword
     argument unwrap=True.
 
+    
+     If you only want to store and yield every thin samples in the chain, set
+    thin to an integer greater than 1. When this is set, steps*thin steps will
+    be made.
+
     """
 
     def __init__(self, target=None, datadir=None,
