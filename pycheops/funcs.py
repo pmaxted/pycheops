@@ -362,7 +362,8 @@ def t2z(t, tzero, P, sini, rstar, ecc=0, omdeg=90, returnMask=False):
         omrad = 0.5*np.pi
         z = np.sqrt(1 - np.cos(nu)**2*sini**2)/rstar
     else:
-        tp = tzero2tperi(tzero,P,sini,ecc,omdeg)
+        tp = tzero2tperi(tzero,P,sini,ecc,omdeg,return_nan_on_error=True)
+        if tp is np.nan: return np.full_like(t,np.nan) 
         M = 2*np.pi*(t-tp)/P
         E = esolve(M,ecc)
         nu = 2*np.arctan(np.sqrt((1+ecc)/(1-ecc))*np.tan(E/2))
@@ -377,7 +378,8 @@ def t2z(t, tzero, P, sini, rstar, ecc=0, omdeg=90, returnMask=False):
 
 #---------
 
-def tzero2tperi(tzero,P,sini,ecc,omdeg):
+def tzero2tperi(tzero,P,sini,ecc,omdeg,
+        return_nan_on_error=False):
     """
     Calculate time of periastron from time of mid-transit
 
@@ -428,6 +430,7 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg):
                     t_ = t_[i_]
                 ta,tb,tc = (t_-0.01, t_, t_+0.01)
             except:
+                if return_nan_on_error: return np.nan
                 print(sin2i, omrad, ecc)
                 print(ta, tb, tc)
                 print(fa, fb, fc)
@@ -435,6 +438,7 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg):
         try:
             theta = brent(_delta, args=(sin2i, omrad, ecc), brack=(ta, tb, tc))
         except ValueError:
+            if return_nan_on_error: return np.nan
             print(sin2i, omrad, ecc)
             print(ta, tb, tc)
             print(fa, fb, fc)
