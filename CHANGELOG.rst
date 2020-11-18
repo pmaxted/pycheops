@@ -4,6 +4,7 @@ Changes since 0.6.0 onwards.
 0.9.5 
 ~~~~~~~~~~~~~~~~~~
 * Add "thin" keyword option to multivisit fit routines.
+* Added return_nan_on_error to tzero2tperi and used it in funcs/models
 
 0.9.4 
 ~~~~~~~~~~~~~~~~~~
