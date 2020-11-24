@@ -394,7 +394,7 @@ class MultiVisit(object):
 
      If you only want to store and yield 1-in-thin samples in the chain, set
     thin to an integer greater than 1. When this is set, thin*steps will be
-    made but and the chains returned with have "steps" values per walker.
+    made and the chains returned with have "steps" values per walker.
 
     """
 
@@ -732,9 +732,10 @@ class MultiVisit(object):
         result.covar = np.cov(self.flatchain.T)
         result.init_vals = vv
         result.init_values = params.valuesdict()
-        result.acceptance_fraction = self.sampler.acceptance_fraction.mean()
+        af = self.sampler.acceptance_fraction.mean()
+        result.acceptance_fraction = af
         steps, nwalkers, ndim = self.sampler.get_chain().shape
-        result.nfev = int((self.thin*nwalkers*steps/result.acceptance_fraction))
+        result.nfev = int(self.thin*nwalkers*steps/af)
         result.thin = thin
         result.nwalkers = nwalkers
         result.nvarys = ndim
@@ -846,7 +847,7 @@ class MultiVisit(object):
         if progress:
             print('Running sampler ..')
             stdout.flush()
-        state = sampler.run_mcmc(pos, steps//thin,  thin_by=thin, 
+        state = sampler.run_mcmc(pos, steps, thin_by=thin, 
             skip_initial_state_check=True, progress=progress)
 
         flatchain = sampler.get_chain(flat=True)
@@ -938,7 +939,7 @@ class MultiVisit(object):
         if progress:
             print('Running sampler ..')
             stdout.flush()
-        state = sampler.run_mcmc(pos, steps//thin, thin_by=thin, 
+        state = sampler.run_mcmc(pos, steps, thin_by=thin, 
             skip_initial_state_check=True, progress=progress)
 
         flatchain = sampler.get_chain(flat=True)
@@ -1040,7 +1041,7 @@ class MultiVisit(object):
         if progress:
             print('Running sampler ..')
             stdout.flush()
-        state = sampler.run_mcmc(pos, steps//thin, thin_by=thin, 
+        state = sampler.run_mcmc(pos, steps, thin_by=thin, 
             skip_initial_state_check=True, progress=progress)
 
         flatchain = sampler.get_chain(flat=True)
