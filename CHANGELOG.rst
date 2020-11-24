@@ -1,10 +1,15 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-0.9.5 
+0.9.6 (2020-11-24) 
 ~~~~~~~~~~~~~~~~~~
 * Add "thin" keyword option to multivisit fit routines.
+* Changed behaviour of "thin" keyword in dataset for consistency with
+  multivisit definition - emcee sampler will take thin*steps steps.
 * Added return_nan_on_error to tzero2tperi and used it in funcs/models
+  
+0.9.5 - skipped
+~~~~~~~~~~~~~~~
 
 0.9.4 
 ~~~~~~~~~~~~~~~~~~

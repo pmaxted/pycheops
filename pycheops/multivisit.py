@@ -392,10 +392,9 @@ class MultiVisit(object):
     to the roll-angle decorrelation. This case be done using the keyword
     argument unwrap=True.
 
-    
      If you only want to store and yield 1-in-thin samples in the chain, set
-    thin to an integer greater than 1. When this is set, steps will be made
-    but only 1-in-thin steps will be returned. 
+    thin to an integer greater than 1. When this is set, thin*steps will be
+    made but and the chains returned with have "steps" values per walker.
 
     """
 
@@ -735,7 +734,8 @@ class MultiVisit(object):
         result.init_values = params.valuesdict()
         result.acceptance_fraction = self.sampler.acceptance_fraction.mean()
         steps, nwalkers, ndim = self.sampler.get_chain().shape
-        result.nfev = int((nwalkers*steps/result.acceptance_fraction))
+        result.nfev = int((self.thin*nwalkers*steps/result.acceptance_fraction))
+        result.thin = thin
         result.nwalkers = nwalkers
         result.nvarys = ndim
         result.ndata = sum([len(d.lc['time']) for d in self.datasets])
@@ -862,6 +862,7 @@ class MultiVisit(object):
         self.modpars = modpars
         self.sampler = sampler
         self.__fittype__ = 'transit'
+        self.thin = thin
         self.flatchain = flatchain
         self.result = self.__make_result__(vn, pos, vv, params, fits, priors)
 
@@ -953,6 +954,7 @@ class MultiVisit(object):
         self.modpars = modpars
         self.sampler = sampler
         self.__fittype__ = 'eclipse'
+        self.thin = thin
         self.flatchain = flatchain
         self.result = self.__make_result__(vn, pos, vv, params, fits, priors)
 
@@ -1054,6 +1056,7 @@ class MultiVisit(object):
         self.modpars = modpars
         self.sampler = sampler
         self.__fittype__ = 'eblm'
+        self.thin = thin
         self.flatchain = flatchain
         self.result = self.__make_result__(vn, pos, vv, params, fits, priors)
 
