@@ -363,7 +363,11 @@ def t2z(t, tzero, P, sini, rstar, ecc=0, omdeg=90, returnMask=False):
         z = np.sqrt(1 - np.cos(nu)**2*sini**2)/rstar
     else:
         tp = tzero2tperi(tzero,P,sini,ecc,omdeg,return_nan_on_error=True)
-        if tp is np.nan: return np.full_like(t,np.nan) 
+        if tp is np.nan:
+            if returnMask:
+                return np.full_like(t,np.nan),np.full_like(t,True,dtype=np.bool)
+            else:
+                return np.full_like(t,np.nan)
         M = 2*np.pi*(t-tp)/P
         E = esolve(M,ecc)
         nu = 2*np.arctan(np.sqrt((1+ecc)/(1-ecc))*np.tan(E/2))

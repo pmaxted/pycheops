@@ -393,9 +393,9 @@ class MultiVisit(object):
     argument unwrap=True.
 
     
-     If you only want to store and yield every thin samples in the chain, set
-    thin to an integer greater than 1. When this is set, steps*thin steps will
-    be made.
+     If you only want to store and yield 1-in-thin samples in the chain, set
+    thin to an integer greater than 1. When this is set, steps will be made
+    but only 1-in-thin steps will be returned. 
 
     """
 
@@ -840,13 +840,13 @@ class MultiVisit(object):
         if progress:
             print('Running burn-in ..')
             stdout.flush()
-        pos, _, _ = sampler.run_mcmc(pos, burn, store=False, thin_by=thin, 
+        pos, _, _ = sampler.run_mcmc(pos, burn, store=False, 
             skip_initial_state_check=True, progress=progress)
         sampler.reset()
         if progress:
             print('Running sampler ..')
             stdout.flush()
-        state = sampler.run_mcmc(pos, steps,  thin_by=thin, 
+        state = sampler.run_mcmc(pos, steps//thin,  thin_by=thin, 
             skip_initial_state_check=True, progress=progress)
 
         flatchain = sampler.get_chain(flat=True)
@@ -931,13 +931,13 @@ class MultiVisit(object):
         if progress:
             print('Running burn-in ..')
             stdout.flush()
-        pos, _, _ = sampler.run_mcmc(pos, burn, store=False, thin_by=thin, 
+        pos, _, _ = sampler.run_mcmc(pos, burn, store=False, 
             skip_initial_state_check=True, progress=progress)
         sampler.reset()
         if progress:
             print('Running sampler ..')
             stdout.flush()
-        state = sampler.run_mcmc(pos, steps, thin_by=thin, 
+        state = sampler.run_mcmc(pos, steps//thin, thin_by=thin, 
             skip_initial_state_check=True, progress=progress)
 
         flatchain = sampler.get_chain(flat=True)
@@ -1032,13 +1032,13 @@ class MultiVisit(object):
         if progress:
             print('Running burn-in ..')
             stdout.flush()
-        pos, _, _ = sampler.run_mcmc(pos, burn, store=False, thin_by=thin, 
+        pos, _, _ = sampler.run_mcmc(pos, burn, store=False, 
             skip_initial_state_check=True, progress=progress)
         sampler.reset()
         if progress:
             print('Running sampler ..')
             stdout.flush()
-        state = sampler.run_mcmc(pos, steps, thin_by=thin, 
+        state = sampler.run_mcmc(pos, steps//thin, thin_by=thin, 
             skip_initial_state_check=True, progress=progress)
 
         flatchain = sampler.get_chain(flat=True)
