@@ -736,7 +736,7 @@ class MultiVisit(object):
         result.acceptance_fraction = af
         steps, nwalkers, ndim = self.sampler.get_chain().shape
         result.nfev = int(self.thin*nwalkers*steps/af)
-        result.thin = thin
+        result.thin = self.thin
         result.nwalkers = nwalkers
         result.nvarys = ndim
         result.ndata = sum([len(d.lc['time']) for d in self.datasets])
