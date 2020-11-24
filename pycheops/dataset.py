@@ -1467,7 +1467,7 @@ class Dataset(object):
         """
         If you only want to store and yield 1-in-thin samples in the chain, set
         thin to an integer greater than 1. When this is set, thin*steps will be
-        made but and the chains returned with have "steps" values per walker.
+        made and the chains returned with have "steps" values per walker.
         """
 
 
@@ -1592,7 +1592,7 @@ class Dataset(object):
         if progress:
             print('Running sampler ..')
             stdout.flush()
-        state = sampler.run_mcmc(pos, steps//thin, thin_by=thin,
+        state = sampler.run_mcmc(pos, steps, thin_by=thin,
             skip_initial_state_check=True, progress=progress)
 
         flatchain = sampler.get_chain(flat=True).reshape((-1, len(vn)))
@@ -1627,7 +1627,9 @@ class Dataset(object):
         result.lnprob = np.copy(sampler.get_log_prob())
         result.errorbars = True
         result.nvarys = n_varys
-        result.nfev = nwalkers*steps*thin
+        af = sampler.acceptance_fraction.mean()
+        result.acceptance_fraction = af
+        result.nfev = int(thin*nwalkers*steps/af)
         result.thin = thin
         result.ndata = len(time)
         result.nfree = len(time) - n_varys
