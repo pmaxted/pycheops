@@ -8,6 +8,7 @@ Changes since 0.6.0 onwards.
 * Added acceptance_fraction to multivisit output result
 * Updated diagnostic plots to show contamination
 * Flux normalisation now done after high point rejection.
+* Added WASP-189 to examples/Notebooks
 
 0.9.5 - skipped
 ~~~~~~~~~~~~~~~
