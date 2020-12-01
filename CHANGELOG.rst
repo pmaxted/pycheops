@@ -12,6 +12,8 @@ Changes since 0.6.0 onwards.
 * Flux normalisation now done after high point rejection. (#166)
 * Added glint_scale to Bayes Factors section of lmfit report (#162)
 * Added installation help for celerite2 in README (#170)
+* Added WASP-189 to examples/Notebooks
+
 
 0.9.5 - skipped
 ~~~~~~~~~~~~~~~
