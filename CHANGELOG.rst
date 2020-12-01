@@ -6,7 +6,9 @@ Changes since 0.6.0 onwards.
 * Add "thin" keyword option to multivisit fit routines.
 * Added return_nan_on_error to tzero2tperi and used it in funcs/models
 * Added acceptance_fraction to multivisit output result
-  
+* Updated diagnostic plots to show contamination
+* Flux normalisation now done after high point rejection.
+
 0.9.5 - skipped
 ~~~~~~~~~~~~~~~
 
