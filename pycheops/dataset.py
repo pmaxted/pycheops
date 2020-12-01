@@ -1440,10 +1440,10 @@ class Dataset(object):
         noBayes  = True
         for p in params:
             u = params[p].user_data
-            if isinstance(u, UFloat) and 
+            if (isinstance(u, UFloat) and 
                     (p.startswith('dfd') or 
                      p.startswith('d2f') or
-                     (p == 'glint_scale') ):
+                     (p == 'glint_scale') ) ):
                 if noBayes:
                     report+="\n[[Bayes Factors]]  "
                     report+="(values >~1 => free parameter probably not useful)"
