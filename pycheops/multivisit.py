@@ -392,6 +392,10 @@ class MultiVisit(object):
     to the roll-angle decorrelation. This case be done using the keyword
     argument unwrap=True.
 
+     If you only want to store and yield 1-in-thin samples in the chain, set
+    thin to an integer greater than 1. When this is set, thin*steps will be
+    made and the chains returned with have "steps" values per walker.
+
     """
 
     def __init__(self, target=None, datadir=None,
@@ -728,9 +732,11 @@ class MultiVisit(object):
         result.covar = np.cov(self.flatchain.T)
         result.init_vals = vv
         result.init_values = params.valuesdict()
-        result.acceptance_fraction = self.sampler.acceptance_fraction.mean()
+        af = self.sampler.acceptance_fraction.mean()
+        result.acceptance_fraction = af
         steps, nwalkers, ndim = self.sampler.get_chain().shape
-        result.nfev = int((nwalkers*steps/result.acceptance_fraction))
+        result.nfev = int(self.thin*nwalkers*steps/af)
+        result.thin = self.thin
         result.nwalkers = nwalkers
         result.nvarys = ndim
         result.ndata = sum([len(d.lc['time']) for d in self.datasets])
@@ -778,7 +784,7 @@ class MultiVisit(object):
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
             h_1=None, h_2=None, ttv=False, ttv_prior=3600, extra_priors=None, 
             log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
-            unroll=True, nroll=3, unwrap=False, 
+            unroll=True, nroll=3, unwrap=False, thin=1, 
             init_scale=1e-2, progress=True):
         """
         Use emcee to fit the transits in the current datasets 
@@ -830,8 +836,7 @@ class MultiVisit(object):
                 lnlike_i = _log_posterior(pos_i, *args)
             pos.append(pos_i)
 
-        sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior,
-            args=args)
+        sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior, args=args)
 
         if progress:
             print('Running burn-in ..')
@@ -842,7 +847,7 @@ class MultiVisit(object):
         if progress:
             print('Running sampler ..')
             stdout.flush()
-        state = sampler.run_mcmc(pos, steps, 
+        state = sampler.run_mcmc(pos, steps, thin_by=thin, 
             skip_initial_state_check=True, progress=progress)
 
         flatchain = sampler.get_chain(flat=True)
@@ -858,6 +863,7 @@ class MultiVisit(object):
         self.modpars = modpars
         self.sampler = sampler
         self.__fittype__ = 'transit'
+        self.thin = thin
         self.flatchain = flatchain
         self.result = self.__make_result__(vn, pos, vv, params, fits, priors)
 
@@ -870,7 +876,7 @@ class MultiVisit(object):
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
             L=None, a_c=0, edv=False, edv_prior=1e-3, extra_priors=None, 
             log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
-            unroll=True, nroll=3, unwrap=False, 
+            unroll=True, nroll=3, unwrap=False, thin=1, 
             init_scale=1e-2, progress=True):
         """
         Use emcee to fit the eclipses in the current datasets 
@@ -922,8 +928,7 @@ class MultiVisit(object):
                 lnlike_i = _log_posterior(pos_i, *args)
             pos.append(pos_i)
 
-        sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior,
-            args=args)
+        sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior, args=args)
 
         if progress:
             print('Running burn-in ..')
@@ -934,7 +939,7 @@ class MultiVisit(object):
         if progress:
             print('Running sampler ..')
             stdout.flush()
-        state = sampler.run_mcmc(pos, steps, 
+        state = sampler.run_mcmc(pos, steps, thin_by=thin, 
             skip_initial_state_check=True, progress=progress)
 
         flatchain = sampler.get_chain(flat=True)
@@ -950,6 +955,7 @@ class MultiVisit(object):
         self.modpars = modpars
         self.sampler = sampler
         self.__fittype__ = 'eclipse'
+        self.thin = thin
         self.flatchain = flatchain
         self.result = self.__make_result__(vn, pos, vv, params, fits, priors)
 
@@ -962,7 +968,7 @@ class MultiVisit(object):
             h_1=None, h_2=None, ttv=False, ttv_prior=3600, 
             L=None, a_c=0, edv=False, edv_prior=1e-3, extra_priors=None, 
             log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
-            unroll=True, nroll=3, unwrap=False, 
+            unroll=True, nroll=3, unwrap=False, thin=1, 
             init_scale=1e-2, progress=True):
         """
         Use emcee to fit the transits and eclipses in the current datasets
@@ -1024,8 +1030,7 @@ class MultiVisit(object):
                 lnlike_i = _log_posterior(pos_i, *args)
             pos.append(pos_i)
 
-        sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior,
-            args=args)
+        sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior, args=args)
 
         if progress:
             print('Running burn-in ..')
@@ -1036,7 +1041,7 @@ class MultiVisit(object):
         if progress:
             print('Running sampler ..')
             stdout.flush()
-        state = sampler.run_mcmc(pos, steps, 
+        state = sampler.run_mcmc(pos, steps, thin_by=thin, 
             skip_initial_state_check=True, progress=progress)
 
         flatchain = sampler.get_chain(flat=True)
@@ -1052,6 +1057,7 @@ class MultiVisit(object):
         self.modpars = modpars
         self.sampler = sampler
         self.__fittype__ = 'eblm'
+        self.thin = thin
         self.flatchain = flatchain
         self.result = self.__make_result__(vn, pos, vv, params, fits, priors)
 

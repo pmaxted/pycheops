@@ -1464,6 +1464,12 @@ class Dataset(object):
             steps=128, nwalkers=64, burn=256, thin=1, log_sigma=None, 
             add_shoterm=False, log_omega0=None, log_S0=None, log_Q=None,
             init_scale=1e-2, progress=True):
+        """
+        If you only want to store and yield 1-in-thin samples in the chain, set
+        thin to an integer greater than 1. When this is set, thin*steps will be
+        made and the chains returned with have "steps" values per walker.
+        """
+
 
         try:
             time = np.array(self.lc['time'])
@@ -1621,7 +1627,10 @@ class Dataset(object):
         result.lnprob = np.copy(sampler.get_log_prob())
         result.errorbars = True
         result.nvarys = n_varys
-        result.nfev = nwalkers*steps*thin
+        af = sampler.acceptance_fraction.mean()
+        result.acceptance_fraction = af
+        result.nfev = int(thin*nwalkers*steps/af)
+        result.thin = thin
         result.ndata = len(time)
         result.nfree = len(time) - n_varys
         result.chisqr = np.sum((flux-fit)**2/flux_err**2)
