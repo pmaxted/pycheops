@@ -1,7 +1,7 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-0.9.6 (2020-11-24) 
+0.9.6 (2020-11-24)
 ~~~~~~~~~~~~~~~~~~
 * Force user to set decontaminate option in dataset.get_lightcurve()
 * Add "thin" keyword option to multivisit fit routines.
@@ -12,7 +12,9 @@ Changes since 0.6.0 onwards.
 * Flux normalisation now done after high point rejection. (#166)
 * Added glint_scale to Bayes Factors section of lmfit report (#162)
 * Added installation help for celerite2 in README (#170)
-  
+* Added WASP-189 to examples/Notebooks
+
+
 0.9.5 - skipped
 ~~~~~~~~~~~~~~~
 

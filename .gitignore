@@ -1,4 +1,3 @@
-pycheops/examples/Notebooks/CH*.tgz
 build
 *.pyc
 *.egg-info
