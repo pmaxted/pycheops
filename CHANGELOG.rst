@@ -1,6 +1,23 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.9.6 (2020-11-24)
+~~~~~~~~~~~~~~~~~~
+* Force user to set decontaminate option in dataset.get_lightcurve()
+* Add "thin" keyword option to multivisit fit routines.
+* Added return_nan_on_error to tzero2tperi and used it in funcs/models
+* Added acceptance_fraction to multivisit output result
+* Updated diagnostic plots to show contamination and smear
+* Updated examples/Notebooks/KELT11b-tutorial.ipynb
+* Flux normalisation now done after high point rejection. (#166)
+* Added glint_scale to Bayes Factors section of lmfit report (#162)
+* Added installation help for celerite2 in README (#170)
+* Added WASP-189 to examples/Notebooks
+
+
+0.9.5 - skipped
+~~~~~~~~~~~~~~~
+
 0.9.4 
 ~~~~~~~~~~~~~~~~~~
 * Changed calculation of _log_prior in dataset to allow fitting of grazing

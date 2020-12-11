@@ -37,7 +37,6 @@ Functions
 
 from __future__ import (absolute_import, division, print_function,
                                 unicode_literals)
-
 import argparse
 import textwrap
 from astropy.table import Table, Row

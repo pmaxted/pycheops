@@ -348,6 +348,7 @@ class TransitModel(Model):
             c2 = 1 - h_1 + h_2
             a2 = np.log2(c2/h_2)
             z,m = t2z(t, T_0, P, sini, r_star, ecc, om, returnMask = True)
+            if False in np.isfinite(z): return np.ones_like(t)
             # Set z values where planet is behind star to a big nominal value
             z[m]  = 100
             return qpower2(z, k, c2, a2)
@@ -444,6 +445,7 @@ class EclipseModel(Model):
             if ecc > 0.95 : return np.ones_like(t)
             om = np.arctan2(f_s, f_c)*180/np.pi
             z,m = t2z(t-a_c, T_0, P, sini, r_star, ecc, om, returnMask=True)
+            if False in np.isfinite(z): return np.ones_like(t)
             # Set z values where star is behind planet to a large nominal value
             z[~m]  = 100
             return 1 + L*(ueclipse(z, k)-1)
@@ -874,6 +876,7 @@ class PlanetModel(Model):
             om = np.arctan2(f_s, f_c)*180/np.pi
             # Star-planet apparent separation and mask eclipses/transits
             z,m = t2z(t, T_0, P, sini, r_star, ecc, om, returnMask=True)
+            if False in np.isfinite(z): return np.ones_like(t)
             # Set z values where planet is behind star  1 to a large nominal
             # value for calculation of the transit
             zt = z + 0   # copy 
@@ -989,11 +992,13 @@ class EBLMModel(Model):
             if ecc > 0.95 : return np.ones_like(t)
             om = np.arctan2(f_s, f_c)*180/np.pi
             z,m = t2z(t, T_0, P, sini, r_star, ecc, om, returnMask=True)
+            if False in np.isfinite(z): return np.ones_like(t)
             # Set z values where star 2 is behind star  1 to a large nominal
             # value for calculation of the transit
             z[m] = 100
             lc =  qpower2(z, k, c2, a2)
             z,m = t2z(t-a_c, T_0, P, sini, r_star, ecc, om, returnMask=True)
+            if False in np.isfinite(z): return np.ones_like(t)
             # Set z values where star  1 is behind star 2 to a large nominal
             # value for calculation of the eclipse
             z[~m]  = 100
