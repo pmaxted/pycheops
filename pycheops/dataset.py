@@ -39,7 +39,7 @@ import matplotlib.pyplot as plt
 from .instrument import transit_noise
 from ftplib import FTP
 from .models import TransitModel, FactorModel, EclipseModel
-from lmfit import Parameter, Parameters, minimize, Minimizer,fit_report
+from lmfit import Parameter, Parameters, minimize, Minimizer, fit_report
 from lmfit import __version__ as _lmfit_version_
 from lmfit import Model
 from scipy.interpolate import interp1d, LSQUnivariateSpline
@@ -175,19 +175,19 @@ def _log_posterior_jitter(pos, model, time, flux, flux_err,  params, vn,
         return_fit):
 
     parcopy, lnprior = _make_trial_params(pos, params, vn)
-    if parcopy is None: return -np.inf
+    if parcopy is None: return -np.inf, -np.inf
 
     fit = model.eval(parcopy, t=time)
     if return_fit:
         return fit
 
     if False in np.isfinite(fit):
-        return -np.inf
+        return -np.inf, -np.inf
 
     jitter = np.exp(parcopy['log_sigma'].value)
     s2 =flux_err**2 + jitter**2
     lnlike = -0.5*(np.sum((flux-fit)**2/s2 + np.log(2*np.pi*s2)))
-    return lnlike + lnprior
+    return lnlike + lnprior, lnlike
 
 #----
 
@@ -195,14 +195,14 @@ def _log_posterior_SHOTerm(pos, model, time, flux, flux_err,  params, vn,
         return_fit):
 
     parcopy, lnprior = _make_trial_params(pos, params, vn)
-    if parcopy is None: return -np.inf
+    if parcopy is None: return -np.inf, -np.inf
 
     fit = model.eval(parcopy, t=time)
     if return_fit:
         return fit
 
     if False in np.isfinite(fit):
-        return -np.inf
+        return -np.inf, -np.inf
     
     resid = flux-fit
     kernel = SHOTerm(
@@ -212,7 +212,8 @@ def _log_posterior_SHOTerm(pos, model, time, flux, flux_err,  params, vn,
     gp = GaussianProcess(kernel, mean=0)
     yvar = flux_err**2+np.exp(2*parcopy['log_sigma'].value)
     gp.compute(time, diag=yvar, quiet=True)
-    return gp.log_likelihood(resid) + lnprior
+    lnlike = gp.log_likelihood(resid)
+    return lnlike + lnprior, lnlike
     
 #---------------
 
@@ -229,6 +230,8 @@ def _make_labels(plotkeys, bjd_ref):
             labels.append(r'$df\,/\,d{\rm (bg)}$')
         elif key == 'dfdcontam':
             labels.append(r'$df\,/\,d{\rm (contam)}$')
+        elif key == 'ramp':
+            labels.append(r'$df\,/\,d\Delta T$')
         elif key == 'dfdx':
             labels.append(r'$df\,/\,dx$')
         elif key == 'd2fdx2':
@@ -285,12 +288,13 @@ class Dataset(object):
     :param configFile:
     :param target:
     :param view_report_on_download: 
+    :param metadata: True to load meta data
     :param verbose:
 
     """
 
     def __init__(self, file_key, force_download=False, download_all=True,
-            configFile=None, target=None, verbose=True, 
+            configFile=None, target=None, verbose=True, metadata=True, 
             view_report_on_download=True):
 
         self.file_key = file_key
@@ -364,8 +368,16 @@ class Dataset(object):
         self.ra = coords.ra.to_string(precision=2,unit='hour',sep=':',pad=True)
         self.dec = coords.dec.to_string(precision=1,sep=':',unit='degree',
                 alwayssign=True,pad=True)
-        self.vmag = hdr['MAG_V']
-        self.e_vmag = hdr['MAG_VERR']
+        if  'MAG_V' in hdr:
+            self.vmag = hdr['MAG_V'] 
+            self.e_vmag = hdr['MAG_VERR'] 
+        else:
+            self.vmag =None
+        if 'MAG_G' in hdr:
+            self.gmag = hdr['MAG_G'] 
+            self.e_gmag = hdr['MAG_GERR'] 
+        else:
+            self.gmag =None
         self.spectype = hdr['SPECTYPE']
         self.exptime = hdr['EXPTIME']
         self.texptime = hdr['TEXPTIME']
@@ -376,8 +388,36 @@ class Dataset(object):
             print(' Target      : {}'.format(self.target))
             print(' Coordinates : {} {}'.format(self.ra, self.dec))
             print(' Spec. type  : {}'.format(self.spectype))
-            print(' V magnitude : {:0.2f} +- {:0.2f}'.
+            if self.vmag is not None:
+                print(' V magnitude : {:0.2f} +- {:0.2f}'.
                     format(self.vmag, self.e_vmag))
+            if self.gmag is not None:
+                print(' G magnitude : {:0.2f} +- {:0.2f}'.
+                    format(self.gmag, self.e_gmag))
+
+        if metadata:
+            metaFile = "{}-meta.fits".format(self.file_key)
+            metaPath = Path(self.tgzfile).parent/metaFile
+            if metaPath.is_file():
+                self.metadata = Table.read(metaPath)
+            else:
+                tar = tarfile.open(self.tgzfile)
+                r=re.compile('(.*SCI_RAW_HkCe-SubArray.*.fits)')
+                metafile = list(filter(r.match, self.list))
+                if len(metafile) > 1:
+                    raise Exception('Multiple metadata files in datset')
+                if len(metafile) == 0:
+                    msg = "No metadata in file {}".format(self.tgzfile)
+                    warnings.warn(msg)
+                else:
+                    with tar.extractfile(metafile[0]) as fd:
+                        hdul = fits.open(fd)
+                        table = Table.read(hdul[1])
+                        hdr = hdul[1].header
+                        hdul.writeto(metaPath)
+                    tar.close()
+                    self.metadata = Table.read(metaPath)
+
         if view_report:
             self.view_report(configFile=configFile)
         
@@ -533,8 +573,22 @@ class Dataset(object):
 
         _re_im = re.compile('(CH_.*SCI_RAW_Imagette_.*.fits)')
         _re_lc = re.compile('(CH_.*_SCI_COR_Lightcurve-.*fits)')
+        _re_meta = re.compile('(CH_.*SCI_RAW_HkCe-SubArray_.*.fits)')
         with tarfile.open(tgzfile, mode='w:gz') as tgz:
-            imgfiles = list(filter(_re_im.match, ziplist))
+            metafiles = list(filter(_re_meta.match, ziplist))
+            if len(metafiles) > 1:
+                raise ValueError('More than one metadata file in zip file')
+            if len(metafiles) == 1:
+                if verbose: print("Writing metadata to .tgz file...")
+                metafile=metafiles[0]
+                tarPath = Path('visit')/Path(file_key)/Path(metafile).name 
+                tarinfo = tarfile.TarInfo(name=str(tarPath))
+                zipinfo = zpf.getinfo(metafile)
+                tarinfo.size = zipinfo.file_size
+                zf = zpf.open(metafile)
+                tgz.addfile(tarinfo=tarinfo, fileobj=zf)
+                zf.close()
+            metafiles = list(filter(_re_im.match, ziplist))
             if len(imgfiles) > 1:
                 raise ValueError('More than one imagette file in zip file')
             if len(imgfiles) == 1:
@@ -724,6 +778,10 @@ class Dataset(object):
         :param returnTable: 
         :param reject_highpoints: 
         :param verbose:
+
+        The offset of the telescope tube temperature from its nominal value 
+        (CE_thermFront_2 + 12) is stored in dataset.lc['deltaT']
+
         """
 
         if aperture not in ('OPTIMAL','RSUP','RINF','DEFAULT'):
@@ -776,6 +834,10 @@ class Dataset(object):
             smear = np.array(table['SMEARING_LC'][ok])
         except:
             smear = np.zeros_like(bjd)
+        try:
+            deltaT = np.array(self.metadata['CE_thermFront_2'][ok]) + 12
+        except:
+            deltaT = np.zeros_like(bjd)
         ap_rad = hdr['AP_RADI']
         self.bjd_ref = bjd_ref
         self.ap_rad = ap_rad
@@ -830,7 +892,7 @@ class Dataset(object):
         self.lc = {'time':time, 'flux':flux, 'flux_err':flux_err,
                 'bjd_ref':bjd_ref, 'table':table, 'header':hdr,
                 'xoff':xoff, 'yoff':yoff, 'bg':bg,
-                'contam':contam, 'smear':smear,
+                'contam':contam, 'smear':smear, 'deltaT':deltaT,
                 'centroid_x':np.array(table['CENTROID_X'][ok]),
                 'centroid_y':np.array(table['CENTROID_Y'][ok]),
                 'roll_angle':roll_angle, 'aperture':aperture}
@@ -969,14 +1031,16 @@ class Dataset(object):
             cosphi = _make_interp(time,np.cos(phi)),
             bg = _make_interp(time,self.lc['bg'], scale='max'),
             contam = _make_interp(time,self.lc['contam'], scale='max'),
-            smear = _make_interp(time,smear, scale='max'))
+            smear = _make_interp(time,smear, scale='max'),
+            deltaT = _make_interp(time,self.lc['deltaT']) )
+
 
     #---
 
     def lmfit_transit(self, 
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
             h_1=None, h_2=None,
-            c=None, dfdbg=None, dfdcontam=None, dfdsmear=None,
+            c=None, dfdbg=None, dfdcontam=None, dfdsmear=None, ramp=None,
             dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
             dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None, 
@@ -1005,6 +1069,20 @@ class Dataset(object):
         correspond to the amplitude of the flux variation due to the
         correlation with the relevant parameter.
 
+        Decorrelation against the telescope tube temperature can be included
+        using the parameter ramp which has units of ppm/degree_C. If
+        correct_ramp has been applied then this parameter should have a value
+        close to zero (within a few ppm/degree_C). 
+
+        The AIC and BIC values report in the MinimizerResult object returned
+        by this method are defined by 
+        - AIC = 2*k - 2*lnlike
+        - BIC = k*ln(n) - 2*ln(Lmax)
+        where 
+        - k = number of free parameter
+        - n = number of data points
+        - Lmax - maximum likelihood
+
         """
 
         def _chisq_prior(params, *args):
@@ -1025,6 +1103,7 @@ class Dataset(object):
             bg = self.lc['bg']
             contam = self.lc['contam']
             smear = self.lc['smear']
+            deltaT = self.lc['deltaT']
         except AttributeError:
             raise AttributeError("Use get_lightcurve() to load data first.")
 
@@ -1079,6 +1158,8 @@ class Dataset(object):
             params['dfdcontam'] = _kw_to_Parameter('dfdcontam', dfdcontam)
         if dfdsmear is not None:
             params['dfdsmear'] = _kw_to_Parameter('dfdsmear', dfdsmear)
+        if ramp is not None:
+            params['ramp'] = _kw_to_Parameter('ramp', ramp)
         if dfdx is not None:
             params['dfdx'] = _kw_to_Parameter('dfdx', dfdx)
         if dfdy is not None:
@@ -1136,15 +1217,91 @@ class Dataset(object):
         result.bestfit = fit
         result.rms = (flux-fit).std()
         # Move priors out of result.residual into their own object and update
-        # result.ndata
+        # result.ndata, result.chisqr, etc.
         npriors = len(result.residual) - len(time)
         if npriors > 0:
             result.prior_residual = result.residual[-npriors:]
             result.residual = result.residual[:-npriors]
             result.npriors = npriors
+            result.ndata = len(time)
+            result.nfree = result.ndata - result.nvarys
+            result.chisqr = np.sum(result.residual)
+            result.redchi = result.chisqr/(result.ndata-result.nvarys)
+        # Renormalize AIC and BIC so they are consistent with emcee values
+        lnlike = -0.5*np.sum(result.residual**2 + np.log(2*np.pi*flux_err**2))
+        result.aic = 2*result.nvarys-2*lnlike
+        result.bic = result.nvarys*np.log(result.ndata) - 2*lnlike
+
         self.lmfit = result
         self.__lastfit__ = 'lmfit'
         return result
+
+    # ----------------------------------------------------------------
+    def correct_ramp(self, beta=None, plot=False, force=False, 
+            figsize=(6,3), fontsize=12):
+        """
+        Linear correction for ramp effect based on telescope tube temperature.
+
+        A flux ramp is often observed in the beginning of a visit with an
+        amplitude of a few hundred ppm (either positive or negative) and
+        decaying over a time scale of several hours. This ramp is due to a
+        small scale change in the shape of the PSF. This in turn can be
+        understood as a slight focus change as a result of a thermal
+        adaptation of the telescope tube to the new heat load by the thermal
+        radiation from the Earth. This thermal adaptation (*breathing*) is
+        monitored by thermal sensors in the tube.
+
+        At the time of writing (Dec 2020) several algorithms are being
+        investigated to correct for this ramp effect. One algorithm that is
+        simple to implement and seems to work quite well is to correct the
+        measured flux using the equation 
+           Flux_corrected = Flux_measured (1+beta*deltaT) 
+        where deltaT = T_thermFront_2 + 12 
+        
+        The following values of the coefficient beta have been determined by
+        Goran Olofsson.
+
+        | Aperture | beta    |
+        |:---------|:--------|
+        | 22.5     | 0.00014 |
+        | 25.0     | 0.00020 |
+        | 30.0     | 0.00033 |
+        | 40.0     | 0.00040 |
+
+        This routine uses linear interpolation in this table to predict the
+        slope beta for the aperture radius of the light curve.
+
+        :param beta: user-defined value of beta (None to use value from table)
+        :param plot: plot flux values before/after correction v. deltaT
+        :param force: apply ramp correction even if already corrected
+
+        :returns: time, flux, flux_err
+
+        """
+        if hasattr(self,'ramp_correction'):
+            if force:
+                warnings.warn('Ramp correction already applied')
+            else:
+                raise Exception('Ramp correction already applied')
+        T = self.lc['deltaT']
+        flux = self.lc['flux']
+        if beta is None:
+            f = interp1d([22.5, 25, 30, 40], [0.00014,0.00020,0.00033,0.00040])
+            beta = f(self.ap_rad)
+        fcor = flux * (1+beta*T)
+        self.ramp_correction = True
+        if plot:
+            plt.rc('font', size=fontsize)
+            fig,ax=plt.subplots(figsize=figsize)
+            ax.plot(T, flux, 'o',c='skyblue',ms=2, label='Measured')
+            ax.plot(T, 1+beta*T, c='skyblue')
+            ax.plot(T, fcor, 'o',c='midnightblue',ms=2,label='Corrected')
+            ax.set_xlabel(r'T$_{\rm thermFront\_2} +12^{\circ}$ C')
+            ax.set_ylabel(r'Flux')
+            ax.legend()
+        self.lc['flux'] = fcor
+        return self.lc['time'], self.lc['flux'], self.lc['flux_err']
+    
 
     # ----------------------------------------------------------------
     
@@ -1277,11 +1434,14 @@ class Dataset(object):
     def lmfit_eclipse(self, 
             T_0=None, P=None, D=None, W=None, b=None, L=None,
             f_c=None, f_s=None, a_c=None, dfdbg=None,
-            dfdcontam=None, dfdsmear=None, 
+            dfdcontam=None, dfdsmear=None, ramp=None, 
             c=None, dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
             dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None,
             glint_scale=None):
+        """
+        See fit_transit for options
+        """
 
         def _chisq_prior(params, *args):
             r =  (flux - model.eval(params, t=time))/flux_err
@@ -1301,6 +1461,7 @@ class Dataset(object):
             bg = self.lc['bg']
             contam = self.lc['contam']
             smear = self.lc['smear']
+            deltaT = self.lc['deltaT']
         except AttributeError:
             raise AttributeError("Use get_lightcurve() to load data first.")
 
@@ -1355,6 +1516,8 @@ class Dataset(object):
             params['dfdcontam'] = _kw_to_Parameter('dfdcontam', dfdcontam)
         if dfdsmear is not None:
             params['dfdsmear'] = _kw_to_Parameter('dfdsmear', dfdsmear)
+        if ramp is not None:
+            params['ramp'] = _kw_to_Parameter('ramp', ramp)
         if dfdx is not None:
             params['dfdx'] = _kw_to_Parameter('dfdx', dfdx)
         if dfdy is not None:
@@ -1406,12 +1569,21 @@ class Dataset(object):
         result.bestfit = fit
         result.rms = (flux-fit).std()
         # Move priors out of result.residual into their own object and update
-        # result.ndata
+        # result.ndata, result.chisqr, etc.
         npriors = len(result.residual) - len(time)
         if npriors > 0:
             result.prior_residual = result.residual[-npriors:]
             result.residual = result.residual[:-npriors]
             result.npriors = npriors
+            result.ndata = len(time)
+            result.nfree = result.ndata - result.nvarys
+            result.chisqr = np.sum(result.residual)
+            result.redchi = result.chisqr/(result.ndata-result.nvarys)
+        # Renormalize AIC and BIC so they are consistent with emcee values
+        lnlike = -0.5*np.sum(result.residual**2 + np.log(2*np.pi*flux_err**2))
+        result.aic = 2*result.nvarys-2*lnlike
+        result.bic = result.nvarys*np.log(result.ndata) - 2*lnlike
+
         self.lmfit = result
         self.__lastfit__ = 'lmfit'
         return result
@@ -1441,9 +1613,8 @@ class Dataset(object):
         for p in params:
             u = params[p].user_data
             if (isinstance(u, UFloat) and 
-                    (p.startswith('dfd') or 
-                     p.startswith('d2f') or
-                     (p == 'glint_scale') ) ):
+                    (p.startswith('dfd') or p.startswith('d2f') or
+                     (p == 'ramp') or (p == 'glint_scale') ) ):
                 if noBayes:
                     report+="\n[[Bayes Factors]]  "
                     report+="(values >~1 => free parameter probably not useful)"
@@ -1577,10 +1748,10 @@ class Dataset(object):
 
         for i in range(nwalkers):
             params_tmp = params.copy()
-            lnlike_i = -np.inf
-            while lnlike_i == -np.inf:
+            lnpost_i = -np.inf
+            while lnpost_i == -np.inf:
                 pos_i = vv + vs*np.random.randn(n_varys)*init_scale
-                lnlike_i = log_posterior_func(pos_i, *args)
+                lnpost_i = log_posterior_func(pos_i, *args)
             pos.append(pos_i)
 
         sampler = EnsembleSampler(nwalkers, n_varys, log_posterior_func,
@@ -1588,7 +1759,7 @@ class Dataset(object):
         if progress:
             print('Running burn-in ..')
             stdout.flush()
-        pos, _, _ = sampler.run_mcmc(pos, burn, store=False, 
+        pos,_,_,_ = sampler.run_mcmc(pos, burn, store=False, 
             skip_initial_state_check=True, progress=progress)
         sampler.reset()
         if progress:
@@ -1637,7 +1808,7 @@ class Dataset(object):
         result.nfree = len(time) - n_varys
         result.chisqr = np.sum((flux-fit)**2/flux_err**2)
         result.redchi = result.chisqr/(len(time) - n_varys)
-        loglmax = np.max(sampler.get_log_prob())
+        loglmax = np.max(sampler.get_blobs())
         result.aic = 2*n_varys - 2*loglmax
         result.bic = np.log(len(time))*n_varys - 2*loglmax
         result.covar = np.cov(flatchain.T)
