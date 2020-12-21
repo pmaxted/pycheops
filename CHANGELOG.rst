@@ -7,7 +7,7 @@ Changes since 0.6.0 onwards.
 * Added correct_ramp to dataset
 * Added ramp parameter to dataset.fit_transit and fit_eclipse.
 * Added ramp to multivisit
-* AIC and BIC now correct and consistent for all fitting methods
+* AIC and BIC now correct and consistent for all fitting methods (#177)
 * Improve selction of min/max values for parameters in Multivisit
 * Changes for DRP13 compatibility.
 
