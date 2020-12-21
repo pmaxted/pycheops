@@ -91,12 +91,17 @@ def _make_model(model_repr, lc, f_theta=None, f_glint=None, delta_t=None):
         smear = lc['smear']
     except KeyError:
         smear = np.zeros_like(t)
+    try:
+        deltaT = lc['deltaT']
+    except KeyError:
+        deltaT = np.zeros_like(t)
     factor_model = FactorModel(
             dx = _make_interp(t,lc['xoff'], scale='range'),
             dy = _make_interp(t,lc['yoff'], scale='range'),
             bg = _make_interp(t,lc['bg'], scale='max'),
             contam = _make_interp(t,lc['contam'], scale='max'),
-            smear = _make_interp(t,smear, scale='max'))
+            smear = _make_interp(t,smear, scale='max'),
+            deltaT = _make_interp(t,deltaT) )
     if '_transit_func' in model_repr:
         model = TransitModel()*factor_model
     elif '_eclipse_func' in model_repr:
@@ -115,6 +120,7 @@ def _make_labels(plotkeys, d0):
     r = re.compile('dfd(.*)_([0-9][0-9])')
     r2 = re.compile('d2fd(.*)2_([0-9][0-9])')
     rt = re.compile('ttv_([0-9][0-9])')
+    rr = re.compile('ramp_([0-9][0-9])')
     rl = re.compile('L_([0-9][0-9])')
     rc = re.compile('c_([0-9][0-9])')
     for key in plotkeys:
@@ -133,6 +139,9 @@ def _make_labels(plotkeys, d0):
         elif rt.match(key):
             n = rt.match(key).group(1)
             labels.append(r'$\Delta\,T_{{{}}}$'.format(n))
+        elif rr.match(key):
+            n = rr.match(key).group(1)
+            labels.append(r'$df\,/\,d\Delta\,T_{{{}}}$'.format(n))
         elif rl.match(key):
             n = rl.match(key).group(1)
             labels.append(r'$L_{{{}}}$'.format(n))
@@ -162,7 +171,7 @@ def _make_labels(plotkeys, d0):
 def _log_posterior(pos, lcs, rolls, models, modpars, noisemodel, priors, vn,
         return_fit):
 
-    lnprob = 0 
+    lnlike = 0 
     lc_mods = []    # model light curves per dataset
     lc_fits = []    # lc fit per dataset
     modpars_rtn = []   # Model parameters for return_fit
@@ -171,22 +180,25 @@ def _log_posterior(pos, lcs, rolls, models, modpars, noisemodel, priors, vn,
         for p in ('T_0', 'P', 'D', 'W', 'b', 'f_c', 'f_s', 'h_1', 'h_2', 'L'):
             if p in vn:
                 v = pos[vn.index(p)]
-                if (v < modpar[p].min) or (v > modpar[p].max): return -np.inf
+                if (v < modpar[p].min) or (v > modpar[p].max):
+                    return -np.inf, -np.inf
                 modpar[p].value = v
 
         # Check that none of the derived parameters are out of range
         for p in ('e', 'q_1', 'q_2', 'k', 'aR',  'rho',):
             if p in modpar:
                 v = modpar[p].value
-                if (v < modpar[p].min) or (v > modpar[p].max): return -np.inf
+                if (v < modpar[p].min) or (v > modpar[p].max):
+                    return -np.inf, -np.inf
 
-        df = ('c', 'dfdbg', 'dfdcontam', 'dfdsmear', 'glint_scale',
+        df = ('c', 'dfdbg', 'dfdcontam', 'dfdsmear', 'glint_scale', 'ramp',
                 'dfdx', 'd2fdx2', 'dfdy', 'd2fdy2', 'dfdt', 'd2fdt2')
         for d in df:
             p = f'{d}_{i+1:02d}' 
             if p in vn:
                 v = pos[vn.index(p)]
-                if (v < modpar[d].min) or (v > modpar[d].max): return -np.inf
+                if (v < modpar[d].min) or (v > modpar[d].max):
+                    return -np.inf, -np.inf
                 modpar[d].value = v
 
         p = f'ttv_{i+1:02d}'
@@ -203,7 +215,7 @@ def _log_posterior(pos, lcs, rolls, models, modpars, noisemodel, priors, vn,
             if p in vn:
                 v = pos[vn.index(p)] 
                 if (v < noisemodel[p].min) or (v > noisemodel[p].max):
-                    return -np.inf
+                    return -np.inf, -np.inf
                 noisemodel[p].set(value=v)
 
         mod = model.eval(modpar, t=lc['time'])
@@ -227,11 +239,11 @@ def _log_posterior(pos, lcs, rolls, models, modpars, noisemodel, priors, vn,
                 kernel = roll
             gp = GaussianProcess(kernel, mean=0)
             gp.compute(lc['time'], diag=yvar, quiet=True)
-            lnprob += gp.log_likelihood(resid)
+            lnlike += gp.log_likelihood(resid)
             if return_fit:
                 lc_fits.append(gp.predict(resid, return_cov=False) + mod)
         else:
-            lnprob += -0.5*(np.sum(resid**2/yvar + np.log(2*np.pi*yvar)))
+            lnlike += -0.5*(np.sum(resid**2/yvar + np.log(2*np.pi*yvar)))
             if return_fit:
                 lc_fits.append(mod)
 
@@ -245,14 +257,14 @@ def _log_posterior(pos, lcs, rolls, models, modpars, noisemodel, priors, vn,
     lnprior = _log_prior(*args)  # Priors on D, W and b
     for p in priors:
         if p in vn:
-            lnprob += -0.5*( (pos[vn.index(p)] - priors[p].n)/priors[p].s)**2
+            z = (pos[vn.index(p)] - priors[p].n)/priors[p].s
         elif p in ('e', 'q_1', 'q_2', 'k', 'aR',  'rho',):
-            lnprob += -0.5*( (modpar[p] - priors[p].n)/priors[p].s)**2
+            z = (modpar[p] - priors[p].n)/priors[p].s
         elif p == 'logrho':
-            logrho = np.log10(modpar['rho'])
-            lnprob += -0.5*( (logrho - priors[p].n)/priors[p].s)**2
+            z = (np.log10(modpar['rho']) - priors[p].n)/priors[p].s
+        lnprior += -0.5*(z**2 + np.log(2*np.pi*priors[p].s**2))
 
-    return lnprob + lnprior
+    return lnlike + lnprior, lnlike
 
 #--------
 
@@ -327,7 +339,9 @@ class MultiVisit(object):
 
     Priors on the derived parameters e, q_1, q_2, logrho, etc. can be
     specified as a dictionary of ufloat values using the extra_priors
-    keyword, e.g., extra_priors={'e':ufloat(0.2,0.01)}
+    keyword, e.g., extra_priors={'e':ufloat(0.2,0.01)}. Priors on parameters
+    that apply to individual datasets can also be specified in extra_priors,
+    e.g., extra_priors['dfdt_01'] = ufloat(0.0,0.001).
     
     Noise model
     ~~~~~~~~~~~
@@ -529,14 +543,22 @@ class MultiVisit(object):
                     val = np.nanmean(v)
                     v = [p[k].min if k in p else np.nan for p in plist]
                     vmin = np.nanmin(v)
+                    if (k in pmin) and not np.isfinite(vmin):
+                        vmin = pmin[k]
                     v = [p[k].max if k in p else np.nan for p in plist]
                     vmax = np.nanmax(v)
+                    if (k in pmax) and not np.isfinite(vmax):
+                        vmax = pmax[k]
                 vary = True in [p[k].vary if k in p else False for p in plist]
                 params.add(k, val, vary=vary, min=vmin, max=vmax)
                 vals[k] = val
             else:
                 params[k] = _kw_to_Parameter(k, vals[k])
                 vals[k] = params[k].value
+                if (k in pmin) and not np.isfinite(params[k].min):
+                    params[k].min = pmin[k]
+                if (k in pmax) and not np.isfinite(params[k].max):
+                    params[k].max = pmax[k]
 
             if params[k].vary:
                 vn.append(k)
@@ -638,7 +660,7 @@ class MultiVisit(object):
         fluxrms = []
         # FactorModel parameters excluding cos(j.phi), sin(j.phi) terms
         dfdp = ['c', 'dfdbg', 'dfdcontam', 'dfdsmear', 'dfdx', 'd2fdx2',
-                'dfdy', 'd2fdy2', 'dfdt', 'd2fdt2', 'glint_scale']
+                'dfdy', 'd2fdy2', 'dfdt', 'd2fdt2', 'glint_scale', 'ramp']
 
         for i,p in enumerate(plist):
             lc = deepcopy(self.datasets[i].lc)
@@ -702,6 +724,9 @@ class MultiVisit(object):
                     elif d == 'glint_scale':
                         vv.append(1)
                         vs.append(0.01)
+                    elif d == 'ramp':
+                        vv.append(0)
+                        vs.append(50)
                     else:
                         vv.append(0)
                         vs.append(1e-6)
@@ -748,9 +773,9 @@ class MultiVisit(object):
         z = zip(self.datasets,result.residual)
         result.chisqr = np.sum(((r/d.lc['flux_err'])**2).sum() for d,r in z)
         result.redchi = result.chisqr/result.nfree
-        lnlike = np.max(self.sampler.get_log_prob())
-        result.aic = 2*result.nfree - 2*lnlike
-        result.bic = result.nfree*np.log(result.ndata) - 2*lnlike
+        lnlike = np.max(self.sampler.get_blobs())
+        result.aic = 2*result.nvarys - 2*lnlike
+        result.bic = result.nvarys*np.log(result.ndata) - 2*lnlike
         result.rms = [r.std() for r in result.residual]
         result.npriors = len(priors)
         result.priors = priors
@@ -806,7 +831,7 @@ class MultiVisit(object):
         pmax = {'D':0.1, 'W':0.1, 'b':1, 'f_c':1, 'f_s':1,
                 'h_1':1, 'h_2':1}
         step = {'D':1e-4, 'W':1e-4, 'b':1e-2, 'P':1e-6, 'T_0':1e-4,
-                'f_c':1e-4, 'f_s':1e-3, 'h_1':1e-3, 'h_2':1e-2}
+                'f_c':1e-4, 'f_s':1e-3, 'h_1':1e-3, 'h_2':1e-2, 'ramp':50}
 
         vn,vv,vs,params = self.__make_params__(vals, priors, pmin, pmax, step,
                 extra_priors)
@@ -830,10 +855,10 @@ class MultiVisit(object):
         return_fit = False
         args = (lcs, rolls, models, modpars, noisemodel, priors, vn, return_fit)
         for i in range(nwalkers):
-            lnlike_i = -np.inf
-            while lnlike_i == -np.inf:
+            lnpost_i = -np.inf
+            while lnpost_i == -np.inf:
                 pos_i = vv + vs*np.random.randn(n_varys)*init_scale
-                lnlike_i = _log_posterior(pos_i, *args)
+                lnpost_i = _log_posterior(pos_i, *args)
             pos.append(pos_i)
 
         sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior, args=args)
@@ -841,7 +866,7 @@ class MultiVisit(object):
         if progress:
             print('Running burn-in ..')
             stdout.flush()
-        pos, _, _ = sampler.run_mcmc(pos, burn, store=False, 
+        pos,_,_,_ = sampler.run_mcmc(pos, burn, store=False, 
             skip_initial_state_check=True, progress=progress)
         sampler.reset()
         if progress:
@@ -922,10 +947,10 @@ class MultiVisit(object):
         return_fit = False
         args = (lcs, rolls, models, modpars, noisemodel, priors, vn, return_fit)
         for i in range(nwalkers):
-            lnlike_i = -np.inf
-            while lnlike_i == -np.inf:
+            lnpost_i = -np.inf
+            while lnpost_i == -np.inf:
                 pos_i = vv + vs*np.random.randn(n_varys)*init_scale
-                lnlike_i = _log_posterior(pos_i, *args)
+                lnpost_i = _log_posterior(pos_i, *args)
             pos.append(pos_i)
 
         sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior, args=args)
@@ -933,7 +958,7 @@ class MultiVisit(object):
         if progress:
             print('Running burn-in ..')
             stdout.flush()
-        pos, _, _ = sampler.run_mcmc(pos, burn, store=False, 
+        pos,_,_,_ = sampler.run_mcmc(pos, burn, store=False, 
             skip_initial_state_check=True, progress=progress)
         sampler.reset()
         if progress:
@@ -1024,10 +1049,10 @@ class MultiVisit(object):
         return_fit = False
         args = (lcs, rolls, models, modpars, noisemodel, priors, vn, return_fit)
         for i in range(nwalkers):
-            lnlike_i = -np.inf
-            while lnlike_i == -np.inf:
+            lnpost_i = -np.inf
+            while lnpost_i == -np.inf:
                 pos_i = vv + vs*np.random.randn(n_varys)*init_scale
-                lnlike_i = _log_posterior(pos_i, *args)
+                lnpost_i = _log_posterior(pos_i, *args)
             pos.append(pos_i)
 
         sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior, args=args)
@@ -1035,7 +1060,7 @@ class MultiVisit(object):
         if progress:
             print('Running burn-in ..')
             stdout.flush()
-        pos, _, _ = sampler.run_mcmc(pos, burn, store=False, 
+        pos,_,_,_ = sampler.run_mcmc(pos, burn, store=False, 
             skip_initial_state_check=True, progress=progress)
         sampler.reset()
         if progress:
@@ -1336,7 +1361,8 @@ class MultiVisit(object):
             fit = copy(result.bestfit[j])
             modpar = copy(self.modpars[j])
             for d in ('c', 'dfdbg', 'dfdcontam', 'dfdsmear', 'glint_scale',
-                    'dfdx', 'd2fdx2', 'dfdy', 'd2fdy2', 'dfdt', 'd2fdt2'):
+                    'dfdx', 'd2fdx2', 'dfdy', 'd2fdy2', 'dfdt', 'd2fdt2',
+                    'ramp'):
                 p = f'{d}_{j+1:02d}'
                 if p in result.var_names:
                      modpar[d].value = 1 if d == 'c' else 0
