@@ -1,6 +1,18 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.9.7 (2020-12-24)
+~~~~~~~~~~~~~~~~~~
+* Added metadata to dataset (#93)
+* Added correct_ramp to dataset
+* Added ramp parameter to dataset.fit_transit and fit_eclipse.
+* Added ramp to multivisit
+* AIC and BIC now correct and consistent for all fitting methods (#177)
+* Improve selction of min/max values for parameters in Multivisit
+* Changes for DRP13 compatibility.
+* Reduced the number Notebooks in examples/Notebooks
+* Added WASP-189.ipynb to examples/Notebooks 
+
 0.9.6 (2020-11-24)
 ~~~~~~~~~~~~~~~~~~
 * Force user to set decontaminate option in dataset.get_lightcurve()
