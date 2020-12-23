@@ -858,7 +858,7 @@ class MultiVisit(object):
             lnpost_i = -np.inf
             while lnpost_i == -np.inf:
                 pos_i = vv + vs*np.random.randn(n_varys)*init_scale
-                lnpost_i = _log_posterior(pos_i, *args)
+                lnpost_i, lnlike_i = _log_posterior(pos_i, *args)
             pos.append(pos_i)
 
         sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior, args=args)
@@ -950,7 +950,7 @@ class MultiVisit(object):
             lnpost_i = -np.inf
             while lnpost_i == -np.inf:
                 pos_i = vv + vs*np.random.randn(n_varys)*init_scale
-                lnpost_i = _log_posterior(pos_i, *args)
+                lnpost_i, lnlike_i = _log_posterior(pos_i, *args)
             pos.append(pos_i)
 
         sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior, args=args)
@@ -1052,7 +1052,7 @@ class MultiVisit(object):
             lnpost_i = -np.inf
             while lnpost_i == -np.inf:
                 pos_i = vv + vs*np.random.randn(n_varys)*init_scale
-                lnpost_i = _log_posterior(pos_i, *args)
+                lnpost_i, lnlike_i = _log_posterior(pos_i, *args)
             pos.append(pos_i)
 
         sampler = EnsembleSampler(nwalkers, n_varys, _log_posterior, args=args)
