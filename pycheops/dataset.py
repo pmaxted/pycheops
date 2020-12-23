@@ -86,6 +86,9 @@ def _kw_to_Parameter(name, kwarg):
         return Parameter(name=name, value=kwarg, vary=False)
     if isinstance(kwarg, int):
         return Parameter(name=name, value=float(kwarg), vary=False)
+    if isinstance(kwarg, list):
+        return Parameter(name=name, value=np.median(kwarg), 
+                min=min(kwarg), max=max(kwarg))
     if isinstance(kwarg, tuple):
         return Parameter(name=name, value=np.median(kwarg), 
                 min=min(kwarg), max=max(kwarg))
@@ -885,6 +888,10 @@ class Dataset(object):
             print('Mean contamination = {:0.1f} ppm'.format(1e6*contam.mean()))
             print('Mean smearing correction = {:0.1f} ppm'.
                     format(1e6*smear.mean()))
+            if np.max(np.abs(deltaT)) > 0:
+                f = interp1d([22.5, 25, 30, 40], [140,200,330,400])
+                ramp =  np.ptp(f(ap_rad)*deltaT)
+                print('Predicted amplitude of ramp = {:0.0f} ppm'.format(ramp))
 
         flux = flux/fluxmed
         flux_err = flux_err/fluxmed
@@ -2860,7 +2867,10 @@ class Dataset(object):
             ax[3,1].scatter(smear_table,flux_bad_table,s=2,c=cbad)
         ax[3,1].set_xlabel('Smear estimate')
         ax[3,1].set_ylabel('Flux in ADU')
-        ax[3,1].set_xlim(np.min(smear),np.max(smear))
+        if np.p2p(smear) = 0:
+            ax[3,1].set_xlim(-1,1)
+        else:
+            ax[3,1].set_xlim(np.min(smear),np.max(smear))
         ax[3,1].set_ylim(0.998*np.quantile(flux_measure,0.16),
                          1.002*np.quantile(flux_measure,0.84))
 

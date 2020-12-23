@@ -12,6 +12,7 @@ Changes since 0.6.0 onwards.
 * Changes for DRP13 compatibility.
 * Reduced the number Notebooks in examples/Notebooks
 * Added WASP-189.ipynb to examples/Notebooks 
+* Added predicted amplitude of ramp to output of dataset.get_lightcurve
 
 0.9.6 (2020-11-24)
 ~~~~~~~~~~~~~~~~~~
