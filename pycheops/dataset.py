@@ -2867,7 +2867,7 @@ class Dataset(object):
             ax[3,1].scatter(smear_table,flux_bad_table,s=2,c=cbad)
         ax[3,1].set_xlabel('Smear estimate')
         ax[3,1].set_ylabel('Flux in ADU')
-        if np.p2p(smear) > 0:
+        if np.ptp(smear) > 0:
             ax[3,1].set_xlim(np.min(smear),np.max(smear))
         else:
             ax[3,1].set_xlim(-1,1)
