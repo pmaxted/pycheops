@@ -382,6 +382,7 @@ class Dataset(object):
         else:
             self.gmag =None
         self.spectype = hdr['SPECTYPE']
+        self.nexp = hdr['NEXP']
         self.exptime = hdr['EXPTIME']
         self.texptime = hdr['TEXPTIME']
         self.pipe_ver = hdr['PIPE_VER']
@@ -847,6 +848,16 @@ class Dataset(object):
         if verbose:
             print('Time stored relative to BJD = {:0.0f}'.format(bjd_ref))
             print('Aperture radius used = {:0.0f} arcsec'.format(ap_rad))
+            print('UTC start: ',table['UTC_TIME'][0][0:19])
+            print('UTC end:   ',table['UTC_TIME'][-1][0:19])
+            duration = (table['MJD_TIME'][-1] - table['MJD_TIME'][0])*86400
+            print('Visit duration: {:0.0f} s'.format(duration))
+            print('Exposure time: {} x {:0.1f} s'.format(self.nexp,
+                self.exptime))
+            eff = 100*len(ok)/(1+duration/self.texptime)
+            print('Number of non-flagged data points: {}'.format(len(ok)))
+            print('Efficiency (non-flagged data): {:0.1f} %'.format(eff))
+
         if decontaminate:
             flux = flux*(1 - contam) 
             if verbose:
