@@ -1304,7 +1304,8 @@ class MultiVisit(object):
     def plot_fit(self, title=None, detrend=False, 
             binwidth=0.001, add_gaps=True, gap_tol=0.005, renorm=True,
             data_offset=None, res_offset=None, phase0=None,
-            xlim=None, ylim=None, figsize=None, fontsize=12):
+            xlim=None, data_ylim=None, res_ylim=None,
+            figsize=None, fontsize=12):
         """
         If there are gaps in the data longer than gap_tol phase units and
         add_gaps is True then put a gap in the lines used to plot the fit. The
@@ -1317,7 +1318,9 @@ class MultiVisit(object):
 
         The offsets between the light curves from different datasets can be
         set using the data_offset keyword. The offset between the residuals
-        from different datasets can be  set using the res_offset keyword..
+        from different datasets can be  set using the res_offset keyword. The
+        y-axis limits for the data and residuals plots can be set using the
+        data_ylim and res_ylim keywords, e.g. res_ylim = (-0.001,0.001).
 
         Set renorm=False to prevent automatic re-scaling of fluxes.
 
@@ -1513,20 +1516,25 @@ class MultiVisit(object):
                 axes[0,1].set_xlim(*xlim[1])
                 axes[1,1].set_xlim(*xlim[1])
         
-            if ylim is not None:
-                axes[0,0].set_ylim(*ylim[0])
-                axes[0,1].set_ylim(*ylim[1])
+            if data_ylim is not None:
+                axes[0,0].set_ylim(*data_ylim[0])
+                axes[0,1].set_ylim(*data_ylim[1])
             axes[0,0].set_ylabel('Flux')
             axes[0,0].set_title(title)
-            if roff_tr != 0:
-                axes[1,0].set_ylim(np.sort([-0.75*roff_tr,roff_tr*(n_tr-0.25)]))
+            if res_ylim is None:
+                if roff_tr != 0:
+                    axes[1,0].set_ylim(np.sort([-0.75*roff_tr,
+                         roff_tr*(n_tr-0.25)]))
+                else:
+                    axes[1,0].set_ylim(-roff, roff)
+                if roff_ecl != 0:
+                    ax = axes[1,1]
+                    ax.set_ylim(np.sort([-0.75*roff_ecl,roff_ecl*(n_ecl-0.25)]))
+                else:
+                    axes[1,1].set_ylim(-roff, roff)
             else:
-                axes[1,0].set_ylim(-roff, roff)
-            if roff_ecl != 0:
-                ax = axes[1,1]
-                ax.set_ylim(np.sort([-0.75*roff_ecl, roff_ecl*(n_ecl-0.25)]))
-            else:
-                axes[1,1].set_ylim(-roff, roff)
+                axes[1,0].set_ylim(*res_ylim[0])
+                axes[1,1].set_ylim(*res_ylim[1])
         
             axes[1,0].set_xlabel('Phase')
             axes[1,1].set_xlabel('Phase')
@@ -1579,14 +1587,17 @@ class MultiVisit(object):
             else:
                 ax[1].set_xlim(*xlim)
         
-            if ylim is not None: ax[0].set_ylim(*ylim)
+            if data_ylim is not None: ax[0].set_ylim(*data_ylim)
             ax[0].set_ylabel('Flux')
             ax[0].set_title(title)
-            if roff != 0:
-                ax[1].set_ylim(np.sort([-0.75*roff, roff*(n-0.25)]))
+            if res_ylim is None:
+                if roff != 0:
+                    ax[1].set_ylim(np.sort([-0.75*roff, roff*(n-0.25)]))
+                else:
+                    rms = np.max(result.rms)
+                    ax[1].set_ylim(-5*rms, 5*rms)
             else:
-                rms = 10*np.max(result.rms)
-                ax[1].set_ylim(-5*rms, 5*rms)
+                ax[1].set_ylim(*res_ylim)
         
             ax[1].set_xlabel('Phase')
             ax[1].set_ylabel('Residual')

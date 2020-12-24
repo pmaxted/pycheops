@@ -13,6 +13,9 @@ Changes since 0.6.0 onwards.
 * Reduced the number Notebooks in examples/Notebooks
 * Added WASP-189.ipynb to examples/Notebooks 
 * Added predicted amplitude of ramp to output of dataset.get_lightcurve
+* Added data_ylim and res_ylim keywords to Multivisit.plot_fit().
+* Improved calculation of y-axis limits for Multivisit.plot_fit() if
+  res_offset=0
 
 0.9.6 (2020-11-24)
 ~~~~~~~~~~~~~~~~~~
