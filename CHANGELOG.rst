@@ -16,6 +16,7 @@ Changes since 0.6.0 onwards.
 * Added data_ylim and res_ylim keywords to Multivisit.plot_fit().
 * Improved calculation of y-axis limits for Multivisit.plot_fit() if
   res_offset=0
+* Added observing efficiency, etc. to dataset.get_lightcurve verbose output.
 
 0.9.6 (2020-11-24)
 ~~~~~~~~~~~~~~~~~~
