@@ -159,7 +159,7 @@ def _make_labels(plotkeys, d0):
         elif key == 'logrho':
             labels.append(r'$\log\rho_{\star}$')
         elif key == 'aR':
-            labels.append(r'a\,/\,R$_{\star}$')
+            labels.append(r'${\rm a}\,/\,{\rm R}_{\star}$')
         elif key == 'sini':
             labels.append(r'\sin i')
         else:
