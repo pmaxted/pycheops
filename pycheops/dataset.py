@@ -2281,7 +2281,8 @@ class Dataset(object):
     # ------------------------------------------------------------
 
     def massradius(self, m_star=None, r_star=None, K=None, q=0, 
-            jovian=True, plot_kws=None, verbose=True):
+            jovian=True, plot_kws=None, return_samples=False,
+            verbose=True):
         '''
         Use the results from the previous emcee/lmfit transit light curve fit
         to estimate the mass and/or radius of the planet.
@@ -2410,7 +2411,8 @@ class Dataset(object):
        
         return massradius(P=P, k=k, sini=sini, ecc=ecc,
                 m_star=m_star, r_star=r_star, K=K, aR=aR,
-                jovian=jovian, verbose=verbose, **plot_kws)
+                jovian=jovian, verbose=verbose,
+                return_samples=return_samples, **plot_kws)
     
     # ------------------------------------------------------------
 
