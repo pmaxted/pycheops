@@ -1627,7 +1627,7 @@ class MultiVisit(object):
     # ------------------------------------------------------------
 
     def massradius(self, m_star=None, r_star=None, K=None, q=0, 
-            jovian=True, plot_kws=None, return_samples=True,
+            jovian=True, plot_kws=None, return_samples=False,
             verbose=True):
         '''
         Use the results from the previous transit light curve fit to estimate

@@ -18,6 +18,7 @@ Changes since 0.6.0 onwards.
   res_offset=0
 * Added observing efficiency, etc. to dataset.get_lightcurve verbose output.
 * Added return_samples option to MultiVisit.massradius()
+* Added input quantities to output of funcs.massradius()
 
 0.9.6 (2020-11-24)
 ~~~~~~~~~~~~~~~~~~
