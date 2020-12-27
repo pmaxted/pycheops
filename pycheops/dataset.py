@@ -900,7 +900,8 @@ class Dataset(object):
             print('Mean smearing correction = {:0.1f} ppm'.
                     format(1e6*smear.mean()))
             if np.max(np.abs(deltaT)) > 0:
-                f = interp1d([22.5, 25, 30, 40], [140,200,330,400])
+                f = interp1d([22.5, 25, 30, 40], [140,200,330,400],
+                        bounds_error=False, fill_value='extrapolate')
                 ramp =  np.ptp(f(ap_rad)*deltaT)
                 print('Predicted amplitude of ramp = {:0.0f} ppm'.format(ramp))
 
@@ -1304,8 +1305,11 @@ class Dataset(object):
         T = self.lc['deltaT']
         flux = self.lc['flux']
         if beta is None:
-            f = interp1d([22.5, 25, 30, 40], [0.00014,0.00020,0.00033,0.00040])
+            f = interp1d([22.5, 25, 30, 40], [0.00014,0.00020,0.00033,0.00040],
+                        bounds_error=False, fill_value='extrapolate')
             beta = f(self.ap_rad)
+            if (beta < 22.5) or (beta > 40):
+                warnings.warn("Ramp correction extrapolated") 
         fcor = flux * (1+beta*T)
         self.ramp_correction = True
         if plot:
@@ -1639,9 +1643,10 @@ class Dataset(object):
                     noBayes = False
                 v = params[p].value
                 s = params[p].stderr
-                B = np.exp(-0.5*((v-u.n)/s)**2) * u.s/s
-                report += "\n    %s:%s" % (p, ' '*(namelen-len(p)))
-                report += ' %12.3f' % (B)
+                if s is not None:
+                    B = np.exp(-0.5*((v-u.n)/s)**2) * u.s/s
+                    report += "\n    %s:%s" % (p, ' '*(namelen-len(p)))
+                    report += ' %12.3f' % (B)
 
         report += '\n[[Software versions]]'
         report += '\n    CHEOPS DRP : %s' % self.pipe_ver
