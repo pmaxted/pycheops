@@ -1308,7 +1308,7 @@ class Dataset(object):
             f = interp1d([22.5, 25, 30, 40], [0.00014,0.00020,0.00033,0.00040],
                         bounds_error=False, fill_value='extrapolate')
             beta = f(self.ap_rad)
-            if (beta < 22.5) or (beta > 40):
+            if (self.ap_rad < 22.5) or (self.ap_rad > 40):
                 warnings.warn("Ramp correction extrapolated") 
         fcor = flux * (1+beta*T)
         self.ramp_correction = True

@@ -1519,7 +1519,10 @@ class MultiVisit(object):
             if data_ylim is not None:
                 axes[0,0].set_ylim(*data_ylim[0])
                 axes[0,1].set_ylim(*data_ylim[1])
-            axes[0,0].set_ylabel('Flux')
+            if detrend:
+                axes[0,0].set_ylabel('Flux/trend')
+            else:
+                axes[0,0].set_ylabel('Flux')
             axes[0,0].set_title(title)
             if res_ylim is None:
                 if roff_tr != 0:
@@ -1588,7 +1591,10 @@ class MultiVisit(object):
                 ax[1].set_xlim(*xlim)
         
             if data_ylim is not None: ax[0].set_ylim(*data_ylim)
-            ax[0].set_ylabel('Flux')
+            if detrend:
+                ax[0].set_ylabel('Flux/trend')
+            else:
+                ax[0].set_ylabel('Flux')
             ax[0].set_title(title)
             if res_ylim is None:
                 if roff != 0:
