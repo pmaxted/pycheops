@@ -945,6 +945,10 @@ def massradius(P=None, k=None, sini=None, ecc=None,
                 print(parprint(_rho*1e-3,'rho_p',wn=8,w=10)+' [g.cm-3]')
             result['rho_p'] = _d(ps['rho_p'])
 
+    # Include input quantities in result
+    for k in ['P', 'k', 'sini', 'e', 'K', 'aR']:
+        result[k] = _d(ps[k])
+
     if return_samples:
         for k in result.keys():
             result[k]['sample'] = ps[k]
