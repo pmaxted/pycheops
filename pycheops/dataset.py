@@ -592,7 +592,7 @@ class Dataset(object):
                 zf = zpf.open(metafile)
                 tgz.addfile(tarinfo=tarinfo, fileobj=zf)
                 zf.close()
-            metafiles = list(filter(_re_im.match, ziplist))
+            imgfiles = list(filter(_re_im.match, ziplist))
             if len(imgfiles) > 1:
                 raise ValueError('More than one imagette file in zip file')
             if len(imgfiles) == 1:
