@@ -2222,7 +2222,7 @@ class Dataset(object):
                 ax[0].plot(tp,pp,c='saddlebrown',zorder=1)
             for i in np.linspace(0,nchain,nsamples,endpoint=False,
                     dtype=np.int):
-                for j, n in enumerate(self.var_names):
+                for j, n in enumerate(self.emcee.var_names):
                     partmp[n].value = self.emcee.chain[i,j]
                 rr = flux0 - model.eval(partmp, t=time)
                 kernel = SHOTerm(
