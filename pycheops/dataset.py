@@ -878,6 +878,7 @@ class Dataset(object):
             bg = bg[ok]
             contam = contam[ok]
             smear = smear[ok]
+            deltaT = deltaT[ok]
             N_cut = len(bjd) - len(time)
 
         fluxmed = np.nanmedian(flux)
