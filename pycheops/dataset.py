@@ -72,6 +72,7 @@ from IPython.display import Image
 import subprocess
 import pickle
 import warnings
+from astropy.units import UnitsWarning
 
 try:
     from dace.cheops import Cheops
@@ -406,7 +407,7 @@ class Dataset(object):
                 self.metadata = Table.read(metaPath)
             else:
                 tar = tarfile.open(self.tgzfile)
-                r=re.compile('(.*SCI_RAW_HkCe-SubArray.*.fits)')
+                r=re.compile('(.*SCI_RAW_SubArray.*.fits)')
                 metafile = list(filter(r.match, self.list))
                 if len(metafile) > 1:
                     raise Exception('Multiple metadata files in datset')
@@ -416,9 +417,12 @@ class Dataset(object):
                 else:
                     with tar.extractfile(metafile[0]) as fd:
                         hdul = fits.open(fd)
-                        table = Table.read(hdul[1])
-                        hdr = hdul[1].header
-                        hdul.writeto(metaPath)
+                        table = Table.read(hdul,hdu='SCI_RAW_ImageMetadata')
+                        hdr = hdul['SCI_RAW_ImageMetadata'].header
+                        with warnings.catch_warnings():
+                            warnings.filterwarnings("ignore",
+                                    category=UnitsWarning)
+                            table.write(metaPath)
                     tar.close()
                     self.metadata = Table.read(metaPath)
 
@@ -784,7 +788,7 @@ class Dataset(object):
         :param verbose:
 
         The offset of the telescope tube temperature from its nominal value 
-        (CE_thermFront_2 + 12) is stored in dataset.lc['deltaT']
+        (thermFront_2 + 12) is stored in dataset.lc['deltaT']
 
         """
 
@@ -817,7 +821,8 @@ class Dataset(object):
                 hdul.writeto(lcPath)
             if verbose: print('Saved lc data to ',lcPath)
 
-        ok = (table['EVENT'] == 0) | (table['EVENT'] == 100) 
+        ok = (((table['EVENT'] == 0) | (table['EVENT'] == 100))
+                & (table['FLUX']>0))
         m = np.isnan(table['FLUX'])
         if sum(m) > 0:
             msg = "Light curve contains {} NaN values".format(sum(m))
@@ -839,7 +844,7 @@ class Dataset(object):
         except:
             smear = np.zeros_like(bjd)
         try:
-            deltaT = np.array(self.metadata['CE_thermFront_2'][ok]) + 12
+            deltaT = np.array(self.metadata['thermFront_2'][ok]) + 12
         except:
             deltaT = np.zeros_like(bjd)
         ap_rad = hdr['AP_RADI']
@@ -2222,7 +2227,7 @@ class Dataset(object):
                 ax[0].plot(tp,pp,c='saddlebrown',zorder=1)
             for i in np.linspace(0,nchain,nsamples,endpoint=False,
                     dtype=np.int):
-                for j, n in enumerate(self.var_names):
+                for j, n in enumerate(self.emcee.var_names):
                     partmp[n].value = self.emcee.chain[i,j]
                 rr = flux0 - model.eval(partmp, t=time)
                 kernel = SHOTerm(
