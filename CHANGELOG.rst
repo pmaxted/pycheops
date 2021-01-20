@@ -1,7 +1,7 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-0.9.7 INSERT DATE
+0.9.8 (2011-12-20)
 ~~~~~~~~~~~~~~~~~~
 * Get metadata from SCI_RAW_SubArray instead of SCI_RAW_HkCe-SubArray
 * Exclude negative fluxes when loading light curve in Dataset
