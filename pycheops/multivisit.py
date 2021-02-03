@@ -108,7 +108,7 @@ def _make_model(model_repr, lc, f_theta=None, f_glint=None, delta_t=None):
         model = EclipseModel()*factor_model
     elif '_eblm_func' in model_repr:
         model = EBLMModel()*factor_model
-    if 'glint_func' in model_repr:
+    if not f_theta is None and not f_glint is None: 
         model += Model(_glint_func, independent_vars=['t'],
             f_theta=f_theta, f_glint=f_glint, delta_t=delta_t)
     return model
@@ -667,13 +667,12 @@ class MultiVisit(object):
             if unwrap:
                 phi = lc['roll_angle']*np.pi/180
                 for j in range(1,4):
-                    k = 'dfdsinphi' if j < 2 else f'df2sin{j}phi'
+                    k = 'dfdsinphi' if j < 2 else f'dfsin{j}phi'
                     if k in p: lc['flux'] -= p[k]*np.sin(j*phi)
-                    k = 'dfdcosphi' if j < 2 else f'df2cos{j}phi'
+                    k = 'dfdcosphi' if j < 2 else f'dfcos{j}phi'
                     if k in p: lc['flux'] -= p[k]*np.cos(j*phi)
             lcs.append(lc)
             if 'glint_scale' in p:
-                model_type += ' glint_func'
                 d = self.datasets[i]
                 delta_t = d._old_bjd_ref - d.bjd_ref
                 glint = (d.f_theta, self.datasets[i].f_glint, delta_t)
@@ -769,7 +768,7 @@ class MultiVisit(object):
         result.method = 'emcee'
         result.errorbars = True
         result.bestfit = fits
-        result.residual = [(d.lc['flux']-f) for d,f in zip(self.datasets,fits)]
+        result.residual = [(fl-ft) for fl,ft in zip(self.__fitted_flux__,fits)]
         z = zip(self.datasets,result.residual)
         result.chisqr = np.sum(((r/d.lc['flux_err'])**2).sum() for d,r in z)
         result.redchi = result.chisqr/result.nfree
@@ -879,7 +878,7 @@ class MultiVisit(object):
         pos = flatchain[np.argmax(sampler.get_log_prob()),:]
 
         return_fit = True
-        args = (lcs, rolls, models, modpars, noisemodel, priors, vn, return_fit)
+        args = (lcs,rolls,models,modpars,noisemodel,priors,vn,return_fit)
         fits, modpars = _log_posterior(pos, *args)
 
         self.__fitted_flux__ = [lc['flux'] for lc in lcs]
@@ -1544,6 +1543,7 @@ class MultiVisit(object):
             axes[1,0].set_ylabel('Residual')
 
         else:
+            # Not EBLM
 
             if figsize is None:
                 figsize = (8, 2+1.5*n)
