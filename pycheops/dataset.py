@@ -1049,6 +1049,10 @@ class Dataset(object):
             smear = self.lc['smear']
         except KeyError:
             smear = np.zeros_like(time)
+        try:
+            deltaT = self.lc['deltaT']
+        except KeyError:
+            deltaT = np.zeros_like(time)
         return FactorModel(
             dx = _make_interp(time, self.lc['xoff'], scale='range'),
             dy = _make_interp(time, self.lc['yoff'], scale='range'),
@@ -1057,7 +1061,7 @@ class Dataset(object):
             bg = _make_interp(time,self.lc['bg'], scale='max'),
             contam = _make_interp(time,self.lc['contam'], scale='max'),
             smear = _make_interp(time,smear, scale='max'),
-            deltaT = _make_interp(time,self.lc['deltaT']) )
+            deltaT = _make_interp(time,deltaT) )
 
 
     #---
@@ -2612,8 +2616,15 @@ class Dataset(object):
 # Data display and diagnostics
 
     def transit_noise_plot(self, width=3, steps=500,
-            fname=None, figsize=(6,4), fontsize=11,
+            fname=None, figsize=(6,4), fontsize=11, return_values=False,
             requirement=None, local=False, verbose=True):
+        """
+        Transit noise plot
+
+        fname: to specify an output file for the plot
+        return_values: return a dictionary of statistics
+
+        """
 
         try:
             time = np.array(self.lc['time'])
@@ -2690,6 +2701,19 @@ class Dataset(object):
             plt.show()
         else:
             plt.savefig(fname)
+
+        if return_values:
+            d = {}
+            d['Scaled noise, mean noise'] = Nsc.mean()
+            d['Scaled noise, min. noise'] = Nsc.min()
+            d['Scaled noise, max. noise'] = Nsc.max()
+            d['Scaled noise, mean scaling factor'] = Fsc.mean()
+            d['Scaled noise, min. scaling factor'] = Fsc.min()
+            d['Scaled noise, max. scaling factor'] = Fsc.max()
+            d['Minimum error, mean noise'] = Nmn.mean()
+            d['Minimum error, min. noise'] = Nmn.min()
+            d['Minimum error, max. noise'] = Nmn.max()
+            return d
         
     #------
 

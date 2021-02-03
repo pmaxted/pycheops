@@ -1,7 +1,18 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-0.9.8 (2011-12-20)
+0.9.9 
+~~~~~~~~~~~~~~~~~~
+* BUG FIX - unwrap option was not working correctly in Multivisit - only
+  dfdcosphi and dfdsinphi terms were used 
+* BUG FIX - Multivisit residuals arrays were calculated and plotted 
+  incorrectly
+* Added return_values option to Dataset.transit_noise_plot()
+* Enable fitting of datasets from older version missing deltaT in Dataset
+* Fix bug in MultiVisit where mixture of datasets with/without glint functions
+  would not load (#164)
+
+0.9.8 (2021-01-20)
 ~~~~~~~~~~~~~~~~~~
 * Get metadata from SCI_RAW_SubArray instead of SCI_RAW_HkCe-SubArray
 * Exclude negative fluxes when loading light curve in Dataset
