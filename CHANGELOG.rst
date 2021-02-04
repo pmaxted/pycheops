@@ -17,7 +17,7 @@ Changes since 0.6.0 onwards.
 * Exclude negative eclipse depths for MultiVisit.fit_eclipse with etv=True
 * Improved initialisation of individual eclipse depths for
   MultiVisit.fit_eclipse with etv=True  
-
+* Added html version of WASP-189 and KELT-11b notebooks to examples/Notebooks
 
 0.9.8 (2021-01-20)
 ~~~~~~~~~~~~~~~~~~

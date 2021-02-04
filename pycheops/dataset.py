@@ -2622,7 +2622,7 @@ class Dataset(object):
         Transit noise plot
 
         fname: to specify an output file for the plot
-        return_values: return a dictionary of statistics
+        return_values: return a dictionary of statistics - noise in ppm
 
         """
 
