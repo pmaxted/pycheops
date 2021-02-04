@@ -211,6 +211,9 @@ def _log_posterior(pos, lcs, rolls, models, modpars, noisemodel, priors, vn,
         p = f'L_{i+1:02d}'
         if p in vn:
             modpar['L'].value = pos[vn.index(p)]
+            # Exclude negative eclipse depths
+            if modpar['L'].value < 0: 
+                return -np.inf, -np.inf
 
         # Update noisemodel parameters
         for p in ('log_sigma_w', 'log_omega0', 'log_S0', 'log_Q'):
