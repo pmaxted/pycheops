@@ -15,7 +15,10 @@ Changes since 0.6.0 onwards.
 * Added iteration limit to initialisation of walkers in MultiVisit
 * Changed default upper limit on W to 0.2 in MultiVisit
 * Exclude negative eclipse depths for MultiVisit.fit_eclipse with etv=True
-  
+* Improved initialisation of individual eclipse depths for
+  MultiVisit.fit_eclipse with etv=True  
+
+
 0.9.8 (2021-01-20)
 ~~~~~~~~~~~~~~~~~~
 * Get metadata from SCI_RAW_SubArray instead of SCI_RAW_HkCe-SubArray

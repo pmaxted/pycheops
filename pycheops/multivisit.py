@@ -210,10 +210,10 @@ def _log_posterior(pos, lcs, rolls, models, modpars, noisemodel, priors, vn,
 
         p = f'L_{i+1:02d}'
         if p in vn:
-            modpar['L'].value = pos[vn.index(p)]
             # Exclude negative eclipse depths
-            if modpar['L'].value < 0: 
+            if pos[vn.index(p)] < 0: 
                 return -np.inf, -np.inf
+            modpar['L'].value = pos[vn.index(p)]
 
         # Update noisemodel parameters
         for p in ('log_sigma_w', 'log_omega0', 'log_S0', 'log_Q'):
@@ -708,11 +708,11 @@ class MultiVisit(object):
                 
             if edv:
                 t = f'L_{i+1:02d}'
-                params.add(t, 0)
+                params.add(t, vals['L'])
                 params[t].user_data = ufloat(vals['L'], edv_prior)
                 vn.append(t)
-                vv.append(0)
-                vs.append(1e-6)
+                vv.append(vals['L'])
+                vs.append(edv_prior)
                 priors[t] = params[t].user_data
                 
             for d in dfdp:
@@ -1192,7 +1192,7 @@ class MultiVisit(object):
         elif plotkeys is None:
             if self.__fittype__ == 'transit':
                 l = ['D', 'W', 'b', 'T_0', 'P', 'h_1', 'h_2']
-            elif 'L_1' in var_names:
+            elif 'L_01' in var_names:
                 l = ['D','W','b']+[f'L_{j+1:02d}' for j in range(n)]
             else:
                 l = ['L']+[f'c_{j+1:02d}' for j in range(n)]
@@ -1234,7 +1234,7 @@ class MultiVisit(object):
         if plotkeys == None:
             if self.__fittype__ == 'transit':
                 l = ['D', 'W', 'b', 'T_0', 'P', 'h_1', 'h_2']
-            elif 'L_1' in var_names:
+            elif 'L_01' in var_names:
                 l = ['D','W','b']+[f'L_{j+1:02d}' for j in range(n)]
             else:
                 l = ['L']+[f'c_{j+1:02d}' for j in range(n)]
