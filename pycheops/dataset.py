@@ -904,7 +904,7 @@ class Dataset(object):
                 np.nanmedian(flux_err), 1e6*np.nanmedian(flux_err)/fluxmed))
             print('Mean contamination = {:0.1f} ppm'.format(1e6*contam.mean()))
             print('Mean smearing correction = {:0.1f} ppm'.
-                    format(1e6*smear.mean()))
+                    format(1e6*smear.mean()/fluxmed))
             if np.max(np.abs(deltaT)) > 0:
                 f = interp1d([22.5, 25, 30, 40], [140,200,330,400],
                         bounds_error=False, fill_value='extrapolate')
