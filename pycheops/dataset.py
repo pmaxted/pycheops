@@ -110,7 +110,7 @@ def _make_interp(t,x,scale=None):
     elif scale == 'max':
         z = (x-min(x))/np.ptp(x) 
     elif scale == 'range':
-        z = (x-np.median(x))/np.ptp(x)
+        z = (2*x-(x.min()+x.max()))/np.ptp(x)
     else:
         raise ValueError('scale must be None, max or range')
     return interp1d(t,z,bounds_error=False, fill_value=(z[0],z[-1]))

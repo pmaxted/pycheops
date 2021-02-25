@@ -1,7 +1,15 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-0.9.9 
+0.9.10 (2021-02-08)
+~~~~~~~~~~~~~~~~~~~
+* Improve output from utils.parprint for very large/small values
+* Changed definition of delta-x and delta-y used in decorrelation so that
+  dfdx and dfdy are more closely related to magnitude of the instrumental
+  noise in the light curve correlated with x and y (~factor 2 change).
+* Changed default upper limit on b in Multivisit from 1 to 1.5
+
+0.9.9 (2021-02-04)
 ~~~~~~~~~~~~~~~~~~
 * BUG FIX - unwrap option was not working correctly in MultiVisit - only
   dfdcosphi and dfdsinphi terms were used 
