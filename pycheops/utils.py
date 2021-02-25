@@ -30,8 +30,67 @@ Functions
 from __future__ import (absolute_import, division, print_function,
                                 unicode_literals)
 import numpy as np
+from uncertainties import ufloat
 
-__all__ = [ 'parprint', 'lcbin', 'phaser', 'mode']
+__all__ = ['uprint', 'parprint', 'lcbin', 'phaser', 'mode']
+
+def uprint(u, n, w=8, sf=2, wn=None, indent=1, short=False, asym=True):
+    """
+    Print the value and error of a ufloat
+
+    The number of decimal places in the value and error are set such that the
+    error has the specified number of significant figures. If the error is 0
+    the output will have sf decimal places. 
+
+    :param u:      ufloat 
+    :param n:      parameter name
+    :param w:      field width for values
+    :param wn:     field width for name
+    :param sf:     number of sig. fig. in the error
+    :param indent: number of spaces before text
+
+    :returns: formatted string
+
+    """
+    if wn is None:
+        wn = len(n)+1
+    val = u.n
+    err = u.s
+    ndp = sf if err == 0 else sf - np.int(np.floor(np.log10(err))) - 1
+    if ndp < 0:
+        b = 10**(-ndp-1)
+        val = round(val/b)*b
+        err = round(err/b)*b
+    else:
+        val = round(val,ndp)
+        err = round(err,ndp)
+    if ndp > (w-2):
+        f='{:{wn}s} = {:{w}.{sf}e} +/- {:{w}.1e}'
+        s = f.format(n, val,err,sf=sf,w=w,wn=wn)
+    elif (ndp > 0) and short:
+        if ndp < sf:
+            b = 10**(sf-ndp)
+        else:
+            b = 10**ndp
+        err = round(err,ndp)*b
+        
+        f='{:{wn}s} = {:{w}.{ndp}f} ({:{sf}.0f})'
+        s = f.format(n, val,err,ndp=ndp,w=w,wn=wn,sf=sf)
+    else:
+        if ndp >= 0:
+            f='{:{wn}s} = {:{w}.{ndp}f} +/- {:{w}.{ndp}f}'
+            s = f.format(n, val,err,ndp=ndp,w=w,wn=wn)
+        elif ndp > -sf-(w-6):
+            f='{:{wn}s} = {:{w}.0f} +/- {:{w}.0f}'
+            s = f.format(n, val,err,w=w,wn=wn)
+        else:
+            f='{:{wn}s} = {:{w}.{sf}e} +/- {:{w}.1e}'
+            s = f.format(n, val,err,sf=sf,w=w,wn=wn)
+
+    return " "*indent+s
+
+#----------
+
 
 def parprint(x,n, w=8, sf=2, wn=None, indent=4, short=False, asym=True):
     """
@@ -63,8 +122,7 @@ def parprint(x,n, w=8, sf=2, wn=None, indent=4, short=False, asym=True):
     e_lo = val - std_l
     ndp = sf if err == 0 else sf - np.int(np.floor(np.log10(err))) - 1
     if ndp < 0:
-        ndp = -ndp
-        b = 10**ndp
+        b = 10**(-ndp-1)
         val = round(val/b)*b
         err = round(err/b)*b
         e_lo = round(e_lo/b)*b
@@ -74,11 +132,22 @@ def parprint(x,n, w=8, sf=2, wn=None, indent=4, short=False, asym=True):
         err = round(err,ndp)
         e_lo = round(e_lo,ndp)
         e_hi = round(e_hi,ndp)
-    if short:
-        b = 10**ndp
+    if ndp > (w-2):
+        f='{:{wn}s} = {:{w}.{sf}e} +/- {:{w}.1e}'
+        if asym:
+            f+=' ({:+{w}.1e},{:+{w}.1e})'
+            s = f.format(n, val,err,-e_lo,e_hi,sf=sf,w=w,wn=wn)
+        else:
+            s = f.format(n, val,err,sf=sf,w=w,wn=wn)
+    elif (ndp > 0) and short:
+        if ndp < sf:
+            b = 10**(sf-ndp)
+        else:
+            b = 10**ndp
         err = round(err,ndp)*b
         e_lo = round(e_lo,ndp)*b
         e_hi = round(e_hi,ndp)*b
+        
         f='{:{wn}s} = {:{w}.{ndp}f} ({:{sf}.0f})'
         if asym:
             f+=' (-{:{sf}.0f},+{:{sf}.0f})'
@@ -86,12 +155,27 @@ def parprint(x,n, w=8, sf=2, wn=None, indent=4, short=False, asym=True):
         else:
             s = f.format(n, val,err,ndp=ndp,w=w,wn=wn,sf=sf)
     else:
-        f='{:{wn}s} = {:{w}.{ndp}f} +/- {:{w}.{ndp}f}'
-        if asym:
-            f+=' ({:+{w}.{ndp}f},{:+{w}.{ndp}f})'
-            s = f.format(n, val,err,-e_lo,e_hi,ndp=ndp,w=w,wn=wn)
+        if ndp >= 0:
+            f='{:{wn}s} = {:{w}.{ndp}f} +/- {:{w}.{ndp}f}'
+            if asym:
+                f+=' ({:+{w}.{ndp}f},{:+{w}.{ndp}f})'
+                s = f.format(n, val,err,-e_lo,e_hi,ndp=ndp,w=w,wn=wn)
+            else:
+                s = f.format(n, val,err,ndp=ndp,w=w,wn=wn)
+        elif ndp > -sf-(w-6):
+            f='{:{wn}s} = {:{w}.0f} +/- {:{w}.0f}'
+            if asym:
+                f+=' ({:+{w}.0f},{:+{w}.0f})'
+                s = f.format(n, val,err,-e_lo,e_hi,w=w,wn=wn)
+            else:
+                s = f.format(n, val,err,w=w,wn=wn)
         else:
-            s = f.format(n, val,err,ndp=ndp,w=w,wn=wn)
+            f='{:{wn}s} = {:{w}.{sf}e} +/- {:{w}.1e}'
+            if asym:
+                f+=' ({:+{w}.1e},{:+{w}.1e})'
+                s = f.format(n, val,err,-e_lo,e_hi,sf=sf,w=w,wn=wn)
+            else:
+                s = f.format(n, val,err,sf=sf,w=w,wn=wn)
 
     return " "*indent+s
 

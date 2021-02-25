@@ -832,7 +832,7 @@ class MultiVisit(object):
         priors = {} if extra_priors is None else extra_priors
         pmin = {'P':0, 'D':0, 'W':0, 'b':0, 'f_c':-1, 'f_s':-1,
                 'h_1':0, 'h_2':0}
-        pmax = {'D':0.2, 'W':0.2, 'b':1, 'f_c':1, 'f_s':1,
+        pmax = {'D':0.2, 'W':0.2, 'b':1.5, 'f_c':1, 'f_s':1,
                 'h_1':1, 'h_2':1}
         step = {'D':1e-4, 'W':1e-4, 'b':1e-2, 'P':1e-6, 'T_0':1e-4,
                 'f_c':1e-4, 'f_s':1e-3, 'h_1':1e-3, 'h_2':1e-2, 'ramp':50}
@@ -930,7 +930,7 @@ class MultiVisit(object):
         priors = {} if extra_priors is None else extra_priors
         pmin = {'P':0, 'D':0, 'W':0, 'b':0, 'f_c':-1, 'f_s':-1,
                 'L':0}
-        pmax = {'D':0.1, 'W':0.2, 'b':1, 'f_c':1, 'f_s':1,
+        pmax = {'D':0.1, 'W':0.2, 'b':1.5, 'f_c':1, 'f_s':1,
                 'L':0.1}
         step = {'D':1e-4, 'W':1e-4, 'b':1e-2, 'P':1e-6, 'T_0':1e-4,
                 'L':1e-5}
@@ -1036,7 +1036,7 @@ class MultiVisit(object):
         priors = {} if extra_priors is None else extra_priors
         pmin = {'P':0, 'D':0, 'W':0, 'b':0, 'f_c':-1, 'f_s':-1,
                 'h_1':0, 'h_2':0, 'L':0}
-        pmax = {'D':0.1, 'W':0.2, 'b':1, 'f_c':1, 'f_s':1,
+        pmax = {'D':0.1, 'W':0.2, 'b':1.5, 'f_c':1, 'f_s':1,
                 'h_1':1, 'h_2':1, 'L':0.1}
         step = {'D':1e-4, 'W':1e-4, 'b':1e-2, 'P':1e-6, 'T_0':1e-4,
                 'f_c':1e-4, 'f_s':1e-3, 'h_1':1e-3, 'h_2':1e-2, 'L':1e-5}
