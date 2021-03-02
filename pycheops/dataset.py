@@ -964,38 +964,60 @@ class Dataset(object):
 #----
 
     def animate_frames(self, nframes=10, vmin=1., vmax=1., subarray=True,
-            imagette=False, grid=False, writer='pillow'):
+             imagette=False, grid=False, aperture=None, writer='pillow',
+             figsize=(10,10), fontsize=12, linewidth=3):
+
+        if aperture is None:
+            aperture = self.ap_rad
 
         sub_anim, imag_anim = [], []
         for hindex, h in enumerate([subarray, imagette]):
             if h == True:
                 if hindex == 0:
-                    title = str(self.target) + " - subarray"
+                    if type(aperture) == str:
+                        title = str(self.target) + " - subarray - " + aperture
+                    else:
+                        title = str(self.target) + " - subarray - R = " + str(aperture) + " pix"
                     try:
                         frame_cube = self.get_subarrays()[::nframes,:,:]
+                        pltlims = 200
+                        cen_x = self.lc['table']['CENTROID_X'][::nframes]-self.lc['table']['LOCATION_X'][::nframes]+(pltlims/2)
+                        cen_y = self.lc['table']['CENTROID_Y'][::nframes]-self.lc['table']['LOCATION_Y'][::nframes]+(pltlims/2)
                     except:
                         print("\nNo subarray data.")
                         continue
                 if hindex == 1:
-                    title = str(self.target) + " - imagette"
+                    if type(aperture) == str:
+                        title = str(self.target) + " - imagette - " + aperture
+                    else:
+                        title = str(self.target) + " - imagette - R = " + str(aperture) + " pix"
                     try:
+                        pltlims = 50 
                         frame_cube = self.get_imagettes()[::nframes,:,:]
+                        cen_x = self.lc['table']['CENTROID_X'][::nframes]-self.lc['table']['LOCATION_X'][::nframes]+(pltlims/2)
+                        cen_y = self.lc['table']['CENTROID_Y'][::nframes]-self.lc['table']['LOCATION_Y'][::nframes]+(pltlims/2)
                     except:
                         print("\nNo imagette data.")
                         continue
             else:
                 continue
 
-            fig = plt.figure()
+            fig = plt.figure(figsize=figsize)
+            plt.rc('font', size=fontsize)
             plt.xlabel("Row (pixel)")
             plt.ylabel("Column (pixel)")
+            plt.xlim(-1,pltlims-1)
+            plt.ylim(-1,pltlims-1)
             plt.title(title)
             if grid:
                 ax = plt.gca()
                 ax.grid(color='w', linestyle='-', linewidth=1)
 
+
             frames = []
             for i in tqdm(range(len(frame_cube))):
+                ax = plt.gca()
+
                 if str(np.amin(frame_cube[i,:,:])) == "nan":
                     img_min = 0
                 else:
@@ -1005,11 +1027,40 @@ class Dataset(object):
                 else:
                     img_max = np.amax(frame_cube[i,:,:])
 
-                image = plt.imshow(frame_cube[i,:,:],
+                image = ax.imshow(frame_cube[i,:,:],
                         norm=colors.Normalize(vmin=vmin*img_min,
                             vmax=vmax*img_max),
                         origin="lower")
-                frames.append([image])
+
+                if aperture:
+                    xpos,ypos = cen_x[i],cen_y[i]
+                    if type(aperture) == int or type(aperture) == float:
+                        circle1 = plt.Circle((xpos,ypos), aperture, color='r', lw=linewidth, fill=False, clip_on=True)
+                        ax.add_patch(circle1)
+                    else:
+                        if aperture == "DEFAULT":
+                            aprad = 25
+                        elif aperture == "RINF":
+                            aprad = 22
+                        elif aperture == "RSUP":
+                            aprad = 30
+                        elif aperture == "OPTIMAL":
+                            lcFile = "{}-{}.fits".format(self.file_key,aperture)
+                            lcPath = Path(self.tgzfile).parent / lcFile
+                            if lcPath.is_file():
+                                with fits.open(lcPath) as hdul:
+                                    hdr = hdul[1].header
+                            else:
+                                tar = tarfile.open(self.tgzfile)
+                                r=re.compile('(.*_SCI_COR_Lightcurve-{}_.*.fits)'.format(aperture))
+                                datafile = list(filter(r.match, self.list))
+                                with tar.extractfile(datafile[0]) as fd:
+                                    hdul = fits.open(fd)
+                                    hdr = hdul[1].header
+                            aprad = hdr['AP_RADI']
+                        circle1 = plt.Circle((xpos,ypos), aprad, color='r', lw=linewidth, fill=False, clip_on=True)
+                        ax.add_patch(circle1)
+                frames.append([image,circle1])
 
             # Suppress annoying logger warnings from animation module
             logging.getLogger('matplotlib.animation').setLevel(logging.ERROR)
@@ -1037,6 +1088,7 @@ class Dataset(object):
             return imag_anim
         elif subarray and imagette:
             return sub_anim, imag_anim
+         
  #----------------------------------------------------------------------------
  
  # Eclipse and transit fitting
