@@ -488,7 +488,10 @@ def _GaiaDR2Match(row, fC, match_radius=1,  gaia_mag_tolerance=0.5,
         Gmag = row['Vmag'] + GV
 
     if abs(Gmag-DR2Table['phot_g_mean_mag'][idx]) > gaia_mag_tolerance:
-        print("Input values: V = {:5.2f}, SpTy = {} -> G_est = {:5.2f}"
+        if 'Gmag' in row.colnames:
+            print("Input value: G = ", Gmag)
+        else:
+            print("Input values: V = {:5.2f}, SpTy = {} -> G_est = {:5.2f}"
                 .format(row['Vmag'], row['SpTy'], Gmag))
         print("Catalogue values: G = {:5.2f}, Source = {}"
                 .format(DR2Table['phot_g_mean_mag'][idx], 
