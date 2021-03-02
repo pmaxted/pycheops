@@ -1122,14 +1122,17 @@ def main():
 
     print('#{}'.format(ObsReqNameHeader) + tstr.format(ObsReqNameHeader))
 
-    # String of coordinates, Vmag and SpTy to enable re-use of DR2 data
+    # String of coordinates, Vmag/Gmag and SpTy to enable re-use of DR2 data
     old_tag = None
     for row in table:
 
         coo = SkyCoord(row['_RAJ2000'],row['_DEJ2000'],
               frame='icrs',unit=(u.hourangle, u.deg))
 
-        tag = "{}, {}, {}".format(coo.to_string(), row['Vmag'], row['SpTy'])
+        if 'Gmag' in row.colnames:
+            tag = "{}, {}, {}".format(coo.to_string(), row['Gmag'], row['SpTy'])
+        else:
+            tag = "{}, {}, {}".format(coo.to_string(), row['Vmag'], row['SpTy'])
         if tag != old_tag:
             old_tag = tag
             DR2data,contam,flags,coords = _GaiaDR2Match(row, fC, rtol, gtol,
