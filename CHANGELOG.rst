@@ -8,6 +8,7 @@ Changes since 0.6.0 onwards.
   dfdx and dfdy are more closely related to magnitude of the instrumental
   noise in the light curve correlated with x and y (~factor 2 change).
 * Changed default upper limit on b in Multivisit from 1 to 1.5
+* Use Gaia G magnitude in XML files from make_xml_files
 
 0.9.9 (2021-02-04)
 ~~~~~~~~~~~~~~~~~~
