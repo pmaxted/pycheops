@@ -92,7 +92,7 @@ SpTypeToTeff = {
 
 # Define a query object for Gaia DR2
 _query = """SELECT source_id, ra, dec, parallax, pmra, pmdec, \
-phot_g_mean_mag, bp_rp FROM gaiadr2.gaia_source \
+phot_g_mean_mag, phot_g_mean_flux_over_error, bp_rp FROM gaiadr2.gaia_source \
 WHERE CONTAINS(POINT('ICRS',gaiadr2.gaia_source.ra,gaiadr2.gaia_source.dec), \
  CIRCLE('ICRS',{},{},0.0666))=1 AND (phot_g_mean_mag<=16.5); \
 """
@@ -165,11 +165,11 @@ _xml_time_critical_fmt = """<?xml version="1.0" encoding="UTF-8"?>
         <!--  PHT2, CHEOPSim : set the target spectral type  -->
         <Spectral_Type>{}V</Spectral_Type>
 
-        <!--  PHT2, FC, CHEOPSim : set the target V-band magnitude  -->
-        <Target_Vmagnitude unit="mag">{:0.2f}</Target_Vmagnitude>
+        <!--  PHT2, FC, CHEOPSim : set the target Gaia G-band magnitude  -->
+        <Target_Gmagnitude unit="mag">{:0.2f}</Target_Gmagnitude>
 
-        <!--  PHT2, CHEOPSim : set the target V-band magnitude error  -->
-        <Target_Vmagnitude_Error unit="mag">{:0.2f}</Target_Vmagnitude_Error>
+        <!--  PHT2, CHEOPSim : set the target Gaia G-band magnitude error  -->
+        <Target_Gmagnitude_Error unit="mag">{:0.2f}</Target_Gmagnitude_Error>
 
         <!--  PHT2, CHEOPSim : set the readout mode  -->
         <Readout_Mode>{}</Readout_Mode>
@@ -331,11 +331,11 @@ _xml_non_time_critical_fmt = """<?xml version="1.0" encoding="UTF-8"?>
         <!--  PHT2, CHEOPSim : set the target spectral type  -->
         <Spectral_Type>{}V</Spectral_Type>
     
-        <!--  PHT2, FC, CHEOPSim : set the target V-band magnitude  -->
-        <Target_Vmagnitude unit="mag">{:0.2f}</Target_Vmagnitude>
-    
-        <!--  PHT2, CHEOPSim : set the target V-band magnitude error  -->
-        <Target_Vmagnitude_Error unit="mag">{:0.2f}</Target_Vmagnitude_Error>
+        <!--  PHT2, FC, CHEOPSim : set the target Gaia G-band magnitude  -->
+        <Target_Gmagnitude unit="mag">{:0.2f}</Target_Gmagnitude>
+
+        <!--  PHT2, CHEOPSim : set the target Gaia G-band magnitude error  -->
+        <Target_Gmagnitude_Error unit="mag">{:0.2f}</Target_Gmagnitude_Error>
     
         <!--  PHT2, CHEOPSim : set the readout mode  -->
         <Readout_Mode>{}</Readout_Mode>
@@ -463,6 +463,7 @@ def _GaiaDR2Match(row, fC, match_radius=1,  gaia_mag_tolerance=0.5,
     DR2Table['pmra'].unit = 'mas / yr'
     DR2Table['pmdec'].unit = 'mas / yr'
 
+
     cat = SkyCoord(DR2Table['ra'],DR2Table['dec'],
             frame='icrs',
             distance=Distance(parallax=DR2Table['parallax'].quantity),
@@ -478,11 +479,19 @@ def _GaiaDR2Match(row, fC, match_radius=1,  gaia_mag_tolerance=0.5,
         GV = SpTypeToGminusV[key]
     except TypeError:
         flags += 1024
-        GV = 0.0
-    Gmag = row['Vmag'] + GV
+        GV = -0.15
+    try:
+        Gmag = float(row['Gmag'])
+    except ValueError:
+        raise ValueError('Invalid Gmag value ',row['Gmag'])
+    except KeyError:
+        Gmag = row['Vmag'] + GV
 
     if abs(Gmag-DR2Table['phot_g_mean_mag'][idx]) > gaia_mag_tolerance:
-        print("Input values: V = {:5.2f}, SpTy = {} -> G_est = {:5.2f}"
+        if 'Gmag' in row.colnames:
+            print("Input value: G = ", Gmag)
+        else:
+            print("Input values: V = {:5.2f}, SpTy = {} -> G_est = {:5.2f}"
                 .format(row['Vmag'], row['SpTy'], Gmag))
         print("Catalogue values: G = {:5.2f}, Source = {}"
                 .format(DR2Table['phot_g_mean_mag'][idx], 
@@ -685,8 +694,8 @@ def _parcheck_time_critical(Priority, MinEffDur,
     return _parcheck_non_time_critical(Priority, MinEffDur, Earliest_start_date,
         Latest_end_date)
 
-def _target_table_row_to_xml(row, 
-        progamme_id=0, proprietary_first=547, proprietary_last=365):
+def _target_table_row_to_xml(row, progamme_id=0,
+        proprietary_first=547, proprietary_last=365, user_g_mag=False):
 
     period = row['Period'] 
     t_exp = row['T_exp']
@@ -699,7 +708,13 @@ def _target_table_row_to_xml(row,
             pm_dec=row['pmdec']*u.mas/u.yr )
     radeg = float(c.to_string(precision=5).split()[0])
     dedeg = float(c.to_string(precision=5).split()[1])
-    
+
+    if user_g_mag:
+        gmag = row['Gmag']
+        e_gmag = row['e_Gmag']
+    else:
+        gmag = row['dr2_g_mag']
+        e_gmag = row['e_dr2_g_mag']
 
     if period > 0:
         error = _parcheck_time_critical(
@@ -718,7 +733,7 @@ def _target_table_row_to_xml(row,
               _creation_time_string(),
               progamme_id, proprietary_first, proprietary_last,
               row['Target'], row['Gaia_DR2'], row['SpTy'],
-              row['Vmag'], row['e_Vmag'], 
+              gmag, e_gmag,
               _choose_romode(t_exp),
               radeg, dedeg, row['pmra'], row['pmdec'],
               row['parallax'], row['T_eff'], 
@@ -746,7 +761,7 @@ def _target_table_row_to_xml(row,
               _creation_time_string(),
               progamme_id, proprietary_first, proprietary_last,
               row['Target'], row['Gaia_DR2'], row['SpTy'],
-              row['Vmag'], row['e_Vmag'], 
+              gmag, e_gmag,
               _choose_romode(t_exp),
               radeg, dedeg, row['pmra'], row['pmdec'],
               row['parallax'], row['T_eff'],
@@ -771,17 +786,23 @@ def main():
         The target for each observation is defined by the input _RAJ2000 and
         _DEJ2000 coordinates. There must be a matching source in Gaia DR2 for
         each input coordinate. The G-band magnitude of the source must also
-        match the G-band magnitude estimated from Vmag and SpTy. The following
-        table is an abbreviated version of the look-up table used to estimate
-        the G-band magnitude from  Vmag and SpTy.
+        match the G-band magnitude provided in the input table, or estimated
+        from Vmag and SpTy from the same table if Gmag is not given. The
+        following table is an abbreviated version of the look-up table used to
+        estimate the G-band magnitude from  Vmag and SpTy.
 
-          SpTy G-V             SpTy G-V
-          -----------          -----------
-          A0   -0.019          K0   -0.229
-          F0   -0.078          K5   -0.453
-          F5   -0.109          M0   -0.997
-          G0   -0.153          M5   -2.979
-          G5   -0.181          M9   -3.337
+          SpTy G-V    Teff/K
+          ------------------
+          A0   -0.019   9700
+          F5   -0.109   6510
+          G5   -0.181   5660
+          K0   -0.229   5280
+          M0   -0.997   3870
+          M9   -3.337   2400
+
+        N.B. An estimate of the spectral type is needed in any case for
+        observation requests because accurate flat-fielding requires an
+        estimate of the star's effective temperature.
 
         The input table can be any format suitable for reading with the
         command astropy.table.Table.read(), e.g., CSV.
@@ -793,14 +814,19 @@ def main():
          _RAJ2000   - right ascension, ICRS epoch J2000.0, hh:mm:ss.ss
          _DEJ2000   - declination, ICRS epoch J2000.0, +dd:mm:ss.s
          SpTy       - spectral type (any string starting [AFGKM][0-9])
-         Vmag       - V-band magnitude
-         e_Vmag     - error in V-band magnitude
          BJD_early  - earliest start date (BJD)
          BJD_late   - latest start date (BJD) 
          T_visit    - visit duration in seconds
          N_Visits   - number of requested visits
          Priority   - 1, 2 or 3 
          MinEffDur  - minimum on-source time, percentage of T_visit (integer)
+
+         In addition, the input table must specify either ...
+         Gmag       - G-band magnitude
+         e_Gmag     - error in g-band magnitude
+         ... or ...
+         Vmag       - V-band magnitude
+         e_Vmag     - error in V-band magnitude
 
         If the flag --ignore-gaia-id-check is not specified on the command
         line then the following column is also required.
@@ -869,7 +895,7 @@ def main():
              +  8192 = Acquisition warning, brighter star within 51"-180"
              +  4096 = Contamination error, Contam > 1
              +  2048 = Contamination warning, Contam = 0.1 - 1
-             +  1024 = No spectral type match, assuming G-V = 0 
+             +  1024 = No spectral type match, assuming G-V = -0.15
              +  512 = Visibility error, efficiency = 0
              +  256 = Visibility warning, efficiency < 50%
              +  128 = Exposure time error - target will be saturated
@@ -913,6 +939,17 @@ def main():
         help= '''
         Tolerance in magnitudes for Gaia DR2 cross-match (default:
         %(default)3.1f)
+        '''
+    )
+
+    parser.add_argument('-u', '--use_gaia_mag_from_table', 
+        action='store_const',
+        dest='user_g_mag',
+        const=True,
+        default=False,
+        help='''
+        Use Gaia magnitude from the input table instead of Gaia DR2 value for
+        calculation and in the output XML file.
         '''
     )
 
@@ -1030,7 +1067,7 @@ def main():
         except KeyError:
             table[key] = -1
 
-    for key in ('pmra', 'pmdec', 'parallax'):
+    for key in ('pmra', 'pmdec', 'parallax', 'dr2_g_mag', 'e_dr2_g_mag'):
         try:
             table['Old_{}'.format(key)] = table[key]
         except KeyError:
@@ -1088,14 +1125,17 @@ def main():
 
     print('#{}'.format(ObsReqNameHeader) + tstr.format(ObsReqNameHeader))
 
-    # String of coordinates, Vmag and SpTy to enable re-use of DR2 data
+    # String of coordinates, Vmag/Gmag and SpTy to enable re-use of DR2 data
     old_tag = None
     for row in table:
 
         coo = SkyCoord(row['_RAJ2000'],row['_DEJ2000'],
               frame='icrs',unit=(u.hourangle, u.deg))
 
-        tag = "{}, {}, {}".format(coo.to_string(), row['Vmag'], row['SpTy'])
+        if 'Gmag' in row.colnames:
+            tag = "{}, {}, {}".format(coo.to_string(), row['Gmag'], row['SpTy'])
+        else:
+            tag = "{}, {}, {}".format(coo.to_string(), row['Vmag'], row['SpTy'])
         if tag != old_tag:
             old_tag = tag
             DR2data,contam,flags,coords = _GaiaDR2Match(row, fC, rtol, gtol,
@@ -1110,6 +1150,8 @@ def main():
         row['pmra'] = DR2data['pmra']
         row['pmdec'] = DR2data['pmdec']
         row['parallax'] = DR2data['parallax']
+        row['dr2_g_mag'] = DR2data['phot_g_mean_mag']
+        row['e_dr2_g_mag'] = 1.086/DR2data['phot_g_mean_flux_over_error']
 
         try:
             if row['Old_T_eff'] <= 0:
@@ -1124,7 +1166,10 @@ def main():
                 row['T_eff'] = 5999
 
         _T = row['T_eff']
-        _G = DR2data['phot_g_mean_mag']
+        if args.user_g_mag:
+            _G = row['Gmag']
+        else:
+            _G = DR2data['phot_g_mean_mag']
         if args.auto_expose:
             row['T_exp'] = exposure_time(_G, _T, 
                     frac=args.scaling_factor_percent/100)
@@ -1145,7 +1190,8 @@ def main():
         f.write(_target_table_row_to_xml(row,
                     progamme_id=args.programme_id, 
                     proprietary_first=args.proprietary_first,
-                    proprietary_last=args.proprietary_last)
+                    proprietary_last=args.proprietary_last,
+                    user_g_mag=args.user_g_mag)
             )
         f.close()
 
@@ -1157,6 +1203,7 @@ def main():
 
         c_tot, c_av, c_max = count_rate(_G, row['T_exp'])
         print(TerminalOutputFormat.format( row['ObsReqName'],
-            DR2data['source_id'], _G, coords.ra.degree, coords.dec.degree,
+            DR2data['source_id'], DR2data['phot_g_mean_mag'],
+            coords.ra.degree, coords.dec.degree,
             contam, vis, row['T_exp'],flags, c_tot, 100*frac, duty, img, igt))
 

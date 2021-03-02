@@ -1,20 +1,52 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.9.10 (2021-02-08)
+~~~~~~~~~~~~~~~~~~~
+* Improve output from utils.parprint for very large/small values
+* Changed definition of delta-x and delta-y used in decorrelation so that
+  dfdx and dfdy are more closely related to magnitude of the instrumental
+  noise in the light curve correlated with x and y (~factor 2 change).
+* Changed default upper limit on b in Multivisit from 1 to 1.5
+* Use Gaia G magnitude in XML files from make_xml_files
+
+0.9.9 (2021-02-04)
+~~~~~~~~~~~~~~~~~~
+* BUG FIX - unwrap option was not working correctly in MultiVisit - only
+  dfdcosphi and dfdsinphi terms were used 
+* BUG FIX - MultiVisit residuals arrays were calculated and plotted 
+  incorrectly
+* Added return_values option to Dataset.transit_noise_plot() (#197)
+* Enable fitting of datasets from older version missing deltaT in Dataset
+* Fix bug in MultiVisit where mixture of datasets with/without glint functions
+  would not load (#164)
+* Fix bug in reporting smear correction for Dataset.get_lightcurve()
+* Added iteration limit to initialisation of walkers in MultiVisit
+* Changed default upper limit on W to 0.2 in MultiVisit
+* Exclude negative eclipse depths for MultiVisit.fit_eclipse with etv=True
+* Improved initialisation of individual eclipse depths for
+  MultiVisit.fit_eclipse with etv=True  
+* Added html version of WASP-189 and KELT-11b notebooks to examples/Notebooks
+
+0.9.8 (2021-01-20)
+~~~~~~~~~~~~~~~~~~
+* Get metadata from SCI_RAW_SubArray instead of SCI_RAW_HkCe-SubArray
+* Exclude negative fluxes when loading light curve in Dataset
+
 0.9.7 (2020-12-24)
 ~~~~~~~~~~~~~~~~~~
 * Added metadata to dataset (#93)
 * Added correct_ramp to dataset
 * Added ramp parameter to dataset.fit_transit and fit_eclipse.
-* Added ramp to multivisit
+* Added ramp to MultiVisit
 * AIC and BIC now correct and consistent for all fitting methods (#177)
-* Improve selction of min/max values for parameters in Multivisit
+* Improve selction of min/max values for parameters in MultiVisit
 * Changes for DRP13 compatibility.
 * Reduced the number Notebooks in examples/Notebooks
 * Added WASP-189.ipynb to examples/Notebooks 
 * Added predicted amplitude of ramp to output of dataset.get_lightcurve
-* Added data_ylim and res_ylim keywords to Multivisit.plot_fit().
-* Improved calculation of y-axis limits for Multivisit.plot_fit() if
+* Added data_ylim and res_ylim keywords to MultiVisit.plot_fit().
+* Improved calculation of y-axis limits for MultiVisit.plot_fit() if
   res_offset=0
 * Added observing efficiency, etc. to dataset.get_lightcurve verbose output.
 * Added return_samples option to MultiVisit.massradius()
@@ -23,9 +55,9 @@ Changes since 0.6.0 onwards.
 0.9.6 (2020-11-24)
 ~~~~~~~~~~~~~~~~~~
 * Force user to set decontaminate option in dataset.get_lightcurve()
-* Add "thin" keyword option to multivisit fit routines.
+* Add "thin" keyword option to MultiVisit fit routines.
 * Added return_nan_on_error to tzero2tperi and used it in funcs/models
-* Added acceptance_fraction to multivisit output result
+* Added acceptance_fraction to MultiVisit output result
 * Updated diagnostic plots to show contamination and smear
 * Updated examples/Notebooks/KELT11b-tutorial.ipynb
 * Flux normalisation now done after high point rejection. (#166)
@@ -41,7 +73,7 @@ Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~
 * Changed calculation of _log_prior in dataset to allow fitting of grazing
   transits with 1 < b < 1+k
-* Changed the way min/max values of parameters are handled in multivisit to
+* Changed the way min/max values of parameters are handled in MultiVisit to
   enable user-defined values to be set via keyword arguments.  
 * Correct docstring for h1h2_to_q1q2
 * dataset.get_lightcurve, require user to specify decontaminate True or False
@@ -57,7 +89,7 @@ Changes since 0.6.0 onwards.
 * Removes autograd from requirements in setup.py
 * Added solar options to funcs.massradius()
 * Changed default thin=4 to thin=1 in dataset.emcee_sampler()
-* Fixed bug in Multivisit for default log_Q value (#155)
+* Fixed bug in MultiVisit for default log_Q value (#155)
 * Added PlanetProperties
 * Updated KELT-11b-tutorial.ipynb to show use of PlanetProperties
 * Update example TESS notebooks to celerite2
@@ -70,48 +102,48 @@ Changes since 0.6.0 onwards.
 0.9.0 (2020-09-09)
 ~~~~~~~~~~~~~~~~~~
 * Added tqdm to requirements in setup.py
-* Added "unwrap" option to Multivisit fit routines fit_transit(), etc. 
+* Added "unwrap" option to MultiVisit fit routines fit_transit(), etc. 
 * Set mean value of glint function to 0 in dataset.add_glint().
-* Fixed bug with evaluation of glint function in Multivisit 
-* Fixed bug in Multivisit.plot_fit() - model plotted using old parameters
+* Fixed bug with evaluation of glint function in MultiVisit 
+* Fixed bug in MultiVisit.plot_fit() - model plotted using old parameters
 
 0.8.5 (2020-09-02)
 ~~~~~~~~~~~~~~~~~~
 * Added funcs.tperi2tzero() and funcs.eclipse_phase()
 * Added "Bayes factors" section to dataset.lmfit_report()
-* Added multivisit.fit_eblm
+* Added MultiVisit.fit_eblm
 * Added pycheops/examples/Notebooks/KELT-11b-tutorial.ipynb
 
 0.8.4 (2020-08-30)
 ~~~~~~~~~~~~~~~~~~
 * Fix parameter hint prefix problem in models (#141)
-* Fix -ve offset ylimit problem in multivisit (#139)
+* Fix -ve offset ylimit problem in MultiVisit (#139)
 * Added warning is failed to update TEPCat in funcs.massradius (#137)
-* Fix bug in dataset and multivisit if only 1 variable in trailplot (#130)
+* Fix bug in dataset and MultiVisit if only 1 variable in trailplot (#130)
   
 0.8.3 (2020-07-30)
 ~~~~~~~~~~~~~~~~~~
 * Fix astype(int) problem in __init__.py for windows users
-* Fix bug in multivisit where priors on derived parameter were ignored.
+* Fix bug in MultiVisit where priors on derived parameter were ignored.
   
 0.8.2 (2020-07-26)
 ~~~~~~~~~~~~~~~~~~
-* Read datasets into multivisit object in a logical order (#133)
-* Update T0 in dataset.emcee.params_best and dataset.emcee.chain in multivisit
+* Read datasets into MultiVisit object in a logical order (#133)
+* Update T0 in dataset.emcee.params_best and dataset.emcee.chain in MultiVisit
 * Fix copy.copy bug in dataset.should_I_decorr() 
 
 0.8.1 (2020-06-29)
 ~~~~~~~~~~~~~~~~~~
-* Added multivisit.ttv_plot()
-* Changed parameter names to ttv_01, L_01, etc. in multivisit to cope with
-  multivisit objects with >9 datasets.
-* Added min/max values from params to modpars in multivisit
-* multivisit datadir join bug fix
-* Fixed title keyword option in multivisit.plot_fit()
+* Added MultiVisit.ttv_plot()
+* Changed parameter names to ttv_01, L_01, etc. in MultiVisit to cope with
+  MultiVisit objects with >9 datasets.
+* Added min/max values from params to modpars in MultiVisit
+* MultiVisit datadir join bug fix
+* Fixed title keyword option in MultiVisit.plot_fit()
 
 0.8.0 (2020-06-28)
 ~~~~~~~~~~~~~~~~~~
-* Added Multivisit class
+* Added MultiVisit class
 * Added load() and save() to dataset
 * Added dace keywords to StarProperties
 * Added option to set user-defined values using a 2-tuple in StarProperties 

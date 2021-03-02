@@ -119,6 +119,7 @@ setup(
     entry_points={
         'console_scripts': [
             'make_xml_files=pycheops.make_xml_files:main',
+            'combine=pycheops.combine:main',
         ],
     },
 

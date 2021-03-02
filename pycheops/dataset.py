@@ -72,6 +72,7 @@ from IPython.display import Image
 import subprocess
 import pickle
 import warnings
+from astropy.units import UnitsWarning
 
 try:
     from dace.cheops import Cheops
@@ -109,7 +110,7 @@ def _make_interp(t,x,scale=None):
     elif scale == 'max':
         z = (x-min(x))/np.ptp(x) 
     elif scale == 'range':
-        z = (x-np.median(x))/np.ptp(x)
+        z = (2*x-(x.min()+x.max()))/np.ptp(x)
     else:
         raise ValueError('scale must be None, max or range')
     return interp1d(t,z,bounds_error=False, fill_value=(z[0],z[-1]))
@@ -406,7 +407,7 @@ class Dataset(object):
                 self.metadata = Table.read(metaPath)
             else:
                 tar = tarfile.open(self.tgzfile)
-                r=re.compile('(.*SCI_RAW_HkCe-SubArray.*.fits)')
+                r=re.compile('(.*SCI_RAW_SubArray.*.fits)')
                 metafile = list(filter(r.match, self.list))
                 if len(metafile) > 1:
                     raise Exception('Multiple metadata files in datset')
@@ -416,9 +417,12 @@ class Dataset(object):
                 else:
                     with tar.extractfile(metafile[0]) as fd:
                         hdul = fits.open(fd)
-                        table = Table.read(hdul[1])
-                        hdr = hdul[1].header
-                        hdul.writeto(metaPath)
+                        table = Table.read(hdul,hdu='SCI_RAW_ImageMetadata')
+                        hdr = hdul['SCI_RAW_ImageMetadata'].header
+                        with warnings.catch_warnings():
+                            warnings.filterwarnings("ignore",
+                                    category=UnitsWarning)
+                            table.write(metaPath)
                     tar.close()
                     self.metadata = Table.read(metaPath)
 
@@ -784,7 +788,7 @@ class Dataset(object):
         :param verbose:
 
         The offset of the telescope tube temperature from its nominal value 
-        (CE_thermFront_2 + 12) is stored in dataset.lc['deltaT']
+        (thermFront_2 + 12) is stored in dataset.lc['deltaT']
 
         """
 
@@ -817,7 +821,8 @@ class Dataset(object):
                 hdul.writeto(lcPath)
             if verbose: print('Saved lc data to ',lcPath)
 
-        ok = (table['EVENT'] == 0) | (table['EVENT'] == 100) 
+        ok = (((table['EVENT'] == 0) | (table['EVENT'] == 100))
+                & (table['FLUX']>0))
         m = np.isnan(table['FLUX'])
         if sum(m) > 0:
             msg = "Light curve contains {} NaN values".format(sum(m))
@@ -839,7 +844,7 @@ class Dataset(object):
         except:
             smear = np.zeros_like(bjd)
         try:
-            deltaT = np.array(self.metadata['CE_thermFront_2'][ok]) + 12
+            deltaT = np.array(self.metadata['thermFront_2'][ok]) + 12
         except:
             deltaT = np.zeros_like(bjd)
         ap_rad = hdr['AP_RADI']
@@ -899,7 +904,7 @@ class Dataset(object):
                 np.nanmedian(flux_err), 1e6*np.nanmedian(flux_err)/fluxmed))
             print('Mean contamination = {:0.1f} ppm'.format(1e6*contam.mean()))
             print('Mean smearing correction = {:0.1f} ppm'.
-                    format(1e6*smear.mean()))
+                    format(1e6*smear.mean()/fluxmed))
             if np.max(np.abs(deltaT)) > 0:
                 f = interp1d([22.5, 25, 30, 40], [140,200,330,400],
                         bounds_error=False, fill_value='extrapolate')
@@ -1044,6 +1049,10 @@ class Dataset(object):
             smear = self.lc['smear']
         except KeyError:
             smear = np.zeros_like(time)
+        try:
+            deltaT = self.lc['deltaT']
+        except KeyError:
+            deltaT = np.zeros_like(time)
         return FactorModel(
             dx = _make_interp(time, self.lc['xoff'], scale='range'),
             dy = _make_interp(time, self.lc['yoff'], scale='range'),
@@ -1052,7 +1061,7 @@ class Dataset(object):
             bg = _make_interp(time,self.lc['bg'], scale='max'),
             contam = _make_interp(time,self.lc['contam'], scale='max'),
             smear = _make_interp(time,smear, scale='max'),
-            deltaT = _make_interp(time,self.lc['deltaT']) )
+            deltaT = _make_interp(time,deltaT) )
 
 
     #---
@@ -2223,7 +2232,7 @@ class Dataset(object):
                 ax[0].plot(tp,pp,c='saddlebrown',zorder=1)
             for i in np.linspace(0,nchain,nsamples,endpoint=False,
                     dtype=np.int):
-                for j, n in enumerate(self.var_names):
+                for j, n in enumerate(self.emcee.var_names):
                     partmp[n].value = self.emcee.chain[i,j]
                 rr = flux0 - model.eval(partmp, t=time)
                 kernel = SHOTerm(
@@ -2607,8 +2616,15 @@ class Dataset(object):
 # Data display and diagnostics
 
     def transit_noise_plot(self, width=3, steps=500,
-            fname=None, figsize=(6,4), fontsize=11,
+            fname=None, figsize=(6,4), fontsize=11, return_values=False,
             requirement=None, local=False, verbose=True):
+        """
+        Transit noise plot
+
+        fname: to specify an output file for the plot
+        return_values: return a dictionary of statistics - noise in ppm
+
+        """
 
         try:
             time = np.array(self.lc['time'])
@@ -2685,6 +2701,19 @@ class Dataset(object):
             plt.show()
         else:
             plt.savefig(fname)
+
+        if return_values:
+            d = {}
+            d['Scaled noise, mean noise'] = Nsc.mean()
+            d['Scaled noise, min. noise'] = Nsc.min()
+            d['Scaled noise, max. noise'] = Nsc.max()
+            d['Scaled noise, mean scaling factor'] = Fsc.mean()
+            d['Scaled noise, min. scaling factor'] = Fsc.min()
+            d['Scaled noise, max. scaling factor'] = Fsc.max()
+            d['Minimum error, mean noise'] = Nmn.mean()
+            d['Minimum error, min. noise'] = Nmn.min()
+            d['Minimum error, max. noise'] = Nmn.max()
+            return d
         
     #------
 
