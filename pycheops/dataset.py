@@ -980,9 +980,9 @@ class Dataset(object):
                         title = str(self.target) + " - subarray - R = " + str(aperture) + " pix"
                     try:
                         frame_cube = self.get_subarrays()[::nframes,:,:]
-                        cen_x = self.lc['table']['CENTROID_X'][::nframes]-self.lc['table']['LOCATION_X'][::nframes]+100
-                        cen_y = self.lc['table']['CENTROID_Y'][::nframes]-self.lc['table']['LOCATION_Y'][::nframes]+100
                         pltlims = 200
+                        cen_x = self.lc['table']['CENTROID_X'][::nframes]-self.lc['table']['LOCATION_X'][::nframes]+(pltlims/2)
+                        cen_y = self.lc['table']['CENTROID_Y'][::nframes]-self.lc['table']['LOCATION_Y'][::nframes]+(pltlims/2)
                     except:
                         print("\nNo subarray data.")
                         continue
@@ -992,10 +992,10 @@ class Dataset(object):
                     else:
                         title = str(self.target) + " - imagette - R = " + str(aperture) + " pix"
                     try:
+                        pltlims = 50 
                         frame_cube = self.get_imagettes()[::nframes,:,:]
-                        cen_x = self.lc['table']['CENTROID_X'][::nframes]-self.lc['table']['LOCATION_X'][::nframes]+25
-                        cen_y = self.lc['table']['CENTROID_Y'][::nframes]-self.lc['table']['LOCATION_Y'][::nframes]+25
-                        pltlims = 50
+                        cen_x = self.lc['table']['CENTROID_X'][::nframes]-self.lc['table']['LOCATION_X'][::nframes]+(pltlims/2)
+                        cen_y = self.lc['table']['CENTROID_Y'][::nframes]-self.lc['table']['LOCATION_Y'][::nframes]+(pltlims/2)
                     except:
                         print("\nNo imagette data.")
                         continue
@@ -1014,7 +1014,7 @@ class Dataset(object):
                 ax.grid(color='w', linestyle='-', linewidth=1)
 
 
-            frames,circles = [],[]
+            frames = []
             for i in tqdm(range(len(frame_cube))):
                 ax = plt.gca()
 
@@ -1066,7 +1066,7 @@ class Dataset(object):
             logging.getLogger('matplotlib.animation').setLevel(logging.ERROR)
             if hindex == 0:
                 sub_anim = animation.ArtistAnimation(fig, frames, blit=True)
-                sub_anim.save(title.replace(" ","")+".gif", writer="pillow")
+                sub_anim.save(title.replace(" ","")+'.gif', writer=writer)
                 with open(title.replace(" ","")+'.gif','rb') as file:
                     display(Image(file.read()))
                 print("Subarray is saved in the current directory as " +
@@ -1074,7 +1074,7 @@ class Dataset(object):
 
             elif hindex == 1:
                 imag_anim = animation.ArtistAnimation(fig, frames, blit=True)
-                imag_anim.save(title.replace(" ","")+".gif", writer="pillow")
+                imag_anim.save(title.replace(" ","")+'.gif', writer=writer)
                 with open(title.replace(" ","")+'.gif','rb') as file:
                     display(Image(file.read()))
                 print("Imagette is saved in the current directory as " +
