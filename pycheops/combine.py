@@ -45,27 +45,29 @@ from numba import jit
 def combine(y, yerr, walkers=64, steps=256, discard=128):
 
     @jit(nopython=True)
-    def log_prob(p, y, yvar, mulo, muhi):
+    def log_prob(p, y, yvar, mulo, muhi, lnsig_lo, lnsig_hi):
         mu = p[0]
-        if mu < mulo: return -np.inf
-        if mu > muhi: return -np.inf
-        if (p[1] > 99) or (p[1] < -99): return -np.inf
-        sigvar = np.exp(2*p[1])
-        sigma2 = yvar + sigvar 
+        lnsig = p[1]
+        if (mu < mulo0 or (mu > muhi): return -np.inf
+        if (lnsig > lnsig_lo) or (lnsig < lnsig_hi): return -np.inf
+        sigma2 = yvar + np.exp(2*lnsig)
         return -0.5 * np.sum((y - mu)**2/sigma2 + np.log(sigma2))
 
     mulo = y.min() - yerr.max()
     muhi = y.max() + yerr.max()
     mu_i = np.random.normal(y.mean(),y.std()+yerr.min(), walkers)
     mu_i = np.clip(mu_i, mulo, muhi)
-    lnsig_i = np.random.normal(np.log( 1e-3*(y.std()+yerr.min())),1,walkers)
-    lnsig_i = np.clip(lnsig_i, -99, 99)
+    lnsig_0 = np.log(y.std()+yerr.min())
+    lnsig_lo = lnsig_0 - 15
+    lnsig_hi = lnsig_0 + 5
+    lnsig_i = np.random.normal(lnsig_0-5,1,walkers)
+    lnsig_i = np.clip(lnsig_i, lnsig_lo, lnsig_hi)
     pos = np.array( [mu_i, lnsig_i]).T
     nwalkers, ndim = pos.shape
 
     yvar = yerr**2
     sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob,
-            args=(y, yvar, mulo, muhi))
+            args=(y, yvar, mulo, muhi, lnsig_lo, lnsig_hi))
     sampler.run_mcmc(pos, steps)
     chain = sampler.get_chain(flat=True, discard=discard)
 
