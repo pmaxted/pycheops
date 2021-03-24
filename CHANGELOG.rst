@@ -1,8 +1,9 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-0.9.10 (2021-02-08)
+0.9.10 (2021-03-23)
 ~~~~~~~~~~~~~~~~~~~
+* Update dataset.py for compatibility with DACE API 2.0.0
 * Improve output from utils.parprint for very large/small values
 * Changed definition of delta-x and delta-y used in decorrelation so that
   dfdx and dfdy are more closely related to magnitude of the instrumental

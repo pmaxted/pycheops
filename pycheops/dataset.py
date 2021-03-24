@@ -324,9 +324,16 @@ class Dataset(object):
             else:
                 file_type='lightcurves'
                 view_report = False
-            Cheops.download(file_type, 
-                filters={'file_key':{'contains':file_key}},
-                output_full_file_path=str(tgzPath))
+            # Make backwards compatible with DACE API < 2.0.0
+            try:
+                Cheops.download(file_type,
+                    filters={'file_key':{'contains':file_key}},
+                    output_directory=str(tgzPath.parent),
+                    output_filename=str(tgzPath.name) )
+            except TypeError:
+                Cheops.download(file_type, 
+                    filters={'file_key':{'contains':file_key}},
+                    output_full_file_path=str(tgzPath))
 
         lisPath = Path(_cache_path,file_key).with_suffix('.lis')
         # The file list can be out-of-date is force_download is used
