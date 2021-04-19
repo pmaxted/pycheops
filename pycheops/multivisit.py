@@ -262,7 +262,7 @@ def _log_posterior(pos, lcs, rolls, models, modpars, noisemodel, priors, vn,
 
     args=[modpar[p] for p in ('D','W','b')]
     lnprior = _log_prior(*args)  # Priors on D, W and b
-    if not np.isfinite(lnprior): return -np.inf
+    if not np.isfinite(lnprior): return -np.inf, -np.inf
     for p in priors:
         if p in vn:
             z = (pos[vn.index(p)] - priors[p].n)/priors[p].s
