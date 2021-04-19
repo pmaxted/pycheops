@@ -164,12 +164,14 @@ def _make_trial_params(pos, params, vn):
 # factor 2kW is the absolute value of the determinant of the Jacobian, 
 # J = d(D, W, b)/d(cosi, k, aR)
 def _log_prior(D, W, b):
-    if (D < 2e-6) or (D > 0.2): return -np.inf
+    if (D < 2e-6) or (D > 0.25): return -np.inf
     k = np.sqrt(D)
-    if (b < 0) or (b > 1+k): return -np.inf
+    if (b < 0) : return -np.inf
     if (W < 1e-4): return -np.inf
-    aR = np.sqrt((1+k)**2 - b**2)/(np.pi*W)
-    if (aR < 2): return -np.inf
+    q = (1+k)**2 - b**2
+    if (q < 0): return -np.inf
+    aR = np.sqrt(q)/(np.pi*W)
+    if (aR < 1): return -np.inf
     return -np.log(2*k*W) - np.log(k) - np.log(aR)
 
 #---
