@@ -182,6 +182,7 @@ def _log_posterior(pos, lcs, rolls, models, modpars, noisemodel, priors, vn,
         for p in ('T_0', 'P', 'D', 'W', 'b', 'f_c', 'f_s', 'h_1', 'h_2', 'L'):
             if p in vn:
                 v = pos[vn.index(p)]
+                if not np.isfinite(v): return -np.inf, -np.inf
                 if (v < modpar[p].min) or (v > modpar[p].max):
                     return -np.inf, -np.inf
                 modpar[p].value = v
@@ -190,6 +191,7 @@ def _log_posterior(pos, lcs, rolls, models, modpars, noisemodel, priors, vn,
         for p in ('e', 'q_1', 'q_2', 'k', 'aR',  'rho',):
             if p in modpar:
                 v = modpar[p].value
+                if not np.isfinite(v): return -np.inf, -np.inf
                 if (v < modpar[p].min) or (v > modpar[p].max):
                     return -np.inf, -np.inf
 
