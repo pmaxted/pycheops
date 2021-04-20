@@ -6,6 +6,7 @@ Changes since 0.6.0 onwards.
 * Catch invalid combinations of b and k in dataset._log_prior() and remove
   restriction b < 1+k.
 * Catch non-finite derived parameters in multivisit._log_posterior
+* Correct typo in combine.py
 
 0.9.10 (2021-03-23)
 ~~~~~~~~~~~~~~~~~~~

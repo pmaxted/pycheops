@@ -48,7 +48,7 @@ def combine(y, yerr, walkers=64, steps=256, discard=128):
     def log_prob(p, y, yvar, mulo, muhi, lnsig_lo, lnsig_hi):
         mu = p[0]
         lnsig = p[1]
-        if (mu < mulo0 or (mu > muhi): return -np.inf
+        if (mu < mulo) or (mu > muhi): return -np.inf
         if (lnsig > lnsig_lo) or (lnsig < lnsig_hi): return -np.inf
         sigma2 = yvar + np.exp(2*lnsig)
         return -0.5 * np.sum((y - mu)**2/sigma2 + np.log(sigma2))
