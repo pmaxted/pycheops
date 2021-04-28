@@ -781,6 +781,7 @@ class MultiVisit(object):
         result.chisqr = np.sum(((r/d.lc['flux_err'])**2).sum() for d,r in z)
         result.redchi = result.chisqr/result.nfree
         lnlike = np.max(self.sampler.get_blobs())
+        result.lnlike = lnlike
         result.aic = 2*result.nvarys - 2*lnlike
         result.bic = result.nvarys*np.log(result.ndata) - 2*lnlike
         result.rms = [r.std() for r in result.residual]
