@@ -1134,7 +1134,7 @@ class Dataset(object):
             dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
             dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None, 
-            glint_scale=None, logrhoprior=None, sigma_w_ppm=None):
+            glint_scale=None, logrhoprior=None, log_sigma=None):
         """
         Fit a transit to the light curve in the current dataset.
 
@@ -1173,9 +1173,8 @@ class Dataset(object):
         - n = number of data points
         - Lmax - maximum likelihood
 
-        A fixed value for the additional Gaussian white noise in
-        parts-per-million can be added to the flux measurements using the
-        keyword sigma_w_ppm.
+        A fixed value for the logarithm of the additional Gaussian white noise
+        in can be added to the flux measurements using the keyword log_sigma.
 
         """
 
@@ -1305,9 +1304,9 @@ class Dataset(object):
             model += GlintModel
 
         # Additional white noise
-        if sigma_w_ppm is not None:
-            flux_err = np.hypot(flux_err, sigma_w_ppm/1e6)
-            params.add(name='sigma_w_ppm', value=sigma_w_ppm, vary=False)
+        if log_sigma is not None:
+            flux_err = np.hypot(flux_err, np.exp(log_sigma))
+            params.add(name='log_sigma', value=log_sigma, vary=False)
 
         result = minimize(_chisq_prior, params,nan_policy='propagate',
                 args=(model, time, flux, flux_err))
@@ -1328,6 +1327,7 @@ class Dataset(object):
             result.redchi = result.chisqr/(result.ndata-result.nvarys)
         # Renormalize AIC and BIC so they are consistent with emcee values
         lnlike = -0.5*np.sum(result.residual**2 + np.log(2*np.pi*flux_err**2))
+        result.lnlike = lnlike
         result.aic = 2*result.nvarys-2*lnlike
         result.bic = result.nvarys*np.log(result.ndata) - 2*lnlike
 
@@ -1540,7 +1540,7 @@ class Dataset(object):
             c=None, dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
             dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None,
-            glint_scale=None, sigma_w_ppm=None):
+            glint_scale=None, log_sigma=None):
         """
         See fit_transit for options
         """
@@ -1663,6 +1663,11 @@ class Dataset(object):
             GlintModel = Model(_glint_func, independent_vars=['t'],
                 f_theta=f_theta, f_glint=f_glint)
             model += GlintModel
+        
+        # Additional white noise
+        if log_sigma is not None:
+            flux_err = np.hypot(flux_err, np.exp(log_sigma))
+            params.add(name='log_sigma', value=log_sigma, vary=False)
 
         result = minimize(_chisq_prior, params,nan_policy='propagate',
                 args=(model, time, flux, flux_err))
@@ -1683,6 +1688,7 @@ class Dataset(object):
             result.redchi = result.chisqr/(result.ndata-result.nvarys)
         # Renormalize AIC and BIC so they are consistent with emcee values
         lnlike = -0.5*np.sum(result.residual**2 + np.log(2*np.pi*flux_err**2))
+        result.lnlike = lnlike
         result.aic = 2*result.nvarys-2*lnlike
         result.bic = result.nvarys*np.log(result.ndata) - 2*lnlike
 
@@ -1719,7 +1725,7 @@ class Dataset(object):
                      (p == 'ramp') or (p == 'glint_scale') ) ):
                 if noBayes:
                     report+="\n[[Bayes Factors]]  "
-                    report+="(values >~1 => free parameter probably not useful)"
+                    report+="(values >~1 => free parameter may not be useful)"
                     noBayes = False
                 v = params[p].value
                 s = params[p].stderr
@@ -1912,6 +1918,7 @@ class Dataset(object):
         result.chisqr = np.sum((flux-fit)**2/flux_err**2)
         result.redchi = result.chisqr/(len(time) - n_varys)
         loglmax = np.max(sampler.get_blobs())
+        result.lnlike = loglmax
         result.aic = 2*n_varys - 2*loglmax
         result.bic = np.log(len(time))*n_varys - 2*loglmax
         result.covar = np.cov(flatchain.T)
