@@ -234,6 +234,8 @@ def _make_labels(plotkeys, bjd_ref):
             labels.append(r'$h_2$')
         elif key == 'dfdbg':
             labels.append(r'$df\,/\,d{\rm (bg)}$')
+        elif key == 'dfdsmear':
+            labels.append(r'$df\,/\,d{\rm (smear)}$')
         elif key == 'dfdcontam':
             labels.append(r'$df\,/\,d{\rm (contam)}$')
         elif key == 'ramp':
