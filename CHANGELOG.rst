@@ -3,6 +3,7 @@ Changes since 0.6.0 onwards.
 
 0.9.11 (2021-04-24)
 ~~~~~~~~~~~~~~~~~~~
+* Added data.cds_data_export()
 * Add result.lnlike to output of dataset and multivisit fitting routines.
 * Add log_sigma keyword to dataset.lmfit_transit and dataset.lmfit_eclipse
 * Correct calculation of result.chisqr in dataset.lmfit_transit and
@@ -12,6 +13,7 @@ Changes since 0.6.0 onwards.
 * Catch non-finite derived parameters in multivisit._log_posterior
 * Correct typo in combine.py
 * Added dfdsmear to _make_labels in dataset (#224)
+* dataset.lc['bg'] is now normalized by the median flux in the aperture
 
 0.9.10 (2021-03-23)
 ~~~~~~~~~~~~~~~~~~~

@@ -88,8 +88,8 @@ setup(
             'photutils',
             'matplotlib>3.2',
             'celerite2',
+            'cdspyreadme',
             'tqdm'],
-            # 'ellc>=1.8.5'],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,

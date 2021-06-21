@@ -73,6 +73,10 @@ import subprocess
 import pickle
 import warnings
 from astropy.units import UnitsWarning
+import cdspyreadme
+import os
+from textwrap import fill, indent
+from contextlib import redirect_stdout
 
 try:
     from dace.cheops import Cheops
@@ -305,10 +309,10 @@ class Dataset(object):
             configFile=None, target=None, verbose=True, metadata=True, 
             view_report_on_download=True):
 
-        self.file_key = file_key
         m = _file_key_re.search(file_key)
         if m is None:
             raise ValueError('Invalid file_key {}'.format(file_key))
+        self.file_key = m[0]
         l = [int(i) for i in m.groups()]
         self.progtype,self.prog_id,self.req_id,self.visitctr,self.ver = l
 
@@ -925,6 +929,7 @@ class Dataset(object):
         flux = flux/fluxmed
         flux_err = flux_err/fluxmed
         smear = smear/fluxmed
+        bg = bg/fluxmed
         self.lc = {'time':time, 'flux':flux, 'flux_err':flux_err,
                 'bjd_ref':bjd_ref, 'table':table, 'header':hdr,
                 'xoff':xoff, 'yoff':yoff, 'bg':bg,
@@ -2524,6 +2529,152 @@ class Dataset(object):
             sep = target_coo.separation(c).degree
             print(f'{p.capitalize():8s} {ra:12s} {dec:12s} {sep:8.1f}')
         
+    
+    # ------------------------------------------------------------
+
+    def cds_data_export(self, lcfile="lc.dat",title=None, author=None, 
+            authors=None, abstract=None, keywords=None, bibcode=None,
+            acknowledgments=None):
+        '''
+        Save light curve, best fit, etc. to files suitable for CDS upload
+
+        Generates ReadMe file and a data file with the following columns..
+        Format Units  Label    Explanations
+        F11.6 d       time     Time of mid-exposure (BJD_TDB)
+        F8.6  ---     flux     Normalized flux 
+        F8.6  ---     e_flux   Normalized flux error
+        F8.6  ---     flux_d   Normalized flux corrected for instrumental trends
+        F8.4  pix     xoff     Target position offset in x-direction
+        F8.4  pix     yoff     Target position offset in y-direction
+        F8.4  deg     roll     Spacecraft roll angle
+        F9.7  ---     contam   Fraction of flux in aperture from nearby stars
+        F9.7  ---     smear    Fraction of flux in aperture from readout trails
+        F9.7  ---     bg       Fraction of flux in aperture from background
+        F6.3  degC    temp_2   thermFront_2 instrument temperature
+
+        :param lcfile: output file for upload to CDS
+        :param title: title
+        :param author: First author
+        :param authors: Full author list of the paper
+        :param abstract: Abstract of the paper
+        :param keywords: list of keywords as in the printed publication
+        :param bibcode: Bibliography code for the printed publication
+        :param acknowledgments: list of acknowledgments
+
+        See http://cdsarc.u-strasbg.fr/submit/catstd/catstd-3.1.htx for the
+        correct formatting of title, keywords, etc.
+
+        The acknowledgments are normally used to give the name and e-mail
+        address of the person who generated the table, e.g. 
+        "Pierre Maxted, p.maxted(at)keele.ac.uk"
+
+        '''
+        try:
+            time = np.array(self.lc['time'])
+            flux = np.array(self.lc['flux'])
+        except AttributeError:
+            raise AttributeError("Use get_lightcurve() to load data first.")
+
+        try:
+            l = self.__lastfit__
+        except AttributeError:
+            raise AttributeError(
+                    "Use lmfit_transit() to get best-fit parameters first.")
+
+        model = self.model
+        params = self.lmfit.params if l == 'lmfit' else self.emcee.params_best
+        if  model.right.name == 'Model(_glint_func)':
+            flux_d = flux - model.right.eval(params, t=time)  # de-glint
+            flux_d /= model.left.right.eval(params, t=time)   # de-trend
+        else: 
+            flux_d = flux/model.right.eval(params, t=time) 
+
+        tmk = cdspyreadme.CDSTablesMaker()
+        tmk.title = title if title is not None else ""
+        tmk.author = author if author is not None else ""
+        tmk.authors = authors if author is not None else ""
+        tmk.abstract = abstract if abstract is not None else ""
+        tmk.keywords = keywords if keywords is not None else ""
+        tmk.bibcode = bibcode if bibcode is not None else ""
+        tmk.date = Time.now().value.year
+
+        T=Table()
+        T['time'] = time + self.lc['bjd_ref']
+        T['time'].info.format = '16.6f'
+        T['time'].description = 'Time of mid-exposure'
+        T['time'].units = u.day
+        T['flux'] = flux
+        T['flux'].info.format = '8.6f'
+        T['flux'].description = 'Normalized flux'
+        T['e_flux'] = self.lc['flux_err']
+        T['e_flux'].info.format = '8.6f'
+        T['e_flux'].description = 'Normalized flux error'
+        T['flux_d'] = flux_d
+        T['flux_d'].info.format = '8.6f'
+        T['flux_d'].description = 'Normalized flux corrected for instrumental trends'
+        T['xoff'] = self.lc['xoff']
+        T['xoff'].info.format = '8.4f'
+        T['xoff'].description = "Target position offset in x-direction"
+        T['yoff'] = self.lc['yoff']
+        T['yoff'].info.format = '8.4f'
+        T['yoff'].description = "Target position offset in y-direction"
+        T['roll'] = self.lc['roll_angle']
+        T['roll'].info.format = '8.4f'
+        T['roll'].description = "Spacecraft roll angle"
+        T['roll'].units = u.degree
+        T['contam'] = self.lc['contam']
+        T['contam'].info.format = '9.7f'
+        T['contam'].description = "Fraction of flux in aperture from nearby stars"
+        if np.ptp(self.lc['smear']) > 0:
+            T['smear'] = self.lc['smear']
+            T['smear'].info.format = '9.7f'
+            T['smear'].description = "Fraction of flux in aperture from readout trails"
+        T['bg'] = self.lc['bg']
+        T['bg'].info.format = '9.7f'
+        T['bg'].description = "Fraction of flux in aperture from background"
+        if np.ptp(self.lc['deltaT']) > 0:
+            T['temp_2'] = self.lc['deltaT'] - 12
+            T['temp_2'].info.format = '6.3f'
+            T['temp_2'].description = "thermFront_2 instrument temperature"
+            T['temp_2'].units = u.Celsius
+
+        table = tmk.addTable(T, lcfile,
+                description=f"CHEOPS photometry of {self.target}")
+        # Set output format
+        for p in T.colnames:
+            c=table.get_column(p)
+            c.set_format(f'F{T[p].format[:-1]}')
+        # Units
+        c=table.get_column('time'); c.unit = 'd'
+        c=table.get_column('xoff'); c.unit = 'pxl'
+        c=table.get_column('yoff'); c.unit = 'pxl'
+        c=table.get_column('roll'); c.unit = 'deg'
+        if np.ptp(self.lc['deltaT']) > 0:
+            c=table.get_column('temp_2'); c.unit = 'degC'
+        tmk.writeCDSTables()
+
+        templatename = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                'data','cdspyreadme','ReadMe.template')
+        coo = SkyCoord(
+                self.lc['header']['RA_TARG'],
+                self.lc['header']['DEC_TARG'],unit='deg')
+        rastr = coo.ra.to_string(unit='hour',sep=' ',precision=1, pad=True)
+        destr = coo.dec.to_string(unit='deg',sep=' ',precision=0, 
+                alwayssign=True, pad=True)
+        desc = (indent(fill(
+            f'Photometry of {self.target} generated from CHEOPS archive '+
+            f'files with file key {self.file_key} using pycheops version '+
+            f'{__version__}.', width=78),'  ') + 
+            f'\n  Aperture radius = {self.ap_rad} pixels.'+
+            f'\n  Exposure time: {self.nexp} x {self.exptime:0.1f} s')
+        templateValue = {
+                'object':f'{rastr} {destr}   {self.target}',
+                'description':desc,
+                'acknowledgements':f'Pierre Maxted, p.maxted(at)keele.ac.uk'
+                }
+        tmk.setReadmeTemplate(templatename, templateValue)
+        with open("ReadMe", "w") as fd:
+            tmk.makeReadMe(out=fd)
     
     # ------------------------------------------------------------
 
