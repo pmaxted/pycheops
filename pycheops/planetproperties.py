@@ -95,8 +95,8 @@ class PlanetProperties(object):
                 D_err = planet_data['obj_trans_depth_ppm_err'][0]
                 W_val = planet_data['obj_trans_duration_days'][0]
                 W_err = planet_data['obj_trans_duration_days_err'][0]
-                K_val = planet_data['obj_rv_k_mps'][0]
-                K_err = planet_data['obj_rv_k_mps_err'][0]
+                K_val = planet_data['obj_rv_k_mps'][0]*1000
+                K_err = planet_data['obj_rv_k_mps_err'][0]*1000
                 
                 # Still need to get errors on these parameters and replace
                 # np.nan with None
