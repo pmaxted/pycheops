@@ -1,6 +1,13 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.9.12 (2021-06-07)
+~~~~~~~~~~~~~~~~~~~
+* Avoid warnings due to truncated strings for RA/Dec in make_xml_files
+* Changed default suffix in make_xml_files to that required for CHEOPSim
+* Added --checker and --directory options to make_xml_files
+* Convert K_val and K_err to m/s in planetproperties (#228)
+
 0.9.11 (2021-04-24)
 ~~~~~~~~~~~~~~~~~~~
 * Added data.cds_data_export()
@@ -14,7 +21,8 @@ Changes since 0.6.0 onwards.
 * Correct typo in combine.py
 * Added dfdsmear to _make_labels in dataset (#224)
 * dataset.lc['bg'] is now normalized by the median flux in the aperture
-
+* Added explanation of what is meant by detrended flux to multivisit docstring
+  
 0.9.10 (2021-03-23)
 ~~~~~~~~~~~~~~~~~~~
 * Update dataset.py for compatibility with DACE API 2.0.0

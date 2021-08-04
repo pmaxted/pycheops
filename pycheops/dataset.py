@@ -76,7 +76,6 @@ from astropy.units import UnitsWarning
 import cdspyreadme
 import os
 from textwrap import fill, indent
-from contextlib import redirect_stdout
 
 try:
     from dace.cheops import Cheops
@@ -2550,7 +2549,7 @@ class Dataset(object):
         F9.7  ---     contam   Fraction of flux in aperture from nearby stars
         F9.7  ---     smear    Fraction of flux in aperture from readout trails
         F9.7  ---     bg       Fraction of flux in aperture from background
-        F6.3  degC    temp_2   thermFront_2 instrument temperature
+        F6.3  ---     temp_2   thermFront_2 temperature sensor reading
 
         :param lcfile: output file for upload to CDS
         :param title: title
@@ -2635,7 +2634,7 @@ class Dataset(object):
         if np.ptp(self.lc['deltaT']) > 0:
             T['temp_2'] = self.lc['deltaT'] - 12
             T['temp_2'].info.format = '6.3f'
-            T['temp_2'].description = "thermFront_2 instrument temperature"
+            T['temp_2'].description = "thermFront_2 temperature sensor reading"
             T['temp_2'].units = u.Celsius
 
         table = tmk.addTable(T, lcfile,
@@ -2646,11 +2645,9 @@ class Dataset(object):
             c.set_format(f'F{T[p].format[:-1]}')
         # Units
         c=table.get_column('time'); c.unit = 'd'
-        c=table.get_column('xoff'); c.unit = 'pxl'
-        c=table.get_column('yoff'); c.unit = 'pxl'
+        c=table.get_column('xoff'); c.unit = 'pix'
+        c=table.get_column('yoff'); c.unit = 'pix'
         c=table.get_column('roll'); c.unit = 'deg'
-        if np.ptp(self.lc['deltaT']) > 0:
-            c=table.get_column('temp_2'); c.unit = 'degC'
         tmk.writeCDSTables()
 
         templatename = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -2670,7 +2667,7 @@ class Dataset(object):
         templateValue = {
                 'object':f'{rastr} {destr}   {self.target}',
                 'description':desc,
-                'acknowledgements':f'Pierre Maxted, p.maxted(at)keele.ac.uk'
+                'acknowledgements':acknowledgements
                 }
         tmk.setReadmeTemplate(templatename, templateValue)
         with open("ReadMe", "w") as fd:
