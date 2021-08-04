@@ -28,7 +28,6 @@ from __future__ import (absolute_import, division, print_function,
                                 unicode_literals)
 import numpy as np
 from glob import glob
-from os import path
 from .dataset import Dataset
 from .starproperties import StarProperties
 import re
@@ -47,7 +46,6 @@ from celerite2 import GaussianProcess
 from .funcs import rhostar, massradius, eclipse_phase
 from uncertainties import UFloat, ufloat
 from emcee import EnsembleSampler
-from os.path import join
 import corner
 from sys import stdout
 import matplotlib.pyplot as plt
@@ -55,8 +53,14 @@ from lmfit.printfuncs import gformat
 from copy import copy, deepcopy
 from .utils import phaser, lcbin
 from scipy.stats import iqr
+from astropy.time import Time
+from astropy import units as u
+from astropy.coordinates import SkyCoord
+import cdspyreadme
+
 
 # Iteration limit for initialosation of walkers
+# os
 _ITMAX_ = 999
 #--------
 
@@ -176,7 +180,25 @@ def _log_posterior(pos, lcs, rolls, models, modpars, noisemodel, priors, vn,
     lnlike = 0 
     lc_mods = []    # model light curves per dataset
     lc_fits = []    # lc fit per dataset
+    lc_rolls = []   # predicted flux variations due to roll angle
     modpars_rtn = []   # Model parameters for return_fit
+    
+    # Update noisemodel parameters
+    for p in ('log_sigma_w', 'log_omega0', 'log_S0', 'log_Q'):
+        if p in vn:
+            v = pos[vn.index(p)] 
+            if (v < noisemodel[p].min) or (v > noisemodel[p].max):
+                return -np.inf, -np.inf
+            noisemodel[p].set(value=v)
+    if 'log_Q' in noisemodel:
+        sho = SHOTerm(
+                S0=np.exp(noisemodel['log_S0'].value),
+                Q=np.exp(noisemodel['log_Q'].value),
+                w0=np.exp(noisemodel['log_omega0'].value))
+    else:
+        sho = False
+
+
     for i, (roll,lc,model,modpar) in enumerate(zip(rolls,lcs,models,modpars)):
 
         for p in ('T_0', 'P', 'D', 'W', 'b', 'f_c', 'f_s', 'h_1', 'h_2', 'L'):
@@ -217,25 +239,9 @@ def _log_posterior(pos, lcs, rolls, models, modpars, noisemodel, priors, vn,
                 return -np.inf, -np.inf
             modpar['L'].value = pos[vn.index(p)]
 
-        # Update noisemodel parameters
-        for p in ('log_sigma_w', 'log_omega0', 'log_S0', 'log_Q'):
-            if p in vn:
-                v = pos[vn.index(p)] 
-                if (v < noisemodel[p].min) or (v > noisemodel[p].max):
-                    return -np.inf, -np.inf
-                noisemodel[p].set(value=v)
-
         mod = model.eval(modpar, t=lc['time'])
         resid = lc['flux'] - mod
         yvar = np.exp(2*noisemodel['log_sigma_w']) + lc['flux_err']**2
-
-        if 'log_Q' in noisemodel:
-            sho = SHOTerm(
-                    S0=np.exp(noisemodel['log_S0'].value),
-                    Q=np.exp(noisemodel['log_Q'].value),
-                    w0=np.exp(noisemodel['log_omega0'].value))
-        else:
-            sho = None
 
         if roll or sho:
             if roll and sho:
@@ -244,21 +250,32 @@ def _log_posterior(pos, lcs, rolls, models, modpars, noisemodel, priors, vn,
                 kernel = sho
             else:
                 kernel = roll
-            gp = GaussianProcess(kernel, mean=0)
+            gp = GaussianProcess(kernel)
             gp.compute(lc['time'], diag=yvar, quiet=True)
-            lnlike += gp.log_likelihood(resid)
             if return_fit:
-                lc_fits.append(gp.predict(resid, return_cov=False) + mod)
+                gp_flux = gp.predict(resid, include_mean=False)
+                lc_fits.append(gp_flux + mod)
+                if roll and sho:
+                    unroll_flux = gp.predict(resid, include_mean=False, 
+                            kernel=gp.kernel.terms[1])
+                elif sho:
+                    unroll_flux = zeros_like(resid)
+                else:
+                    unroll_flux = gp_flux
+                lc_rolls.append(unroll_flux)
+            else:
+                lnlike += gp.log_likelihood(resid)
         else:
-            lnlike += -0.5*(np.sum(resid**2/yvar + np.log(2*np.pi*yvar)))
             if return_fit:
                 lc_fits.append(mod)
+            else:
+                lnlike += -0.5*(np.sum(resid**2/yvar + np.log(2*np.pi*yvar)))
 
         if return_fit:
             modpars_rtn.append(modpar)
 
     if return_fit:
-        return lc_fits, modpars_rtn
+        return lc_fits, modpars_rtn, lc_rolls
 
     args=[modpar[p] for p in ('D','W','b')]
     lnprior = _log_prior(*args)  # Priors on D, W and b
@@ -418,6 +435,32 @@ class MultiVisit(object):
     thin to an integer greater than 1. When this is set, thin*steps will be
     made and the chains returned with have "steps" values per walker.
 
+    Fits, models, trends and correlated noise
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    The best fit to the light curve in each data set is
+
+      best_fit = system_model x factor_model + celerite_model + unwrap_flux
+    
+     - system_model includes all the photometric effects intrinsic to the
+       star/planet system, i.e. transits and eclipses
+     - factor_model includes all the trends correlated with parameters apart
+       from spacecraft roll angle
+    - unwrap_flux are the trends correlated spacecraft roll angle removed if
+      the unwrap=True option is specified (otherwise unwrap_flux = 0)
+    - celerite_model model is the maximum-likelihood Gaussian process generated
+      for a kernel SHOTerm() + CosineTerm(Omega) + CosineTerm(2*Omega) + ...,
+      where the number of CosineTerm() kernels is specified by nroll and
+      SHOTerm() is only included if correlated noise is included in the model. 
+
+    For plotting and data output we require the "detrended flux", i.e.
+    
+      flux_d = [(flux-unwrap_flux) - unroll_flux]/factor_model + unwrap_flux
+
+    where unroll flux is contribution to the maximum-likelihood Gaussian process
+    from the CosineTerm() kernels only. The detrended fluxes for the best fits
+    to each dataset are included in the output lmfit ModelResult object in the
+    attribute fluxes_d.
+
     """
 
     def __init__(self, target=None, datadir=None,
@@ -432,7 +475,7 @@ class MultiVisit(object):
 
         ptn = target.replace(" ","_")+'__CH*.dataset'
         if datadir is not None:
-            ptn = join(datadir,ptn)
+            ptn = os.path.join(datadir,ptn)
 
         datatimes = [Dataset.load(i).bjd_ref for i in glob(ptn)]
         g = [x for _,x in sorted(zip(datatimes,glob(ptn)))] 
@@ -671,15 +714,15 @@ class MultiVisit(object):
                 'dfdy', 'd2fdy2', 'dfdt', 'd2fdt2', 'glint_scale', 'ramp']
 
         for i,p in enumerate(plist):
-            lc = deepcopy(self.datasets[i].lc)
+            lc_ = deepcopy(self.datasets[i].lc)
             if unwrap:
-                phi = lc['roll_angle']*np.pi/180
+                phi = lc_['roll_angle']*np.pi/180
                 for j in range(1,4):
                     k = 'dfdsinphi' if j < 2 else f'dfsin{j}phi'
-                    if k in p: lc['flux'] -= p[k]*np.sin(j*phi)
+                    if k in p: lc_['flux'] -= p[k]*np.sin(j*phi)
                     k = 'dfdcosphi' if j < 2 else f'dfcos{j}phi'
-                    if k in p: lc['flux'] -= p[k]*np.cos(j*phi)
-            lcs.append(lc)
+                    if k in p: lc_['flux'] -= p[k]*np.cos(j*phi)
+            lcs.append(lc_)
             if 'glint_scale' in p:
                 d = self.datasets[i]
                 delta_t = d._old_bjd_ref - d.bjd_ref
@@ -687,7 +730,7 @@ class MultiVisit(object):
             else:
                 glint = (None, None, 0)
             glints.append(glint)
-            m = _make_model(model_type, lc, *glint)
+            m = _make_model(model_type, lc_, *glint)
             models.append(m)
             modpar = m.make_params(verbose=False, **vals)
             # Copy min/max values from params to modpar
@@ -739,10 +782,10 @@ class MultiVisit(object):
                         vs.append(1e-6)
 
             if unroll:
-                sinphi = np.sin(np.radians(lc['roll_angle']))
-                s = SineModel.fit(sinphi, P=99/1440, x0=0, x=lc['time'])
+                sinphi = np.sin(np.radians(lc_['roll_angle']))
+                s = SineModel.fit(sinphi, P=99/1440, x0=0, x=lc_['time'])
                 Omega= 2*np.pi/s.params['P']
-                fluxrms = np.nanstd(lc['flux'])
+                fluxrms = np.nanstd(lc_['flux'])
                 roll = CosineTerm(omega_j=Omega, sigma_j=fluxrms)
                 for j in range(2,nroll+1):
                     roll = roll + CosineTerm(omega_j=j*Omega, sigma_j=fluxrms)
@@ -894,9 +937,10 @@ class MultiVisit(object):
 
         return_fit = True
         args = (lcs,rolls,models,modpars,noisemodel,priors,vn,return_fit)
-        fits, modpars = _log_posterior(pos, *args)
+        fits, modpars, unroll_flux = _log_posterior(pos, *args)
 
         self.__fitted_flux__ = [lc['flux'] for lc in lcs]
+        self.__unroll_flux__ = unroll_flux
         self.noisemodel = noisemodel
         self.models = models
         self.modpars = modpars
@@ -991,10 +1035,11 @@ class MultiVisit(object):
         pos = flatchain[np.argmax(sampler.get_log_prob()),:]
 
         return_fit = True
-        args = (lcs, rolls, models, modpars, noisemodel, priors, vn, return_fit)
-        fits, modpars = _log_posterior(pos, *args)
+        args = (lcs,rolls,models,modpars,noisemodel,priors,vn,return_fit)
+        fits, modpars, unroll_flux = _log_posterior(pos, *args)
 
         self.__fitted_flux__ = [lc['flux'] for lc in lcs]
+        self.__unroll_flux__ = unroll_flux
         self.noisemodel = noisemodel
         self.models = models
         self.modpars = modpars
@@ -1099,10 +1144,11 @@ class MultiVisit(object):
         pos = flatchain[np.argmax(sampler.get_log_prob()),:]
 
         return_fit = True
-        args = (lcs, rolls, models, modpars, noisemodel, priors, vn, return_fit)
-        fits, modpars = _log_posterior(pos, *args)
+        args = (lcs,rolls,models,modpars,noisemodel,priors,vn,return_fit)
+        fits, modpars, unroll_flux = _log_posterior(pos, *args)
 
         self.__fitted_flux__ = [lc['flux'] for lc in lcs]
+        self.__unroll_flux__ = unroll_flux
         self.noisemodel = noisemodel
         self.models = models
         self.modpars = modpars
@@ -1131,9 +1177,9 @@ class MultiVisit(object):
         namelen = max([len(n) for n in parnames])
         if self.result.npriors > 0: report+="\n[[Priors]]"
         for p in self.result.priors:
-            u = self.result.priors[p]
+            q = self.result.priors[p]
             report += "\n    %s:%s" % (p, ' '*(namelen-len(p)))
-            report += '%s +/-%s' % (gformat(u.n), gformat(u.s))
+            report += '%s +/-%s' % (gformat(q.n), gformat(q.s))
         report += '\n[[Software versions]]'
         pipe_vers = ""
         for s in set([d.pipe_ver for d in self.datasets]):
@@ -1318,12 +1364,144 @@ class MultiVisit(object):
 
         if show_priors:
             for i, key in enumerate(plotkeys):
-                u = params[key].user_data
-                if isinstance(u, UFloat):
+                q = params[key].user_data
+                if isinstance(q, UFloat):
                     ax = axes[i, i]
-                    ax.axvline(u.n - u.s, color="g", linestyle='--')
-                    ax.axvline(u.n + u.s, color="g", linestyle='--')
+                    ax.axvline(q.n - q.s, color="g", linestyle='--')
+                    ax.axvline(q.n + q.s, color="g", linestyle='--')
         return figure
+        
+    # ------------------------------------------------------------
+    
+    def cds_data_export(self, title=None, author=None, authors=None,
+            abstract=None, keywords=None, bibcode=None,
+            acknowledgments=None):
+        '''
+        Save light curve, best fit, etc. to files suitable for CDS upload
+
+        Generates ReadMe file and data files with the following columns..
+        Format Units  Label    Explanations
+        F11.6 d       time     Time of mid-exposure (BJD_TDB)
+        F8.6  ---     flux     Normalized flux 
+        F8.6  ---     e_flux   Normalized flux error
+        F8.6  ---     flux_d   Normalized flux corrected for instrumental trends
+        F8.4  pix     xoff     Target position offset in x-direction
+        F8.4  pix     yoff     Target position offset in y-direction
+        F8.4  deg     roll     Spacecraft roll angle
+        F9.7  ---     contam   Fraction of flux in aperture from nearby stars
+        F9.7  ---     smear    Fraction of flux in aperture from readout trails
+        F9.7  ---     bg       Fraction of flux in aperture from background
+        F6.3  ---     temp_2   thermFront_2 temperature sensor reading
+
+        :param title: title
+        :param author: First author
+        :param authors: Full author list of the paper
+        :param abstract: Abstract of the paper
+        :param keywords: list of keywords as in the printed publication
+        :param bibcode: Bibliography code for the printed publication
+        :param acknowledgments: list of acknowledgments
+
+        See http://cdsarc.u-strasbg.fr/submit/catstd/catstd-3.1.htx for the
+        correct formatting of title, keywords, etc.
+
+        The acknowledgments are normally used to give the name and e-mail
+        address of the person who generated the table, e.g. 
+        "Pierre Maxted, p.maxted(at)keele.ac.uk"
+
+        '''
+
+        raise NotImplementedError("CDS table writing in development")
+
+        cds = cdspyreadme.CDSTablesMaker()
+        cds.title = title if title is not None else ""
+        cds.author = author if author is not None else ""
+        cds.authors = authors if author is not None else ""
+        cds.abstract = abstract if abstract is not None else ""
+        cds.keywords = keywords if keywords is not None else ""
+        cds.bibcode = bibcode if bibcode is not None else ""
+        cds.date = Time.now().value.year
+
+        result = self.result
+        par = result.parbest
+        for j,d in enumerate(self.datasets):
+            unwrap_flux = d.lc['flux'] - M.__fitted_flux__[j]
+
+            T=Table()
+            T['time'] = d.lc['time'] + 2457000
+            T['time'].info.format = '16.6f'
+            T['time'].description = 'Time of mid-exposure'
+            T['time'].units = u.day
+            T['flux'] = flux
+            T['flux'].info.format = '8.6f'
+            T['flux'].description = 'Normalized flux'
+            T['e_flux'] = d.lc['flux_err']
+            T['e_flux'].info.format = '8.6f'
+            T['e_flux'].description = 'Normalized flux error'
+            T['flux_d'] = flux_d
+            T['flux_d'].info.format = '8.6f'
+            T['flux_d'].description = (
+                    'Normalized flux corrected for instrumental trends' )
+            T['xoff'] = d.lc['xoff']
+            T['xoff'].info.format = '8.4f'
+            T['xoff'].description = "Target position offset in x-direction"
+            T['yoff'] = d.lc['yoff']
+            T['yoff'].info.format = '8.4f'
+            T['yoff'].description = "Target position offset in y-direction"
+            T['roll'] = d.lc['roll_angle']
+            T['roll'].info.format = '8.4f'
+            T['roll'].description = "Spacecraft roll angle"
+            T['roll'].units = u.degree
+            T['contam'] = d.lc['contam']
+            T['contam'].info.format = '9.7f'
+            T['contam'].description = (
+                    "Fraction of flux in aperture from nearby stars" )
+            if np.ptp(d.lc['smear']) > 0:
+                T['smear'] = d.lc['smear']
+                T['smear'].info.format = '9.7f'
+                T['smear'].description = (
+                        "Fraction of flux in aperture from readout trails" )
+            T['bg'] = d.lc['bg']
+            T['bg'].info.format = '9.7f'
+            T['bg'].description = (
+                    "Fraction of flux in aperture from background" )
+            if np.ptp(d.lc['deltaT']) > 0:
+                T['temp_2'] = self.lc['deltaT'] - 12
+                T['temp_2'].info.format = '6.3f'
+                T['temp_2'].description = (
+                        "thermFront_2 temperature sensor reading" )
+                T['temp_2'].units = u.Celsius
+            table = cds.addTable(T, f'lc{j+1:02d}.dat',
+                        description=f"Data from archive file {d.file_key}" )
+            # Set output format
+            for p in T.colnames:
+                c=table.get_column(p)
+                c.set_format(f'F{T[p].format[:-1]}')
+            # Units
+            c=table.get_column('time'); c.unit = 'd'
+            c=table.get_column('xoff'); c.unit = 'pix'
+            c=table.get_column('yoff'); c.unit = 'pix'
+            c=table.get_column('roll'); c.unit = 'deg'
+
+            cds.writeCDSTables()
+
+        templatename = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                    'data','cdspyreadme','ReadMe.template')
+        coo = SkyCoord(M.datasets[0].lc['header']['RA_TARG'],
+                    M.datasets[0].lc['header']['DEC_TARG'],unit='deg')
+        rastr = coo.ra.to_string(unit='hour',sep=' ',precision=1, pad=True)
+        destr = coo.dec.to_string(unit='deg',sep=' ',precision=0,
+                alwayssign=True, pad=True)
+        desc = (f'CHEOPS photometry of {self.target} generated using pycheops '+
+                f'version {__version__}.')
+    
+        templateValue = {
+                'object':f'{rastr} {destr}   {self.target}',
+                'description':desc,
+                'acknowledgements':acknowledgements
+                }
+        cds.setReadmeTemplate(templatename, templateValue)
+        with open("ReadMe", "w") as fd:
+            cds.makeReadMe(out=fd)
         
     # ------------------------------------------------------------
     
@@ -1335,7 +1513,7 @@ class MultiVisit(object):
         """
         If there are gaps in the data longer than gap_tol phase units and
         add_gaps is True then put a gap in the lines used to plot the fit. The
-        transit model is plotted using a thin line in these gaps.
+        transit/eclipse model is plotted using a thin line in these gaps.
 
         Binned data are plotted in phase bins of width binwidth. Set
         binwidth=False to disable this feature.
@@ -1389,12 +1567,12 @@ class MultiVisit(object):
             iqrmax = np.max([iqrmax, iqr(flux)])
             fit = copy(result.bestfit[j])
             modpar = copy(self.modpars[j])
-            for d in ('c', 'dfdbg', 'dfdcontam', 'dfdsmear', 'glint_scale',
+            for q in ('c', 'dfdbg', 'dfdcontam', 'dfdsmear', 'glint_scale',
                     'dfdx', 'd2fdx2', 'dfdy', 'd2fdy2', 'dfdt', 'd2fdt2',
                     'ramp'):
-                p = f'{d}_{j+1:02d}'
+                p = f'{q}_{j+1:02d}'
                 if p in result.var_names:
-                     modpar[d].value = 1 if d == 'c' else 0
+                     modpar[q].value = 1 if q == 'c' else 0
             model = self.models[j]
             lcmod = model.eval(modpar, t=t)
             trend = fit - lcmod
