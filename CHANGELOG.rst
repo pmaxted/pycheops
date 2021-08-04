@@ -7,7 +7,11 @@ Changes since 0.6.0 onwards.
 * Changed default suffix in make_xml_files to that required for CHEOPSim
 * Added --checker and --directory options to make_xml_files
 * Convert K_val and K_err to m/s in planetproperties (#228)
-
+* Fixed planetproperties bug for 'NaN' values in dace obj_rv_k_mps data
+* Fix problem with ambiguous planet identifiers in TEPCat for planetproperties
+* Changed keywoards D->depth and W->width for planetproperties to avoid
+  confusion with D and W in transit model
+  
 0.9.11 (2021-04-24)
 ~~~~~~~~~~~~~~~~~~~
 * Added data.cds_data_export()

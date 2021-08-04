@@ -51,8 +51,9 @@ class PlanetProperties(object):
     """
     CHEOPS PlanetProperties object
     
-    The observed properties T0, P, ecosw, esinw, D, W and K are obtained from
-    one of the following sources (listed here in priority order).
+    The observed properties T0, P, ecosw, esinw, depth (ppm), width (days) and
+    K (km/s) are obtained from one of the following sources (listed here in
+    priority order).
     - specified by the user
     - DACE planet table (unless query_dace=False)
     - TEPCat (unless query_tepcat=False)
@@ -60,17 +61,16 @@ class PlanetProperties(object):
     """
 
     def __init__(self, identifier, force_download=False, configFile=None,
-            query_dace=True, query_tepcat=True, 
-            T0=None, P=None, ecosw=None, esinw=None, D=None, W=None, K=None,
-            verbose=True, dace=True, tepcat=True):
+            query_dace=True, query_tepcat=True, T0=None, P=None, ecosw=None,
+            esinw=None, depth=None, width=None, K=None, verbose=True):
 
         self.identifier = identifier
         self.T0 = T0
         self.P = P
         self.ecosw = ecosw
         self.esinw = esinw
-        self.D = D
-        self.W = W
+        self.depth = depth
+        self.width = width
         self.K = K
         
         config = load_config(configFile)
@@ -91,13 +91,14 @@ class PlanetProperties(object):
                 ecosw_err = planet_data['obj_trans_ecosw_err'][0]
                 esinw_val = planet_data['obj_trans_esinw'][0]
                 esinw_err = planet_data['obj_trans_esinw_err'][0]
-                D_val = planet_data['obj_trans_depth_ppm'][0]
-                D_err = planet_data['obj_trans_depth_ppm_err'][0]
-                W_val = planet_data['obj_trans_duration_days'][0]
-                W_err = planet_data['obj_trans_duration_days_err'][0]
+                depth_val = planet_data['obj_trans_depth_ppm'][0]
+                depth_err = planet_data['obj_trans_depth_ppm_err'][0]
+                width_val = planet_data['obj_trans_duration_days'][0]
+                width_err = planet_data['obj_trans_duration_days_err'][0]
                 # 'obj_rv_k_mps' is in km/s so need to convert to m/s
-                K_val = planet_data['obj_rv_k_mps'][0]*1000
-                K_err = planet_data['obj_rv_k_mps_err'][0]*1000
+                # Note use of np.float to avoid problems with 'NaN' values
+                K_val = np.float(planet_data['obj_rv_k_mps'][0])*1000
+                K_err = np.float(planet_data['obj_rv_k_mps_err'][0])*1000
                 
                 # Still need to get errors on these parameters and replace
                 # np.nan with None
@@ -123,15 +124,15 @@ class PlanetProperties(object):
                 except:
                     self.esinw = None
                 try:
-                    self.D=ufloat(float(D_val),float(D_err))
-                    self.D_note = "DACE-Planets"
+                    self.depth=ufloat(float(depth_val),float(depth_err))
+                    self.depth_note = "DACE-Planets"
                 except:
-                    self.D = None
+                    self.depth = None
                 try:
-                    self.W=ufloat(float(W_val),float(W_err))
-                    self.W_note = "DACE-Planets"
+                    self.width=ufloat(float(width_val),float(width_err))
+                    self.width_note = "DACE-Planets"
                 except:
-                    self.W = None
+                    self.width = None
                 try:
                     self.K=ufloat(float(K_val),float(K_err))
                     self.K_note = "DACE-Planets"
@@ -140,10 +141,10 @@ class PlanetProperties(object):
 
                 # Tidy up any missing values stored as NaNs in DACE
         
-                if np.isnan(self.D.n): 
-                    self.D = None
-                if np.isnan(self.W.n): 
-                    self.W = None
+                if np.isnan(self.depth.n): 
+                    self.depth = None
+                if np.isnan(self.width.n): 
+                    self.width = None
                 if np.isnan(self.ecosw.n): 
                     self.ecosw = None
                 if np.isnan(self.esinw.n): 
@@ -160,7 +161,7 @@ class PlanetProperties(object):
             else:
                 print(r'Target ',identifier,'not defined uniquely: ',target)
             
-        if tepcat:    
+        if query_tepcat:    
             TEPCatObsPath = Path(_cache_path,'observables.csv')
             download_tepcat = False
             if force_download:
@@ -177,12 +178,12 @@ class PlanetProperties(object):
                 try:
                     url = config['TEPCatObs']['download_url']
                 except:
-                    raise KeyError("TEPCatObs table not found in config file - "
-                            "run core.setup_config")
+                    raise KeyError("TEPCatObs table not found in config file."
+                            " Run core.setup_config")
                 try:
                     req=requests.post(url)
                 except:
-                    warnings.warn("Failed to update TEPCatObs data from server")
+                    warnings.warn("Failed to update TEPCatObs from server")
                 else:
                     with open(TEPCatObsPath, 'wb') as file:
                         file.write(req.content)
@@ -190,42 +191,46 @@ class PlanetProperties(object):
                         print('TEPCat data downloaded from \n {}'.format(url))
             # Awkward table to deal with because of repeated column names
             T = Table.read(TEPCatObsPath,format='ascii.no_header')
-            targets=np.array(T[T.colnames[list(T[0]).index('System')]][1:],
+            hdr = list(T[0])
+            targets=np.array(T[T.colnames[hdr.index('System')]][1:],
                     dtype=np.str_)
-            RAh=np.array(T[T.colnames[list(T[0]).index('RAh')]][1:],
+            RAh=np.array(T[T.colnames[hdr.index('RAh')]][1:],
                     dtype=np.str_)
-            RAm=np.array(T[T.colnames[list(T[0]).index('RAm')]][1:],
+            RAm=np.array(T[T.colnames[hdr.index('RAm')]][1:],
                     dtype=np.str_)
-            RAs=np.array(T[T.colnames[list(T[0]).index('RAs')]][1:],
+            RAs=np.array(T[T.colnames[hdr.index('RAs')]][1:],
                     dtype=np.str_)
-            Decd=np.array(T[T.colnames[list(T[0]).index('Decd')]][1:],
+            Decd=np.array(T[T.colnames[hdr.index('Decd')]][1:],
                     dtype=np.str_)
-            Decm=np.array(T[T.colnames[list(T[0]).index('Decm')]][1:],
+            Decm=np.array(T[T.colnames[hdr.index('Decm')]][1:],
                     dtype=np.str_)
-            Decs=np.array(T[T.colnames[list(T[0]).index('Decs')]][1:],
+            Decs=np.array(T[T.colnames[hdr.index('Decs')]][1:],
                     dtype=np.str_)
-            k = 'T0 (HJD or BJD)'
-            T0_vals=np.array(T[T.colnames[list(T[0]).index(k)]][1:],
+            T0_vals=np.array(T[T.colnames[hdr.index('T0 (HJD or BJD)')]][1:],
                     dtype=np.float)
-            T0_errs=np.array(T[T.colnames[list(T[0]).index('T0err')]][1:],
+            T0_errs=np.array(T[T.colnames[hdr.index('T0err')]][1:],
                     dtype=np.float)
-            periods=np.array(T[T.colnames[list(T[0]).index('Period(day)')]][1:],
+            periods=np.array(T[T.colnames[hdr.index('Period(day)')]][1:],
                     dtype=np.float)
-            perrors=np.array(T[T.colnames[list(T[0]).index('Perioderr')]][1:],
+            perrors=np.array(T[T.colnames[hdr.index('Perioderr')]][1:],
                     dtype=np.float)
-            lengths=np.array(T[T.colnames[list(T[0]).index('length')]][1:],
+            lengths=np.array(T[T.colnames[hdr.index('length')]][1:],
                     dtype=np.float)
-            depths =np.array(T[T.colnames[list(T[0]).index('depth')]][1:],
+            depths =np.array(T[T.colnames[hdr.index('depth')]][1:],
                     dtype=np.float)
-            try:
-                ok = targets == identifier
+
+            ok = [t.startswith(identifier.replace(' ','_')) for t in targets]
+            if sum(ok) > 1:
+                print('Matching planet names: ', *targets[ok])
+                raise ValueError('More than one planet matches identifier.')
+            elif sum(ok) == 1:
                 T0_val=T0_vals[ok][0]
                 T0_err=T0_errs[ok][0]
                 period=periods[ok][0]
                 perror=perrors[ok][0]
                 length=lengths[ok][0]
-                depth=depths[ok][0]*10000
-            except:
+                depth_val=depths[ok][0]*10000
+            else:
                 try:
                     tar_coords = SkyCoord.from_name(identifier) 
                     all_coords = []
@@ -235,22 +240,25 @@ class PlanetProperties(object):
                                 Decd[index]+":"+Decm[index]+":"+Decs[index])
                     TEPCat_coords = SkyCoord(all_coords, frame="icrs", 
                             unit=(u.hourangle, u.deg))
-                    indx,_,_ = match_coordinates_sky(tar_coords,TEPCat_coords)
-                    ok = targets == targets[indx]
-                    if len(targets[ok])==1:
+                    ok = tar_coords.separation(TEPCat_coords) < 5*u.arcsec
+                    if sum(ok) > 1:
+                        print('Matching planets: ', *targets[ok])
+                        raise ValueError(
+                                'More than one planet matches coordinates.')
+                    elif sum(ok)==1:
                         T0_val=T0_vals[ok][0]
                         T0_err=T0_errs[ok][0]
                         period=periods[ok][0]
                         perror=perrors[ok][0]
                         length=lengths[ok][0]
-                        depth=depths[ok][0]*10000
+                        depth_val=depths[ok][0]*10000
             
                     else:
                         print('No matching planet in TEPCat.')   
                 except: 
                     print('No coordinate match for planet in TEPCat.')
                 
-            if len(targets[ok])==1:        
+            if sum(ok)==1:        
                 if self.T0 == None: 
                     try:
                         self.T0 = ufloat(float(T0_val),float(T0_err))
@@ -263,18 +271,18 @@ class PlanetProperties(object):
                         self.P_note = "TEPCat"
                     except:
                         self.P = None
-                if self.D == None:
+                if self.depth == None:
                     try:
-                        self.D=ufloat(float(depth),float(depth/10))
-                        self.D_note = "TEPCat"
+                        self.depth=ufloat(float(depth_val),1e2)
+                        self.depth_note = "TEPCat"
                     except:
-                        self.D = None
-                if self.W == None:
+                        self.depth = None
+                if self.width == None:
                     try:
-                        self.W=ufloat(float(length),0.01)
-                        self.W_note = "TEPCat"
+                        self.width=ufloat(float(length),0.01)
+                        self.width_note = "TEPCat"
                     except:
-                        self.W = None
+                        self.width = None
                     
         # User defined values
         if T0:
@@ -301,18 +309,18 @@ class PlanetProperties(object):
                 self.esinw_note = "User"
             else:
                 raise ValueError("esinw keyword is not ufloat")
-        if D:
-            if  isinstance(D, UFloat):
-                self.D = D
-                self.D_note = "User"
+        if depth:
+            if  isinstance(depth, UFloat):
+                self.depth = depth
+                self.depth_note = "User"
             else:
-                raise ValueError("D keyword is not ufloat")
-        if W:
-            if  isinstance(W, UFloat):
-                self.W = W
-                self.W_note = "User"
+                raise ValueError("depth keyword is not ufloat")
+        if width:
+            if  isinstance(width, UFloat):
+                self.width = width
+                self.width_note = "User"
             else:
-                raise ValueError("W keyword is not ufloat")
+                raise ValueError("width keyword is not ufloat")
         if K:
             if  isinstance(K, UFloat):
                 self.K = K
@@ -382,12 +390,12 @@ class PlanetProperties(object):
         if self.P:
             s += 'P : {:13.7f} +/- {:0.7f} days   [{}]\n'.format(
                     self.P.n, self.P.s, self.P_note)
-        if self.D:
-            s += 'D : {:10.4f} +/- {:0.4f} ppm         [{}]\n'.format(
-                    self.D.n, self.D.s, self.D_note)
-        if self.W:
-            s += 'W : {:7.4f} +/- {:0.4f} days            [{}]\n'.format(
-                    self.W.n, self.W.s, self.W_note)
+        if self.depth:
+            s += 'depth : {:10.4f} +/- {:0.4f} ppm         [{}]\n'.format(
+                    self.depth.n, self.depth.s, self.depth_note)
+        if self.width:
+            s += 'width : {:7.4f} +/- {:0.4f} days            [{}]\n'.format(
+                    self.width.n, self.width.s, self.width_note)
         if self.K:
             s += 'K : {:7.4f} +/- {:0.4f} m/s      [{}]\n'.format(
                     self.K.n, self.K.s, self.K_note)
