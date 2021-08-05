@@ -402,21 +402,21 @@ class MultiVisit(object):
     treated as nuisance parameters that are automatically marginalised
     away by adding a suitable term (CosineTerm) to the covariance matrix. This
     is all done transparently by setting "unroll=True". The number of harmonic
-    terms is set by nroll, e.g., setting nroll=3 (recommended) includes terms
+    terms is set by nroll, e.g., setting nroll=3 (default) includes terms
     up to sin(3.phi) and cos(3.phi). This requires that phi is a linear
-    function of time for each dataset, which is a very good approximation for
+    function of time for each dataset, which is a good approximation for
     individual CHEOPS visits. 
     
-    Other decorrelation parameters not derived from the roll angle, e.g.,
-    dfdx, dfdy, etc. are included in the fit to individual datasets only if
-    they were free parameters in the last fit to that dataset. The
-    decorrelation is done independently for each dataset. The free parameters
-    are labelled dfdx_i, dfdy_i where i is the number of the dataset to which
-    each decorrelation parameter applies. 
+    Other decorrelation parameters not derived from the roll angle, e.g. dfdx,
+    dfdy, etc. are included in the fit to individual datasets only if they
+    were free parameters in the last fit to that dataset. The decorrelation is
+    done independently for each dataset. The free parameters are labelled
+    dfdx_ii, dfdy_ii where ii is the number of the dataset to which each
+    decorrelation parameter applies, i.e. ii=01, 02, 03, etc. 
 
     Glint correction is done independently for each dataset if the glint
     correction was included in the last fit to that dataset. The glint
-    scale factor for dataset i is labelled glint_scale_i. The glint
+    scale factor for dataset ii is labelled glint_scale_ii. The glint
     scaling factor for each dataset can either be a fixed or a free
     parameter, depending on whether it was a fixed or a free parameter in
     the last fit to that dataset.
@@ -425,7 +425,7 @@ class MultiVisit(object):
     of roll angle, Omega = d(phi)/dt, is constant. This is a reasonable
     approximation but can introduce some extra noise in cases where
     instrumental noise correlated with roll angle is large, e.g., observations
-    of faint stars in croweded fields. In this case it may be better to
+    of faint stars in crowded fields. In this case it may be better to
     divide-out the decorrelation against roll angle from the last fit in each
     dataset before using "unroll", i.e., to use "unroll" as a small correction
     to the roll-angle decorrelation. This case be done using the keyword
@@ -445,8 +445,8 @@ class MultiVisit(object):
        star/planet system, i.e. transits and eclipses
      - factor_model includes all the trends correlated with parameters apart
        from spacecraft roll angle
-    - unwrap_flux are the trends correlated spacecraft roll angle removed if
-      the unwrap=True option is specified (otherwise unwrap_flux = 0)
+    - unwrap_flux are the trends correlated with spacecraft roll angle removed
+      if the unwrap=True option is specified (otherwise unwrap_flux = 0)
     - celerite_model model is the maximum-likelihood Gaussian process generated
       for a kernel SHOTerm() + CosineTerm(Omega) + CosineTerm(2*Omega) + ...,
       where the number of CosineTerm() kernels is specified by nroll and
@@ -456,10 +456,10 @@ class MultiVisit(object):
     
       flux_d = [(flux-unwrap_flux) - unroll_flux]/factor_model + unwrap_flux
 
-    where unroll flux is contribution to the maximum-likelihood Gaussian process
-    from the CosineTerm() kernels only. The detrended fluxes for the best fits
-    to each dataset are included in the output lmfit ModelResult object in the
-    attribute fluxes_d.
+    where unroll flux is the contribution to the maximum-likelihood Gaussian
+    process from the CosineTerm() kernels only. The detrended fluxes for the
+    best fits to each dataset are included in the output lmfit ModelResult
+    object in the attribute fluxes_d.
 
     """
 
@@ -768,17 +768,14 @@ class MultiVisit(object):
                     if pj in priors:
                         params[pj].user_data = priors[pj]
                     vn.append(pj)
+                    vv.append(p[d].value)
                     if d == 'c':
-                        vv.append(1)
                         vs.append(1e-6)
                     elif d == 'glint_scale':
-                        vv.append(1)
                         vs.append(0.01)
                     elif d == 'ramp':
-                        vv.append(0)
                         vs.append(50)
                     else:
-                        vv.append(0)
                         vs.append(1e-6)
 
             if unroll:
@@ -1562,17 +1559,24 @@ class MultiVisit(object):
             phmin = min(ph)
             phases.append(ph)
             flux = copy(self.__fitted_flux__[j])
-            c = np.percentile(flux, 67) if renorm else 1
-            fluxes.append(flux/c)
+            c = modpar['c'].value
+            if renorm:
+                fluxes.append(flux/c)
+                modpar['c'].value = 1
+                print ('CCC: c_{j} = {c:0.3f}')
+            else:
+                fluxes.append(flux)
+                print ('DDD: c_{j} = {c:0.3f}')
+
             iqrmax = np.max([iqrmax, iqr(flux)])
             fit = copy(result.bestfit[j])
             modpar = copy(self.modpars[j])
-            for q in ('c', 'dfdbg', 'dfdcontam', 'dfdsmear', 'glint_scale',
+            for q in ('dfdbg', 'dfdcontam', 'dfdsmear', 'glint_scale',
                     'dfdx', 'd2fdx2', 'dfdy', 'd2fdy2', 'dfdt', 'd2fdt2',
                     'ramp'):
                 p = f'{q}_{j+1:02d}'
                 if p in result.var_names:
-                     modpar[q].value = 1 if q == 'c' else 0
+                     modpar[q].value = 0
             model = self.models[j]
             lcmod = model.eval(modpar, t=t)
             trend = fit - lcmod

@@ -1,7 +1,12 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-0.9.12 (2021-06-07)
+0.9.13 
+~~~~~~~~~~~~~~~~~~~
+* Improve initialisation of 'c' and detrending parameter values in multivisit
+
+
+0.9.12 (2021-08-04)
 ~~~~~~~~~~~~~~~~~~~
 * Avoid warnings due to truncated strings for RA/Dec in make_xml_files
 * Changed default suffix in make_xml_files to that required for CHEOPSim
