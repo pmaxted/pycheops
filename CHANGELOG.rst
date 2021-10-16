@@ -1,7 +1,7 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-0.9.13 
+0.9.13 (2021-10-17)
 ~~~~~~~~~~~~~~~~~~~
 * Major re-factoring of multivisit needed to fix/clarify what is meant by
   detrended flux for plotting and table output routines. 
