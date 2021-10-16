@@ -1,7 +1,22 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-0.9.12 (2021-06-07)
+0.9.13 
+~~~~~~~~~~~~~~~~~~~
+* Major re-factoring of multivisit needed to fix/clarify what is meant by
+  detrended flux for plotting and table output routines. 
+* Added calculate_coefficients.py script
+* Added white-noise baseline to dataset.plot_fft()
+* Exclude nu_max plot for stars Teff<5000K in dataset.plot_fft
+* Added median background count rate to summary on ingest in Dataset
+* Renamed flatchain attribute in MinimizerResult object returned by fitting
+  routines to flat_chain to avoid conflict with documented behaviour
+* Added cds_data_export() function to MultiVisit
+* Guard against failed dace import in planetproperties (#232)
+* Fix bug in combine that was excluding valid range of sigma_ext values, not
+  including it. 
+
+0.9.12 (2021-08-04)
 ~~~~~~~~~~~~~~~~~~~
 * Avoid warnings due to truncated strings for RA/Dec in make_xml_files
 * Changed default suffix in make_xml_files to that required for CHEOPSim
