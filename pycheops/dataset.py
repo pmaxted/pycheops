@@ -916,6 +916,7 @@ class Dataset(object):
                 1e6*np.nanstd(flux)/fluxmed))
             print('Median standard error = {:0.1f} [{:0.0f} ppm]'.format(
                 np.nanmedian(flux_err), 1e6*np.nanmedian(flux_err)/fluxmed))
+            print('Median background = {:0.0f} e-/pxl'.format(np.median(bg)))
             print('Mean contamination = {:0.1f} ppm'.format(1e6*contam.mean()))
             print('Mean smearing correction = {:0.1f} ppm'.
                     format(1e6*smear.mean()/fluxmed))
@@ -2106,8 +2107,12 @@ class Dataset(object):
         The red vertical dotted lines show the CHEOPS  orbital frequency and
         its first two harmonics.
 
-        If star is a pycheops starproperties object and star.teff is <7000K,
-        then the likely range of nu_max is shown using green dashed lines.
+        If star is a pycheops starproperties object and
+        5000 K < star.teff < 7000 K, then the likely range of nu_max is shown
+        using green dashed lines.
+
+        The expected power due to white noise is shown as a horizontal dashed 
+        gray line. 
 
         """
         try:
@@ -2136,12 +2141,16 @@ class Dataset(object):
         p_smooth = convolve(power, Gaussian1DKernel(gsmooth))
 
         plt.rc('font', size=fontsize)
-        fig,ax=plt.subplots(figsize=(8,5))
+        fig,ax=plt.subplots(figsize=figsize)
+        # Expected white-noise level based on median error bar
+        sigma_w = 1e6 * np.nanmedian(flux_err/flux)   # Median error in ppm
+        power_w = 1e-6 * sigma_w**2         # ppm^2/micro-Hz
+        ax.axhline(power_w, ls='--', c='dimgray')
         ax.loglog(frequency*1e6,power/1e6,c='gray',alpha=0.5)
         ax.loglog(frequency*1e6,p_smooth/1e6,c='darkcyan')
         # nu_max from Campante et al. (2016) eq (20)
         if star is not None:
-            if star.teff < 7000:
+            if abs(star.teff-6000) < 1000:
                 nu_max = 3090 * 10**(star.logg-4.438)*usqrt(star.teff/5777)
                 ax.axvline(nu_max.n-nu_max.s,ls='--',c='g')
                 ax.axvline(nu_max.n+nu_max.s,ls='--',c='g')

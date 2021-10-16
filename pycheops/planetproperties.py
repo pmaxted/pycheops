@@ -45,7 +45,12 @@ from uncertainties.umath import sqrt as usqrt
 from uncertainties.umath import sin as usin
 from uncertainties.umath import cos as ucos
 from uncertainties.umath import atan2 as uatan2
-from dace.cheops import Cheops
+# Avoid errors for users using scripts who have not installed dace
+try:
+    from dace.cheops import Cheops
+except ModuleNotFoundError: 
+    pass
+
 
 class PlanetProperties(object):
     """

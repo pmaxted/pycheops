@@ -49,7 +49,7 @@ def combine(y, yerr, walkers=64, steps=256, discard=128):
         mu = p[0]
         lnsig = p[1]
         if (mu < mulo) or (mu > muhi): return -np.inf
-        if (lnsig > lnsig_lo) or (lnsig < lnsig_hi): return -np.inf
+        if (lnsig < lnsig_lo) or (lnsig > lnsig_hi): return -np.inf
         sigma2 = yvar + np.exp(2*lnsig)
         return -0.5 * np.sum((y - mu)**2/sigma2 + np.log(sigma2))
 

@@ -118,6 +118,7 @@ setup(
     # pip to create the appropriate form of executable for the target platform.
     entry_points={
         'console_scripts': [
+            'calculate_coefficients=pycheops.calculate_coefficients:main',
             'make_xml_files=pycheops.make_xml_files:main',
             'combine=pycheops.combine:main',
         ],
