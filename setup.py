@@ -88,7 +88,7 @@ setup(
             'photutils',
             'matplotlib>3.2',
             'celerite2',
-            'cdspyreadme',
+            'cdspyreadme @ git+ssh://git@github.com:cds-astro/cds.pyreadme.git',
             'tqdm'],
 
     # List additional groups of dependencies here (e.g. development
