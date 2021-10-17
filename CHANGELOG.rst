@@ -1,6 +1,10 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.9.14 (2021-10-17)
+~~~~~~~~~~~~~~~~~~~
+* Added github ssh url for cdspyreadme to setup.py
+
 0.9.13 (2021-10-17)
 ~~~~~~~~~~~~~~~~~~~
 * Major re-factoring of multivisit needed to fix/clarify what is meant by
