@@ -88,7 +88,7 @@ setup(
             'photutils',
             'matplotlib>3.2',
             'celerite2',
-            'cdspyreadme @ git+ssh://git@github.com:cds-astro/cds.pyreadme.git',
+            'cdspyreadme',
             'python-dace-client > 2.0.0',
             'tqdm'],
 
