@@ -1,7 +1,7 @@
 Install a recent distribution of python version 3.7 or later, e.g. from
 www.anaconda.com
 
-pip install pycheops
+pip install pycheops --extra-index-url https://dace.unige.ch/api
 
 In a python shell, run 
 >>> from pycheops.core import setup_config
