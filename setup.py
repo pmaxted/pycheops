@@ -89,7 +89,12 @@ setup(
             'matplotlib>3.2',
             'celerite2',
             'cdspyreadme @ git+ssh://git@github.com:cds-astro/cds.pyreadme.git',
+            'python-dace-client > 2.0.0',
             'tqdm'],
+
+    dependency_links=[
+        'https://dace.unige.ch/api/python-dace-client/'
+    ],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,

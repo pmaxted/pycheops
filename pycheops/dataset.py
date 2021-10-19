@@ -74,13 +74,12 @@ import pickle
 import warnings
 from astropy.units import UnitsWarning
 import cdspyreadme
-import os
 from textwrap import fill, indent
-
-try:
-    from dace.cheops import Cheops
-except ModuleNotFoundError: 
-    pass
+import os
+from contextlib import redirect_stderr
+with open(os.devnull,'w') as devnull:
+    with redirect_stderr(devnull):
+        from dace.cheops import Cheops
 
 _file_key_re = re.compile(r'CH_PR(\d{2})(\d{4})_TG(\d{4})(\d{2})_V(\d{4})')
 
@@ -331,16 +330,13 @@ class Dataset(object):
             else:
                 file_type='lightcurves'
                 view_report = False
-            # Make backwards compatible with DACE API < 2.0.0
-            try:
-                Cheops.download(file_type,
-                    filters={'file_key':{'contains':file_key}},
-                    output_directory=str(tgzPath.parent),
-                    output_filename=str(tgzPath.name) )
-            except TypeError:
-                Cheops.download(file_type, 
-                    filters={'file_key':{'contains':file_key}},
-                    output_full_file_path=str(tgzPath))
+            # Bodge to avoid logging errors in jupyter notebooks
+            with open(os.devnull,'w+') as devnull:
+                with redirect_stderr(devnull):
+                    Cheops.download(file_type,
+                        filters={'file_key':{'contains':file_key}},
+                        output_directory=str(tgzPath.parent),
+                        output_filename=str(tgzPath.name) )
 
         lisPath = Path(_cache_path,file_key).with_suffix('.lis')
         # The file list can be out-of-date is force_download is used

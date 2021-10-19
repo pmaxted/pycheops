@@ -33,12 +33,17 @@ from astropy.coordinates import SkyCoord
 import requests
 from .core import load_config
 from pathlib import Path
-from os.path import getmtime
 from time import localtime, mktime
 from uncertainties import ufloat, UFloat
 from .ld import stagger_power2_interpolator, atlas_h1h2_interpolator
 from .ld import phoenix_h1h2_interpolator
 from numpy.random import normal
+import os
+from contextlib import redirect_stderr
+with open(os.devnull,'w') as devnull:
+    with redirect_stderr(devnull):
+        from dace.cheops import Cheops
+
 
 
 class StarProperties(object):
@@ -98,7 +103,7 @@ class StarProperties(object):
         elif dace:
             download_sweetcat = False
         elif sweetCatPath.is_file():
-            file_age = mktime(localtime())-getmtime(sweetCatPath)
+            file_age = mktime(localtime())-os.path.getmtime(sweetCatPath)
             if file_age > int(config['SWEET-Cat']['update_interval']):
                 download_sweetcat = True
             else:
@@ -115,7 +120,6 @@ class StarProperties(object):
                 print('SWEET-Cat data downloaded from \n {}'.format(url))
 
         if dace:
-            from dace.cheops import Cheops
             db = Cheops.query_catalog("stellar")
             cat_c = SkyCoord(db['obj_pos_ra_deg'], db['obj_pos_dec_deg'],
                     unit='degree,degree')
