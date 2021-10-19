@@ -3,10 +3,11 @@ www.anaconda.com
 
 pip install pycheops
 
-Install DACE API from https://dace.unige.ch (DO NOT use "pip install dace")
-
 In a python shell, run 
 >>> from pycheops.core import setup_config
+
+To access proprietary data from DACE, follow instructions at
+https://dace.unige.ch/pythonAPI/
 
 You can test your installation by running some of the Jupyter notebooks that
 come with this distribution under pycheops/examples/Notebooks/

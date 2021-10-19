@@ -4,6 +4,11 @@ Changes since 0.6.0 onwards.
 0.9.14 (2021-10-17)
 ~~~~~~~~~~~~~~~~~~~
 * Added github ssh url for cdspyreadme to setup.py
+* Added dependency_links for python-dace-client to setup.py
+* Updated INSTALLATION 
+* Replaced try/except/pass guards around dace imports in all files with
+  redirect_syserr(devnull). 
+* Updated examples/Notebooks
 
 0.9.13 (2021-10-17)
 ~~~~~~~~~~~~~~~~~~~

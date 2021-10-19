@@ -1,0 +1,2 @@
+techniques: photometric - planets and satellites: atmospheres - planets and
+satellites: individual: WASP-189 b

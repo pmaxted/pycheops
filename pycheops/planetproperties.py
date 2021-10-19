@@ -35,7 +35,6 @@ from astropy.coordinates import SkyCoord, match_coordinates_sky
 import requests
 from pycheops.core import load_config
 from pathlib import Path
-from os.path import getmtime
 from time import localtime, mktime
 from uncertainties import ufloat, UFloat
 from numpy.random import normal
@@ -45,12 +44,11 @@ from uncertainties.umath import sqrt as usqrt
 from uncertainties.umath import sin as usin
 from uncertainties.umath import cos as ucos
 from uncertainties.umath import atan2 as uatan2
-# Avoid errors for users using scripts who have not installed dace
-try:
-    from dace.cheops import Cheops
-except ModuleNotFoundError: 
-    pass
-
+import os
+from contextlib import redirect_stderr
+with open(os.devnull,'w') as devnull:
+    with redirect_stderr(devnull):
+        from dace.cheops import Cheops
 
 class PlanetProperties(object):
     """
@@ -172,7 +170,7 @@ class PlanetProperties(object):
             if force_download:
                 download_tepcat = True
             elif TEPCatObsPath.is_file():
-                file_age = mktime(localtime())-getmtime(TEPCatObsPath)
+                file_age = mktime(localtime())-os.path.getmtime(TEPCatObsPath)
                 if file_age > int(config['TEPCatObs']['update_interval']):
                     download_tepcat = True
                 else:

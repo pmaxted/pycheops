@@ -652,7 +652,7 @@ class MultiVisit(object):
 
             f_unwrap = np.zeros_like(d.lc['time'])
             if kwargs['unwrap']:
-                phi = lc_['roll_angle']*np.pi/180
+                phi = d.lc['roll_angle']*np.pi/180
                 for j in range(1,4):
                     k = 'dfdsinphi' if j < 2 else f'dfsin{j}phi'
                     if k in p: f_unwrap += p[k]*np.sin(j*phi)
