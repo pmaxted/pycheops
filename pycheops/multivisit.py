@@ -1611,7 +1611,8 @@ class MultiVisit(object):
                     off = j_tr*doff_tr
                     j_tr += 1
                     ax = axes[0,0]
-                ax.plot(ph,fp+off,c='forestgreen', lw=1, zorder=2)
+                k = np.argsort(ph)
+                ax.plot(ph[k],fp[k]+off,c='forestgreen', lw=1, zorder=2)
 
             roff = 10*np.max(result.rms)
             if res_offset is None:
@@ -1709,7 +1710,8 @@ class MultiVisit(object):
         
             for j, (ph, fp) in enumerate(zip(ph_grid, lc_grid)):
                 off = j*doff
-                ax[0].plot(ph,fp+off,c='forestgreen', lw=1, zorder=2)
+                k = np.argsort(ph)
+                ax[0].plot(ph[k],fp[k]+off,c='forestgreen', lw=1, zorder=2)
         
             roff = 10*np.max(result.rms) if res_offset is None else res_offset
             for j, (ph,res) in enumerate(zip(ph_fluxes, resids)):

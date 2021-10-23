@@ -2538,7 +2538,7 @@ class Dataset(object):
 
     def cds_data_export(self, lcfile="lc.dat",title=None, author=None, 
             authors=None, abstract=None, keywords=None, bibcode=None,
-            acknowledgments=None):
+            acknowledgements=None):
         '''
         Save light curve, best fit, etc. to files suitable for CDS upload
 
@@ -2563,12 +2563,12 @@ class Dataset(object):
         :param abstract: Abstract of the paper
         :param keywords: list of keywords as in the printed publication
         :param bibcode: Bibliography code for the printed publication
-        :param acknowledgments: list of acknowledgments
+        :param acknowledgements: list of acknowledgements
 
         See http://cdsarc.u-strasbg.fr/submit/catstd/catstd-3.1.htx for the
         correct formatting of title, keywords, etc.
 
-        The acknowledgments are normally used to give the name and e-mail
+        The acknowledgements are normally used to give the name and e-mail
         address of the person who generated the table, e.g. 
         "Pierre Maxted, p.maxted(at)keele.ac.uk"
 
