@@ -1,7 +1,12 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-0.9.14 (2021-10-17)
+0.9.15 (2021-10-20)
+~~~~~~~~~~~~~~~~~~~
+* Fixed plotting bug for models not in phase order in MultiVisit.plot_fit()
+* Dataset.cds_data_export: acknowledgments -> acknowledgements
+
+0.9.14 (2021-10-19)
 ~~~~~~~~~~~~~~~~~~~
 * Added dependency_links for python-dace-client to setup.py
 * Updated INSTALLATION 
