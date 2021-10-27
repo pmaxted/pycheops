@@ -1,7 +1,7 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-0.9.16 (2021-10-23)
+0.9.16 (2021-10-27)
 ~~~~~~~~~~~~~~~~~~~
 * Remove html versions of example notebooks
 * Added parameter hint for ramp in models.FactorModel
