@@ -1,6 +1,14 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.9.16 (2021-10-27)
+~~~~~~~~~~~~~~~~~~~
+* Remove html versions of example notebooks
+* Added parameter hint for ramp in models.FactorModel
+* Use np.nanmean() and np.nanmedian() in utils.lcbin
+* Bug fix for unwrap=True in multivisit - dfdsin2pi, dfdcos2phi, dfdsin3phi
+  and dfdcos3phi terms were not be removed.
+
 0.9.15 (2021-10-20)
 ~~~~~~~~~~~~~~~~~~~
 * Fixed plotting bug for models not in phase order in MultiVisit.plot_fit()

@@ -558,7 +558,7 @@ class FactorModel(Model):
         self.cosphi = cosphi
         self.set_param_hint('c', min=0)
         for p in ['dfdt', 'd2fdt2', 'dfdbg', 'dfdcontam', 'dfdsmear',
-                  'dfdx', 'dfdy', 'd2fdx2', 'd2fdxdy',  'd2fdy2', 
+                  'dfdx', 'dfdy', 'd2fdx2', 'd2fdxdy',  'd2fdy2', 'ramp', 
                   'dfdsinphi', 'dfdcosphi', 'dfdcos2phi', 'dfdsin2phi',
                   'dfdcos3phi', 'dfdsin3phi']:
             self.set_param_hint(p, value=0, vary=False)
@@ -942,8 +942,10 @@ class EBLMModel(Model):
     includes the correction a_c for the light travel time across the orbit,
     i.e., for a circular orbit the time of mid-eclipse is (T_0 + 0.5*P) + a_c.
 
-    **N.B.** a_c must have the same units as P. The power-2 law is used to model
-    the limb-darkening of star 1. Limb-darkening on star 2 is ignored.
+    **N.B.** a_c must have the same units as P.
+
+    The power-2 law is used to model the limb-darkening of star 1.
+    Limb-darkening on star 2 is ignored.
 
     The following parameters are defined for convenience:
 
@@ -956,12 +958,12 @@ class EBLMModel(Model):
     :param P:   - orbital period
     :param D:   - (R_2/R_1)**2 = k**2
     :param W:   - (R_1/a)*sqrt((1+k)**2 - b**2)/pi
-    :param b:    - a*cos(i)/R_1
+    :param b:   - a*cos(i)/R_1
     :param L:   - Depth of eclipse
     :param f_c: - sqrt(ecc).cos(omega)
     :param f_s: - sqrt(ecc).sin(omega)
-    :param h_1:  - I(0.5) = 1 - c*(1-0.5**alpha)
-    :param h_2:  - I(0.5) - I(0) = c*0.5**alpha
+    :param h_1: - I(0.5) = 1 - c*(1-0.5**alpha)
+    :param h_2: - I(0.5) - I(0) = c*0.5**alpha
     :param a_c: - correction for light travel time across the orbit
 
     """
