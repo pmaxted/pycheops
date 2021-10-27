@@ -244,12 +244,12 @@ def lcbin(time, flux, binwidth=0.06859, nmin=4, time0=None,
             if tmid:
                 t_bin[i] = (bin_edges[i]+bin_edges[i+1])/2
             else:
-                t_bin[i] = np.mean(time[j])
+                t_bin[i] = np.nanmean(time[j])
             if robust:
-                f_bin[i] = np.median(flux[j])
-                e_bin[i] = 1.25*np.mean(abs(flux[j] - f_bin[i]))/np.sqrt(n)
+                f_bin[i] = np.nanmedian(flux[j])
+                e_bin[i] = 1.25*np.nanmean(abs(flux[j] - f_bin[i]))/np.sqrt(n)
             else:
-                f_bin[i] = np.mean(flux[j])
+                f_bin[i] = np.nanmean(flux[j])
                 e_bin[i] = np.std(flux[j])/np.sqrt(n-1)
 
     j = (n_bin >= nmin)

@@ -654,9 +654,9 @@ class MultiVisit(object):
             if kwargs['unwrap']:
                 phi = d.lc['roll_angle']*np.pi/180
                 for j in range(1,4):
-                    k = 'dfdsinphi' if j < 2 else f'dfsin{j}phi'
+                    k = 'dfdsinphi' if j < 2 else f'dfdsin{j}phi'
                     if k in p: f_unwrap += p[k]*np.sin(j*phi)
-                    k = 'dfdcosphi' if j < 2 else f'dfcos{j}phi'
+                    k = 'dfdcosphi' if j < 2 else f'dfdcos{j}phi'
                     if k in p: f_unwrap += p[k]*np.cos(j*phi)
             fluxes_unwrap.append(f_unwrap)
 
