@@ -165,7 +165,7 @@ def setup_config(configFile=None, overwrite=False, mode=0o600,
                     'pdf_cmd': pdf_cmd}
 
     # SweetCat location and update interval in seconds
-    url = 'https://www.astro.up.pt/resources/sweet-cat/download.php' 
+    url = 'https://sweetcat.iastro.pt/catalog/SWEETCAT_Dataframe.csv'
     c['SWEET-Cat'] = {'update_interval': 86400, 'download_url': url}
     
     # TEPCat location and update interval in seconds

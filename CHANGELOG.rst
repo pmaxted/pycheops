@@ -1,6 +1,12 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.9.17 (2021-11-13)
+~~~~~~~~~~~~~~~~~~~
+* Update StarProperties and core for new location and format of SWEET-Cat
+* Added backend option to MultiVisit and Dataset fit routines (#169)
+* Added rho, sigma and tau to SHOTerm output (#206)
+
 0.9.16 (2021-10-27)
 ~~~~~~~~~~~~~~~~~~~
 * Remove html versions of example notebooks
