@@ -357,6 +357,12 @@ class MultiVisit(object):
      array in the attribute flat_chain instead of a pandas.DataFrame object in
      the attribute flatchain.
 
+    Backends
+    --------
+     See https://emcee.readthedocs.io/en/stable/tutorials/monitor/ for use of
+     the backend keyword.
+      
+
     """
 
     def __init__(self, target=None, datadir=None,
@@ -640,6 +646,13 @@ class MultiVisit(object):
                     vn.append(k)
                     vv.append(noisemodel[k].value)
                     vs.append(1)
+            params.add('rho_SHO',expr='2*pi/exp(log_omega0)')
+            params.add('tau_SHO',expr='2*exp(log_Q)/exp(log_omega0)')
+            params.add('sigma_SHO',expr='sqrt(exp(log_Q+log_S0+log_omega0))')
+            noisemodel.add('rho_SHO',expr='2*pi/exp(log_omega0)')
+            noisemodel.add('tau_SHO',expr='2*exp(log_Q)/exp(log_omega0)')
+            noisemodel.add('sigma_SHO',
+                            expr='sqrt(exp(log_Q+log_S0+log_omega0))')
 
         # Lists of model parameters and data for individual datasets
         fluxes_unwrap = []
@@ -761,26 +774,38 @@ class MultiVisit(object):
         self.__var_names__ = vn # Change of name for consistency with result
         self.__fluxes_unwrap__ = fluxes_unwrap
 
+        backend = kwargs['backend']
+        if backend is None:
+            iteration = 0
+        else:
+            try:
+                iteration = backend.iteration
+            except OSError:
+                iteration = 0
         # Setup sampler
         vv = np.array(vv)
         vs = np.array(vs)
-        pos = []
         n_varys = len(vv)
         nwalkers = kwargs['nwalkers']
-        for i in range(nwalkers):
-            lnpost_i = -np.inf
-            it = 0
-            while lnpost_i == -np.inf:
-                pos_i = vv + vs*np.random.randn(n_varys)*kwargs['init_scale']
-                lnpost_i, lnlike_i = self._lnpost_(pos_i)
-                it += 1
-                if it > _ITMAX_:  
-                    for n,v,s, in zip(vn, vv, vs):
-                        print(n,v,s)
-                    raise Exception('Failed to initialize walkers')
-            pos.append(pos_i)
-
-        sampler = EnsembleSampler(nwalkers, n_varys, self._lnpost_)
+        if iteration > 0:
+            pos = None
+        else:
+            pos = []
+            for i in range(nwalkers):
+                lnpost_i = -np.inf
+                it = 0
+                while lnpost_i == -np.inf:
+                    pos_i=vv+vs*np.random.randn(n_varys)*kwargs['init_scale']
+                    lnpost_i, lnlike_i = self._lnpost_(pos_i)
+                    it += 1
+                    if it > _ITMAX_:  
+                        for n,v,s, in zip(vn, vv, vs):
+                            print(n,v,s)
+                        raise Exception('Failed to initialize walkers')
+                pos.append(pos_i)
+    
+        sampler = EnsembleSampler(nwalkers, n_varys, self._lnpost_,
+                                  backend=backend)
 
         progress = kwargs['progress']
         if progress:
@@ -1024,7 +1049,7 @@ class MultiVisit(object):
             h_1=None, h_2=None, ttv=False, ttv_prior=3600, extra_priors=None, 
             log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
             unroll=True, nroll=3, unwrap=False, thin=1, 
-            init_scale=1e-2, progress=True):
+            init_scale=1e-2, progress=True, backend=None):
         """
         Use emcee to fit the transits in the current datasets 
 
@@ -1051,7 +1076,7 @@ class MultiVisit(object):
             L=None, a_c=0, edv=False, edv_prior=1e-3, extra_priors=None, 
             log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
             unroll=True, nroll=3, unwrap=False, thin=1, 
-            init_scale=1e-2, progress=True):
+            init_scale=1e-2, progress=True, backend=None):
         """
         Use emcee to fit the eclipses in the current datasets 
 
@@ -1076,7 +1101,7 @@ class MultiVisit(object):
             L=None, a_c=0, edv=False, edv_prior=1e-3, extra_priors=None, 
             log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
             unroll=True, nroll=3, unwrap=False, thin=1, 
-            init_scale=1e-2, progress=True):
+            init_scale=1e-2, progress=True, backend=None):
         """
         Use emcee to fit the transits and eclipses in the current datasets
         using a model for an eclipsing binary with a low-mass companion.

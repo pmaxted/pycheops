@@ -1748,11 +1748,15 @@ class Dataset(object):
     def emcee_sampler(self, params=None,
             steps=128, nwalkers=64, burn=256, thin=1, log_sigma=None, 
             add_shoterm=False, log_omega0=None, log_S0=None, log_Q=None,
-            init_scale=1e-2, progress=True):
+            init_scale=1e-2, progress=True, backend=None):
         """
         If you only want to store and yield 1-in-thin samples in the chain, set
         thin to an integer greater than 1. When this is set, thin*steps will be
         made and the chains returned with have "steps" values per walker.
+
+        See https://emcee.readthedocs.io/en/stable/tutorials/monitor/ for use 
+        of the backend keyword.
+
         """
 
 
@@ -1806,6 +1810,9 @@ class Dataset(object):
                 params.add('log_Q', value=np.log(1/np.sqrt(2)), vary=False)
             else:
                 params['log_Q'] = _kw_to_Parameter('log_Q', log_Q)
+            params.add('rho_SHO', expr='2*pi/exp(log_omega0)')
+            params.add('tau_SHO', expr='2*exp(log_Q)/exp(log_omega0)')
+            params.add('sigma_SHO', expr='sqrt(exp(log_Q+log_S0+log_omega0))')
 
         if 'log_sigma' in k:
             pass
@@ -1854,20 +1861,29 @@ class Dataset(object):
         args += (return_fit, )
     
         # Initialize sampler positions ensuring all walkers produce valid
-        # function values.
-        pos = []
+        # function values (or pos=None if restarting from a backend)
         n_varys = len(vv)
-
-        for i in range(nwalkers):
-            params_tmp = params.copy()
-            lnpost_i = -np.inf
-            while lnpost_i == -np.inf:
-                pos_i = vv + vs*np.random.randn(n_varys)*init_scale
-                lnpost_i, lnlike_i = log_posterior_func(pos_i, *args)
-            pos.append(pos_i)
+        if backend is None:
+            iteration = 0
+        else:
+            try:
+                iteration = backend.iteration
+            except OSError:
+                iteration = 0
+        if iteration > 0:
+            pos = None
+        else:
+            pos = []
+            for i in range(nwalkers):
+                params_tmp = params.copy()
+                lnpost_i = -np.inf
+                while lnpost_i == -np.inf:
+                    pos_i = vv + vs*np.random.randn(n_varys)*init_scale
+                    lnpost_i, lnlike_i = log_posterior_func(pos_i, *args)
+                pos.append(pos_i)
 
         sampler = EnsembleSampler(nwalkers, n_varys, log_posterior_func,
-            args=args)
+            args=args, backend=backend)
         if progress:
             print('Running burn-in ..')
             stdout.flush()
