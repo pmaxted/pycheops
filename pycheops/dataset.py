@@ -360,7 +360,7 @@ class Dataset(object):
                 hdr = hdul[1].header
         else:
             tar = tarfile.open(self.tgzfile)
-            r=re.compile('(.*_SCI_COR_Lightcurve-{}_.*.fits)'.format(aperture))
+            r=re.compile('(CH.*_SCI_COR_Lightcurve-{}_.*.fits)'.format(aperture))
             datafile = list(filter(r.match, self.list))
             if len(datafile) == 0:
                 raise Exception('Dataset does not contain light curve data.')
@@ -417,7 +417,7 @@ class Dataset(object):
                 self.metadata = Table.read(metaPath)
             else:
                 tar = tarfile.open(self.tgzfile)
-                r=re.compile('(.*SCI_RAW_SubArray.*.fits)')
+                r=re.compile('(CH.*SCI_RAW_SubArray.*.fits)')
                 metafile = list(filter(r.match, self.list))
                 if len(metafile) > 1:
                     raise Exception('Multiple metadata files in datset')
@@ -958,7 +958,7 @@ class Dataset(object):
         pdfPath = Path(self.tgzfile).parent/pdfFile
         if not pdfPath.is_file():
             tar = tarfile.open(self.tgzfile)
-            r = re.compile('(.*_RPT_COR_DataReduction_.*.pdf)')
+            r = re.compile('(CH.*_RPT_COR_DataReduction_.*.pdf)')
             report = list(filter(r.match, self.list))
             if len(report) == 0:
                 raise Exception('Dataset does not contain DRP report.')
@@ -1064,7 +1064,7 @@ class Dataset(object):
                                     hdr = hdul[1].header
                             else:
                                 tar = tarfile.open(self.tgzfile)
-                                r=re.compile('(.*_SCI_COR_Lightcurve-{}_.*.fits)'.format(aperture))
+                                r=re.compile('(CH.*_SCI_COR_Lightcurve-{}_.*.fits)'.format(aperture))
                                 datafile = list(filter(r.match, self.list))
                                 with tar.extractfile(datafile[0]) as fd:
                                     hdul = fits.open(fd)
