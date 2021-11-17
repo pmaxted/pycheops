@@ -9,6 +9,14 @@ See `pycheops/examples/Notebooks <https://github.com/pmaxted/pycheops/tree/maste
 
 For discussion and announcements, please join the `pycheops google group <https://groups.google.com/forum/#!forum/pycheops>`_
 
+See pycheops/docs/PyCheops_Cookbook.pdf for a guide to using pycheops.
+
+See pycheops/examples/Notebooks for Jupyter notebook that illustrate the
+features of pycheops.
+
+See Maxted et al. 2021 (arxiv:2111.xxxxx) for a full description of the
+algorithms and assumptions used in pycheops. 
+
 Troubleshooting
 ***************
 
