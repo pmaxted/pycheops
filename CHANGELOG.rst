@@ -1,6 +1,11 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+0.9.18 (2021-11-16)
+~~~~~~~~~~~~~~~~~~~
+* Include "CH" at the start of pattern matches for file names in dataset.py to
+  avoid finding hidden files. 
+
 0.9.17 (2021-11-13)
 ~~~~~~~~~~~~~~~~~~~
 * Update StarProperties and core for new location and format of SWEET-Cat
