@@ -3,8 +3,8 @@ Changes since 0.6.0 onwards.
 
 1.0.0 (2021-11-17)
 ~~~~~~~~~~~~~~~~~~~
-* Updated notebooks for release of version 1.0.0
-
+* Updated readme, notebooks and cookbook for release of version 1.0.0
+ 
 0.9.18 (2021-11-16)
 ~~~~~~~~~~~~~~~~~~~
 * Include "CH" at the start of pattern matches for file names in dataset.py to
