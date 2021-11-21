@@ -360,7 +360,7 @@ class Dataset(object):
                 hdr = hdul[1].header
         else:
             tar = tarfile.open(self.tgzfile)
-            r=re.compile('(CH.*_SCI_COR_Lightcurve-{}_.*.fits)'.format(aperture))
+            r=re.compile('(?!\.)(.*_SCI_COR_Lightcurve-{}_.*.fits)'.format(aperture))
             datafile = list(filter(r.match, self.list))
             if len(datafile) == 0:
                 raise Exception('Dataset does not contain light curve data.')
@@ -417,7 +417,7 @@ class Dataset(object):
                 self.metadata = Table.read(metaPath)
             else:
                 tar = tarfile.open(self.tgzfile)
-                r=re.compile('(CH.*SCI_RAW_SubArray.*.fits)')
+                r=re.compile('(?!\.)(.*SCI_RAW_SubArray.*.fits)')
                 metafile = list(filter(r.match, self.list))
                 if len(metafile) > 1:
                     raise Exception('Multiple metadata files in datset')
@@ -453,7 +453,7 @@ class Dataset(object):
         wd = "pub/cheops/test_data/{}".format(subdir)
         ftp.cwd(wd)
         filelist = [fl[0] for fl in ftp.mlsd()]
-        _re = re.compile(r'CH_(PR\d{6}_TG\d{6}).zip')
+        _re = re.compile(r'(CH_PR\d{6}_TG\d{6}).zip')
         zipfiles = list(filter(_re.match, filelist))
         if len(zipfiles) > 1:
             raise ValueError('More than one dataset in ftp directory')
@@ -722,7 +722,7 @@ class Dataset(object):
             if verbose: print ('Imagette data loaded from ',imPath)
         else:
             if verbose: print ('Extracting imagette data from ',self.tgzfile)
-            r=re.compile('(.*SCI_RAW_Imagette.*.fits)' )
+            r=re.compile('(?!\.)(.*SCI_RAW_Imagette.*.fits)' )
             datafile = list(filter(r.match, self.list))
             if len(datafile) == 0:
                 raise Exception('Dataset does not contains imagette data.')
@@ -756,10 +756,10 @@ class Dataset(object):
             if verbose: print ('Subarray data loaded from ',subPath)
         else:
             if verbose: print ('Extracting subarray data from ',self.tgzfile)
-            r=re.compile('(.*SCI_COR_SubArray.*.fits)' )
+            r=re.compile('(?!\.)(.*SCI_COR_SubArray.*.fits)' )
             datafile = list(filter(r.match, self.list))
             if len(datafile) == 0:
-                r=re.compile('(.*SCI_RAW_SubArray.*.fits)' )
+                r=re.compile('(?!\.)(.*SCI_RAW_SubArray.*.fits)' )
                 datafile = list(filter(r.match, self.list))
             if len(datafile) == 0:
                 raise Exception('Dataset does not contains subarray data.')
@@ -818,7 +818,7 @@ class Dataset(object):
         else:
             if verbose: print ('Extracting light curve from ',self.tgzfile)
             tar = tarfile.open(self.tgzfile)
-            r=re.compile('(.*_SCI_COR_Lightcurve-{}_.*.fits)'.format(aperture))
+            r=re.compile('(?!\.)(.*_SCI_COR_Lightcurve-{}_.*.fits)'.format(aperture))
             datafile = list(filter(r.match, self.list))
             if len(datafile) == 0:
                 raise Exception('Dataset does not contain light curve data.')
@@ -958,7 +958,7 @@ class Dataset(object):
         pdfPath = Path(self.tgzfile).parent/pdfFile
         if not pdfPath.is_file():
             tar = tarfile.open(self.tgzfile)
-            r = re.compile('(CH.*_RPT_COR_DataReduction_.*.pdf)')
+            r = re.compile('(?!\.)(.*_RPT_COR_DataReduction_.*.pdf)')
             report = list(filter(r.match, self.list))
             if len(report) == 0:
                 raise Exception('Dataset does not contain DRP report.')
@@ -1064,7 +1064,7 @@ class Dataset(object):
                                     hdr = hdul[1].header
                             else:
                                 tar = tarfile.open(self.tgzfile)
-                                r=re.compile('(CH.*_SCI_COR_Lightcurve-{}_.*.fits)'.format(aperture))
+                                r=re.compile('(?!\.)(.*_SCI_COR_Lightcurve-{}_.*.fits)'.format(aperture))
                                 datafile = list(filter(r.match, self.list))
                                 with tar.extractfile(datafile[0]) as fd:
                                     hdul = fits.open(fd)

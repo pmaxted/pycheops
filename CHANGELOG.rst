@@ -1,6 +1,10 @@
 Changes since 0.6.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.0.1 (2021-11-21)
+~~~~~~~~~~~~~~~~~~~
+* Attempted fix in 0.9.18 to avoid hidden files in dataset() failed - fixed.
+
 1.0.0 (2021-11-17)
 ~~~~~~~~~~~~~~~~~~~
 * Updated readme, notebooks and cookbook for release of version 1.0.0
