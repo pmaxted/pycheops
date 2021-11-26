@@ -428,10 +428,7 @@ class Dataset(object):
                     format(self.gmag, self.e_gmag))
 
         if metadata:
-            try:
-                metaFile = "{}-meta.fits".format(self.file_key)
-            except:
-                metaFile = "{}-meta_PIPE.fits".format(self.file_key)
+            metaFile = "{}-meta.fits".format(self.file_key)
             metaPath = Path(self.tgzfile).parent/metaFile
             if metaPath.is_file():
                 self.metadata = Table.read(metaPath)
