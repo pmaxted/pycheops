@@ -81,7 +81,7 @@ with open(os.devnull,'w') as devnull:
     with redirect_stderr(devnull):
         from dace.cheops import Cheops
 
-_file_key_reC = re.compile(r'CH_PR(\d{2})(\d{4})_TG(\d{4})(\d{2})_V(\d{4})')
+_file_key_re = re.compile(r'CH_PR(\d{2})(\d{4})_TG(\d{4})(\d{2})_V(\d{4})')
 _file_key_reT = re.compile(r'TIC_(\d{10})_SEC(\d{4})_V(\d{4})')
 _file_key_reP = re.compile(r'PIPE_CH_PR(\d{2})(\d{4})_TG(\d{4})(\d{2})_V(\d{4})')
 _file_key_reK = re.compile(r'KIC_(\d{10})_SEC_(\d{4})')
@@ -317,7 +317,7 @@ class Dataset(object):
         elif source == 'Kepler' or source == 'K2':
             m = _file_key_reK.search(file_key)
         else:
-            m = _file_key_reC.search(file_key)
+            m = _file_key_re.search(file_key)
         
         if m is None:
             raise ValueError('Invalid file_key {}'.format(file_key))
