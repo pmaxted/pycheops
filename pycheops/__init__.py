@@ -53,10 +53,13 @@ cache_path = config['DEFAULT']['data_cache_path']
 pfile = path.join(cache_path,'Contamination_33arcsec_aperture.p')
 if not path.isfile(pfile):
     radius = 33  # Aperture radius in pixels
-    psffile = path.join(data_path, 'CHEOPS_IT_PSFwhite_20180720AO1v1.0.txt')
-    with open(psffile) as fp:
+    psf_file = config['DEFAULT']['psf_file']
+    psf_x0 =  config['psf_file']['x0']
+    psf_y0 =  config['psf_file']['y0']
+    psf_path = path.join(data_path, psf_file)
+    with open(psf_path) as fp:
         data = [[float(digit) for digit in line.split()] for line in fp]
-    position0 = [(99.5,99.5)]
+    position0 = [psf_x0, psf_y0]
     aperture0 = CircularAperture(position0, r=radius)
     photTable0 = aperture_photometry(data, aperture0)
     target_flux = photTable0['aperture_sum'][0]

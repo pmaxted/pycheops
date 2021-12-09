@@ -177,6 +177,10 @@ def setup_config(configFile=None, overwrite=False, mode=0o600,
     #N.B. The archive username and password are stored in plain text so the
     #default mode value is 0o600 = user read/write permission only.
 
+    # Reference PSF file
+    psf_file = 'CHEOPS_IT_PSFwhite_20180720AO1v1.0.txt'
+    c['psf_file'] = {'psf_file': psf_file, 'x0':99.5, 'y0':99.5}
+    
     with open(os.open(configFile, os.O_CREAT | os.O_WRONLY, mode), 'w') as cf:
         c.write(cf)
 
