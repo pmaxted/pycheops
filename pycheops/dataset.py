@@ -73,6 +73,7 @@ import subprocess
 import pickle
 import warnings
 from astropy.units import UnitsWarning
+from photutils import CircularAperture, aperture_photometry
 import cdspyreadme
 from textwrap import fill, indent
 import os
@@ -797,6 +798,8 @@ class Dataset(object):
         :param reject_highpoints: 
         :param verbose:
 
+        :returns: time, flux, flux_err
+
         The offset of the telescope tube temperature from its nominal value 
         (thermFront_2 + 12) is stored in dataset.lc['deltaT']
 
@@ -880,6 +883,7 @@ class Dataset(object):
         else:
             if verbose:
                 print('Correction for flux from background stars not applied')
+        self.decontaminated = decontaminate
 
         if reject_highpoints:
             C_cut = (2*np.nanmedian(flux)-np.nanmin(flux))
@@ -2964,6 +2968,81 @@ class Dataset(object):
             return d
         
     #------
+
+    def decontaminate(self, Gmag=None, count_rate=None, verbose=True,
+            configFile=None):
+        """
+        Correction to light curve for contamination by nearby stars.
+
+        The parameter count_rate is used to pass the assumed values of the
+        target counts per exposure relative to 10**(-0.4*Gmag), i.e. assuming
+        that a star with G-band magnitude Gmag has a count_rate value of 1.
+        Must have the same number of elements as the observed lightcurve
+        currently stored in Dataset.lc. Set elements of count_rate to np.nan
+        to exclude observations from the calculation of the zero point
+        calculation.
+
+        :param Gmag: default is to use value from FITS keyword MAG_G
+        :param count_rate: Normalised count rate values for light curve
+        :param verbose: 
+        :param configFile:
+
+        :returns: time, flux, flux_err
+
+        """
+
+        if self.decontaminated:
+            raise Exception('Decontamination correction already applied.')
+
+        time = self.lc['time']
+        flux = self.lc['flux']
+        flux_err = self.lc['flux_err']
+        contam = self.lc['contam']
+
+        config = load_config(configFile)
+        psf_file = config['psf_file']['psf_file']
+        psf_x0 =  config['psf_file']['x0']
+        psf_y0 =  config['psf_file']['y0']
+        here = os.path.abspath(os.path.dirname(__file__))
+        data_path = os.path.join(here,'data','instrument')
+        psf_path = os.path.join(data_path, psf_file)
+        with open(psf_path) as fp:
+            psf = [[float(digit) for digit in line.split()] for line in fp]
+        position0 = [psf_x0, psf_y0]
+        aperture0 = CircularAperture(position0, r=self.ap_rad)
+        photTable0 = aperture_photometry(psf, aperture0)
+        target_flux = photTable0['aperture_sum'][0]
+        flx_frac = target_flux/np.sum(psf)
+
+        if Gmag is None:
+            Gmag = self.lc['table'].meta['MAG_G']
+
+        if count_rate is None:
+            count_rate = np.ones_like(time)
+
+        k = np.isfinite(count_rate)
+        nk = sum(k)
+        G0 = -2.5*np.log10( (contam[k]+count_rate[k])*
+                flx_frac*10**(-0.4*Gmag)/ flux[k])
+        G0mean = np.nanmean(G0)
+        contam_flux = contam*10**(-0.4*(Gmag-G0mean)) 
+        flux = (flux - contam_flux)/(1-np.nanmean(contam_flux))
+        flux_err = flux_err/(1-np.nanmean(contam_flux))
+
+        if verbose:
+            print(f'Fraction of target flux in aperture = {flx_frac:0.4f}')
+            print(f'Target G magnitude = {Gmag:0.3f}')
+            mncr = np.nanmedian(count_rate)
+            print(f'Median normalized count rate = {mncr:0.3f}')
+            print(f'No. of valid count rate values = {sum(k)}')
+            if nk>1:
+                G0err  = np.nanstd(G0)/np.sqrt(sum(k))
+                print(f'G-band zero point = {G0mean:0.4f} +/- {G0err:0.4f}')
+            else:
+                print(f'G-band zero point = {G0mean:0.4f}')
+
+        return time, flux, flux_err
+        
 
     def flatten(self, mask_centre, mask_width, npoly=2):
         """
