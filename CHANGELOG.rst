@@ -1,9 +1,10 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1.1.0 (2021-12-01)
+1.0.2 (2021-12-09)
 ~~~~~~~~~~~~~~~~~~~
-* Add decontaminate method to dataset
+* Fix problem with SWEET-Cat encoding (#252)
+* Add decontaminate method to dataset (experimental)
 * Fix issue in WASP-189 notebook with missing text files for cds_data_export
 
 1.0.1 (2021-11-21)
