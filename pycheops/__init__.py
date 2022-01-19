@@ -51,7 +51,8 @@ data_path = path.join(here,'data','instrument')
 cache_path = config['DEFAULT']['data_cache_path']
 # Photometric aperture contamation calculation from PSF for make_xml_files
 pfile = path.join(cache_path,'Contamination_33arcsec_aperture.p')
-if not path.isfile(pfile):
+psf_file = config['psf_file']['psf_file']
+if not path.isfile(pfile) or (path.getmtime(pfile) < path.getmtime(psf_path)):
     radius = 33  # Aperture radius in pixels
     psf_file = config['psf_file']['psf_file']
     psf_x0 =  config['psf_file']['x0']
