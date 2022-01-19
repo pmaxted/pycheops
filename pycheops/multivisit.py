@@ -139,6 +139,12 @@ def _make_labels(plotkeys, d0):
             labels.append(r'$h_1$')
         elif key == 'h_2':
             labels.append(r'$h_2$')
+        elif key == 'f_c':
+            labels.append(r'$f_c$')
+        elif key == 'f_s':
+            labels.append(r'$f_s$')
+        elif key == 'l_3':
+            labels.append(r'$\ell_3$')
         elif r.match(key):
             p,n = r.match(key).group(1,2)
             labels.append(r'$df\,/\,d{}_{{{}}}$'.format(p,n))

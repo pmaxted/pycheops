@@ -235,6 +235,12 @@ def _make_labels(plotkeys, bjd_ref):
             labels.append(r'$h_1$')
         elif key == 'h_2':
             labels.append(r'$h_2$')
+        elif key == 'f_c':
+            labels.append(r'$f_c$')
+        elif key == 'f_s':
+            labels.append(r'$f_s$')
+        elif key == 'l_3':
+            labels.append(r'$\ell_3$')
         elif key == 'dfdbg':
             labels.append(r'$df\,/\,d{\rm (bg)}$')
         elif key == 'dfdsmear':
@@ -1136,7 +1142,7 @@ class Dataset(object):
 
     def lmfit_transit(self, 
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
-            h_1=None, h_2=None,
+            h_1=None, h_2=None, l_3=None, 
             c=None, dfdbg=None, dfdcontam=None, dfdsmear=None, ramp=None,
             dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
@@ -1240,6 +1246,10 @@ class Dataset(object):
             params.add(name='f_s', value=0, vary=False)
         else:
             params['f_s'] = _kw_to_Parameter('f_s', f_s)
+        if l_3 is None:
+            params.add(name='l_3', value=0, vary=False)
+        else:
+            params['l_3'] = _kw_to_Parameter('l_3', l_3)
         if h_1 is None:
             params.add(name='h_1', value=0.7224, vary=False)
         else:
@@ -1542,7 +1552,7 @@ class Dataset(object):
 
     def lmfit_eclipse(self, 
             T_0=None, P=None, D=None, W=None, b=None, L=None,
-            f_c=None, f_s=None, a_c=None, dfdbg=None,
+            f_c=None, f_s=None, l_3=None, a_c=None, dfdbg=None,
             dfdcontam=None, dfdsmear=None, ramp=None, 
             c=None, dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
@@ -1611,6 +1621,10 @@ class Dataset(object):
             params.add(name='f_s', value=0, vary=False)
         else:
             params['f_s'] = _kw_to_Parameter('f_s', f_s)
+        if l_3 is None:
+            params.add(name='l_3', value=0, vary=False)
+        else:
+            params['l_3'] = _kw_to_Parameter('l_3', l_3)
         if c is None:
             params.add(name='c', value=1, min=min(flux)/2,max=2*max(flux))
         else:
