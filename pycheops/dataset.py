@@ -877,7 +877,7 @@ class Dataset(object):
             print('Efficiency (non-flagged data): {:0.1f} %'.format(eff))
 
         if decontaminate:
-            flux = flux*(1 - contam) 
+            flux = flux/(1 + contam) 
             if verbose:
                 print('Light curve corrected for flux from background stars')
         else:

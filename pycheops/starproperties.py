@@ -141,6 +141,8 @@ class StarProperties(object):
                         'gaia_dr3': [convert_numpy(np.int64)] }
             sweetCat = Table.read(sweetCatPath, encoding='UTF-8',
                     format='csv', converters=converters)
+            # Use NaN for masked values
+            sweetCat = sweetCat.filled(fill_value=np.nan)
             if match_arcsec is None:
                 entry = None
             else:

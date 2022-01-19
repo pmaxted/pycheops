@@ -178,7 +178,7 @@ def setup_config(configFile=None, overwrite=False, mode=0o600,
     #default mode value is 0o600 = user read/write permission only.
 
     # Reference PSF file
-    psf_file = 'CHEOPS_IT_PSFwhite_20180720AO1v1.0.txt'
+    psf_file = 'CHEOPS_IT_PSFwhite_CH_TU2018-01-01.txt'
     c['psf_file'] = {'psf_file': psf_file, 'x0':99.5, 'y0':99.5}
     
     with open(os.open(configFile, os.O_CREAT | os.O_WRONLY, mode), 'w') as cf:
