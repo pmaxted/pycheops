@@ -281,13 +281,25 @@ class TransitModel(Model):
     r"""Light curve model for the transit of a spherical star by an opaque
     spherical body (planet).
 
+    :param t:    - independent variable (time)
+    :param T_0:  - time of mid-transit
+    :param P:    - orbital period
+    :param D:    - (R_p/R_s)**2 = k**2
+    :param W:    - (R_s/a)*sqrt((1+k)**2 - b**2)/pi
+    :param b:    - a*cos(i)/R_s
+    :param f_c:  - sqrt(ecc)*cos(omega)
+    :param f_s:  - sqrt(ecc)*sin(omega)
+    :param h_1:  - I(0.5) = 1 - c*(1-0.5**alpha)
+    :param h_2:  - I(0.5) - I(0) = c*0.5**alpha
+    :param l_3:  - Third light 
+
     Limb-darkening is described by the power-2 law:
 
     .. math::
         I(\mu) = 1 - c (1 - \mu^\alpha)
 
     The transit depth, width shape are parameterised by D, W and b. These
-    parameters are defined below in terms of the radius of the star and
+    parameters are defined above in terms of the radius of the star and
     planet, R_s and R_p, respectively, the semi-major axis, a, and the orbital
     inclination, i. The eccentricy and longitude of periastron for the star's
     orbit are e and omega, respectively.
@@ -301,22 +313,14 @@ class TransitModel(Model):
     **N.B.** the mean stellar density in solar units is rho, but only if the 
     mass ratio q = M_planet/M_star is q << 1. 
 
-    :param t:    - independent variable (time)
-    :param T_0:  - time of mid-transit
-    :param P:    - orbital period
-    :param D:    - (R_p/R_s)**2 = k**2
-    :param W:    - (R_s/a)*sqrt((1+k)**2 - b**2)/pi
-    :param b:    - a*cos(i)/R_s
-    :param f_c:  - sqrt(ecc)*cos(omega)
-    :param f_s:  - sqrt(ecc)*sin(omega)
-    :param h_1:  - I(0.5) = 1 - c*(1-0.5**alpha)
-    :param h_2:  - I(0.5) - I(0) = c*0.5**alpha
-
     The flux value outside of transit is 1. The light curve is calculated using
     the qpower2 algorithm, which is fast but only accurate for k < ~0.3.
 
     If the input parameters are invalid or k>0.5 the model is returned as an
     array of value 1 everywhere.
+
+    Third light is a constant added to the light curve and the fluxes are
+    re-normalised, i.e. TransitModel = (light_curve + l_3)/(1+l_3)
 
     """
 
@@ -325,7 +329,7 @@ class TransitModel(Model):
         kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
                        'independent_vars': independent_vars})
 
-        def _transit_func(t, T_0, P, D, W, b, f_c, f_s, h_1, h_2):
+        def _transit_func(t, T_0, P, D, W, b, f_c, f_s, h_1, h_2, l_3):
 
             if (D <= 0) or (D > 0.25) or (W <= 0) or (b < 0):
                 return np.ones_like(t)
@@ -351,7 +355,7 @@ class TransitModel(Model):
             if False in np.isfinite(z): return np.ones_like(t)
             # Set z values where planet is behind star to a big nominal value
             z[m]  = 100
-            return qpower2(z, k, c2, a2)
+            return (qpower2(z, k, c2, a2)+l_3)/(1+l_3)
 
         super(TransitModel, self).__init__(_transit_func, **kwargs)
         self._set_paramhints_prefix()
@@ -368,6 +372,7 @@ class TransitModel(Model):
         self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
         self.set_param_hint(f'{p}h_1', value=0.7224,min=0,max=1,vary=False)
         self.set_param_hint(f'{p}h_2', value=0.6713,min=0,max=1,vary=False)
+        self.set_param_hint(f'{p}l_3', value=0,min=-0.99,max=1e6,vary=False)
         expr = "(1-{p:s}h_2)**2".format(p=self.prefix)
         self.set_param_hint(f'{p}q_1',min=0,max=1,expr=expr)
         expr = "({p:s}h_1-{p:s}h_2)/(1-{p:s}h_2)".format(p=self.prefix)
@@ -387,18 +392,31 @@ class EclipseModel(Model):
     r"""Light curve model for the eclipse by a spherical star of a spherical
     body (planet) with no limb darkening.
 
+    :param t:   - independent variable (time)
+    :param T_0: - time of mid-transit
+    :param P:   - orbital period
+    :param D:   - (R_p/R_s)**2 = k**2
+    :param W:   - (R_s/a)*sqrt((1+k)**2 - b**2)/pi
+    :param b:   - a*cos(i)/R_s
+    :param L:   - Depth of eclipse
+    :param f_c: - sqrt(ecc).cos(omega)
+    :param f_s: - sqrt(ecc).sin(omega)
+    :param a_c: - correction for light travel time across the orbit
+    :param l_3:  - Third light 
 
     The transit depth, width shape are parameterised by D, W and b. These
-    parameters are defined below in terms of the radius of the star and
+    parameters are defined above in terms of the radius of the star and
     planet, R_s and R_p, respectively, the semi-major axis, a, and the orbital
     inclination, i. The eccentricy and longitude of periastron for the star's
     orbit are e and omega, respectively. These are the same parameters used in
     TransitModel. The flux level outside of eclipse is 1 and inside eclipse is
-    (1-L). The apparent time of mid-eclipse includes the correction a_c for
-    the light travel time across the orbit, i.e., for a circular orbit the
-    time of mid-eclipse is (T_0 + 0.5*P) + a_c. 
-    
-    **N.B.** a_c must have the same units as P.
+    (1-L), i.e. L = F_planet/(F_star + F_planet), where the planet-star flux
+    ratio is F_planet/F_star = L/(1-L).
+
+    The apparent time of mid-eclipse includes the correction a_c for the light
+    travel time across the orbit, i.e., for a circular orbit the time of
+    mid-eclipse is (T_0 + 0.5*P) + a_c. **N.B.** a_c must have the same units
+    as P.
 
     The following parameters are defined for convenience:
 
@@ -409,16 +427,8 @@ class EclipseModel(Model):
     **N.B.** the mean stellar density in solar units is rho, but only if the
     mass ratio q = M_planet/M_star is q << 1. 
 
-    :param t:   - independent variable (time)
-    :param T_0: - time of mid-transit
-    :param P:   - orbital period
-    :param D:   - (R_p/R_s)**2 = k**2
-    :param W:   - (R_s/a)*sqrt((1+k)**2 - b**2)/pi
-    :param b:    - a*cos(i)/R_s
-    :param L:   - Depth of eclipse
-    :param f_c: - sqrt(ecc).cos(omega)
-    :param f_s: - sqrt(ecc).sin(omega)
-    :param a_c: - correction for light travel time across the orbit
+    Third light is a constant added to the light curve and the fluxes are
+    re-normalised, i.e. EclipseModel = (light_curve + l_3)/(1+l_3)
 
     """
 
@@ -427,7 +437,7 @@ class EclipseModel(Model):
         kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
                        'independent_vars': independent_vars})
 
-        def _eclipse_func(t, T_0, P, D, W, b, L, f_c, f_s, a_c):
+        def _eclipse_func(t, T_0, P, D, W, b, L, f_c, f_s, a_c, l_3):
             if (D <= 0) or (D > 0.25) or (W <= 0) or (b < 0):
                 return np.ones_like(t)
             if (L <= 0) or (L >= 1): 
@@ -448,7 +458,7 @@ class EclipseModel(Model):
             if False in np.isfinite(z): return np.ones_like(t)
             # Set z values where star is behind planet to a large nominal value
             z[~m]  = 100
-            return 1 + L*(ueclipse(z, k)-1)
+            return (1 + L*(ueclipse(z, k)-1) + l_3)/(1+l_3)
 
         super(EclipseModel, self).__init__(_eclipse_func, **kwargs)
         self._set_paramhints_prefix()
@@ -465,6 +475,7 @@ class EclipseModel(Model):
         expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
         self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
         self.set_param_hint(f'{p}a_c', value=0, min=0, vary=False)
+        self.set_param_hint(f'{p}l_3', value=0,min=-0.99,max=1e6,vary=False)
         expr = "sqrt({prefix:s}D)".format(prefix=self.prefix)
         self.set_param_hint(f'{p}k', expr=expr, min=0, max=1)
         expr = "{prefix:s}L/{prefix:s}D".format(prefix=self.prefix)
@@ -786,6 +797,22 @@ class PlanetModel(Model):
     r"""Light curve model for a transiting exoplanet including transits,
     eclipses, and a thermal phase curve for the planet with an offset.
 
+    :param t:      - independent variable (time)
+    :param T_0:    - time of mid-transit
+    :param P:      - orbital period
+    :param D:      - (R_2/R_1)**2 = k**2
+    :param W:      - (R_1/a)*sqrt((1+k)**2 - b**2)/pi
+    :param b:      - a*cos(i)/R_1
+    :param F_min:  - minimum flux in the thermal phase model 
+    :param F_max:  - maximum flux in the thermal phase model
+    :param ph_off: - offset phase in the thermal phase model
+    :param f_c:    - sqrt(ecc).cos(omega)
+    :param f_s:    - sqrt(ecc).sin(omega)
+    :param h_1:    - I(0.5) = 1 - c*(1-0.5**alpha)
+    :param h_2:    - I(0.5) - I(0) = c*0.5**alpha
+    :param a_c:    - correction for light travel time across the orbit
+    :param l_3:  - Third light 
+
     The flux level from the star is 1 and is assumed to be constant.  
 
     The thermal phase curve from the planet is approximated by a cosine
@@ -801,7 +828,7 @@ class PlanetModel(Model):
     :math:`\phi_{\rm off} = 2\pi\,{\rm ph\_off}`.
 
     The transit depth, width shape are parameterised by D, W and b. These
-    parameters are defined below in terms of the radius of the star,  R_1 and
+    parameters are defined above in terms of the radius of the star,  R_1 and
     R_2, the semi-major axis, a, and the orbital inclination, i. This model
     assumes R_1 >> R_2, i.e., k=R_2/R_1 <~0.2.  The eccentricy and longitude
     of periastron for the star's orbit are e and omega, respectively. These
@@ -830,20 +857,8 @@ class PlanetModel(Model):
     **N.B.** the mean stellar density in solar units is rho, but only if the
     mass ratio q = M_planet/M_star is q << 1. 
 
-    :param t:      - independent variable (time)
-    :param T_0:    - time of mid-transit
-    :param P:      - orbital period
-    :param D:      - (R_2/R_1)**2 = k**2
-    :param W:      - (R_1/a)*sqrt((1+k)**2 - b**2)/pi
-    :param b:      - a*cos(i)/R_1
-    :param F_min:  - minimum flux in the thermal phase model 
-    :param F_max:  - maximum flux in the thermal phase model
-    :param ph_off: - offset phase in the thermal phase model
-    :param f_c:    - sqrt(ecc).cos(omega)
-    :param f_s:    - sqrt(ecc).sin(omega)
-    :param h_1:    - I(0.5) = 1 - c*(1-0.5**alpha)
-    :param h_2:    - I(0.5) - I(0) = c*0.5**alpha
-    :param a_c:    - correction for light travel time across the orbit
+    Third light is a constant added to the light curve and the fluxes are
+    re-normalised, i.e. PlanetModel = (light_curve + l_3)/(1+l_3)
 
     """
 
@@ -853,7 +868,7 @@ class PlanetModel(Model):
                        'independent_vars': independent_vars})
 
         def _planet_func(t, T_0, P, D, W, b, F_min, F_max, ph_off, f_c, f_s,
-                h_1, h_2, a_c):
+                h_1, h_2, a_c, l_3):
             if (D <= 0) or (D > 0.25) or (W <= 0) or (b < 0):
                 return np.ones_like(t)
             if (F_min < 0): 
@@ -892,7 +907,7 @@ class PlanetModel(Model):
             # Flux from planet including eclipses
             z[~m]  = 100
             f_planet = f_th * ueclipse(z, k)
-            return f_star + f_planet
+            return (f_star + f_planet + l_3)/(1+l_3)
 
         super(PlanetModel, self).__init__(_planet_func, **kwargs)
         self._set_paramhints_prefix()
@@ -917,6 +932,7 @@ class PlanetModel(Model):
         expr = "({p:s}h_1-{p:s}h_2)/(1-{p:s}h_2)".format(p=self.prefix)
         self.set_param_hint(f'{p}q_2',min=0,max=1,expr=expr)
         self.set_param_hint(f'{p}a_c', value=0, min=0, vary=False)
+        self.set_param_hint(f'{p}l_3', value=0,min=-0.99,max=1e6,vary=False)
         expr = "sqrt({prefix:s}D)".format(prefix=self.prefix)
         self.set_param_hint(f'{p}k', expr=expr, min=0, max=1)
         expr ="sqrt((1+{p:s}k)**2-{p:s}b**2)/{p:s}W/pi".format(p=self.prefix)
@@ -932,8 +948,22 @@ class EBLMModel(Model):
     r"""Light curve model for the mutual eclipses by spherical stars in an
     eclipsing binary with one low-mass companion, e.g., F/G-star + M-dwarf.
 
+    :param t:   - independent variable (time)
+    :param T_0: - time of mid-transit
+    :param P:   - orbital period
+    :param D:   - (R_2/R_1)**2 = k**2
+    :param W:   - (R_1/a)*sqrt((1+k)**2 - b**2)/pi
+    :param b:   - a*cos(i)/R_1
+    :param L:   - Depth of eclipse
+    :param f_c: - sqrt(ecc).cos(omega)
+    :param f_s: - sqrt(ecc).sin(omega)
+    :param h_1: - I(0.5) = 1 - c*(1-0.5**alpha)
+    :param h_2: - I(0.5) - I(0) = c*0.5**alpha
+    :param a_c: - correction for light travel time across the orbit
+    :param l_3:  - Third light 
+
     The transit depth, width shape are parameterised by D, W and b. These
-    parameters are defined below in terms of the radii of the stars,  R_1 and
+    parameters are defined above in terms of the radii of the stars,  R_1 and
     R_2, the semi-major axis, a, and the orbital inclination, i. This model
     assumes R_1 >> R_2, i.e., k=R_2/R_1 <~0.2.  The eccentricy and longitude
     of periastron for the star's orbit are e and omega, respectively. These
@@ -953,18 +983,11 @@ class EBLMModel(Model):
     * aR = a/R_1; 
     * J = L/D (surface brightness ratio).
 
-    :param t:   - independent variable (time)
-    :param T_0: - time of mid-transit
-    :param P:   - orbital period
-    :param D:   - (R_2/R_1)**2 = k**2
-    :param W:   - (R_1/a)*sqrt((1+k)**2 - b**2)/pi
-    :param b:   - a*cos(i)/R_1
-    :param L:   - Depth of eclipse
-    :param f_c: - sqrt(ecc).cos(omega)
-    :param f_s: - sqrt(ecc).sin(omega)
-    :param h_1: - I(0.5) = 1 - c*(1-0.5**alpha)
-    :param h_2: - I(0.5) - I(0) = c*0.5**alpha
-    :param a_c: - correction for light travel time across the orbit
+    The flux level outside of eclipse is 1 and inside eclipse is (1-L), i.e.
+    L = F_2/(F_1 + F_2), where the flux ratio is F_2/F_1 = L/(1-L).
+
+    Third light is a constant added to the light curve and the fluxes are
+    re-normalised, i.e. EBLMModel = (light_curve + l_3)/(1+l_3)
 
     """
 
@@ -973,7 +996,7 @@ class EBLMModel(Model):
         kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
                        'independent_vars': independent_vars})
 
-        def _eblm_func(t, T_0, P, D, W, b, L, f_c, f_s, h_1, h_2, a_c):
+        def _eblm_func(t, T_0, P, D, W, b, L, f_c, f_s, h_1, h_2, a_c, l_3):
             if (D <= 0) or (D > 0.25) or (W <= 0) or (b < 0):
                 return np.ones_like(t)
             if (L <= 0) or (L >= 1): 
@@ -1007,7 +1030,7 @@ class EBLMModel(Model):
             # Set z values where star  1 is behind star 2 to a large nominal
             # value for calculation of the eclipse
             z[~m]  = 100
-            return (lc + L*ueclipse(z, k))/(1+L)
+            return ((lc + L*ueclipse(z, k))/(1+L) + l_3)/(1+l_3)
 
         super(EBLMModel, self).__init__(_eblm_func, **kwargs)
         self._set_paramhints_prefix()
@@ -1030,6 +1053,7 @@ class EBLMModel(Model):
         expr = "({p:s}h_1-{p:s}h_2)/(1-{p:s}h_2)".format(p=self.prefix)
         self.set_param_hint(f'{p}q_2',min=0,max=1,expr=expr)
         self.set_param_hint(f'{p}a_c', value=0, min=0, vary=False)
+        self.set_param_hint(f'{p}l_3', value=0,min=-0.99,max=1e6,vary=False)
         expr = "sqrt({prefix:s}D)".format(prefix=self.prefix)
         self.set_param_hint(f'{p}k', expr=expr, min=0, max=1)
         expr = "{prefix:s}L/{prefix:s}D".format(prefix=self.prefix)
@@ -1065,9 +1089,6 @@ class Priors(OrderedDict):
 
         super(Parameters, self).__init__(self)
         self._asteval = Interpreter(usersyms=usersyms)
-
-
-
 
 #----------------------
 

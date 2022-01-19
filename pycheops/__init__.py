@@ -53,7 +53,7 @@ cache_path = config['DEFAULT']['data_cache_path']
 pfile = path.join(cache_path,'Contamination_33arcsec_aperture.p')
 if not path.isfile(pfile):
     radius = 33  # Aperture radius in pixels
-    psf_file = config['DEFAULT']['psf_file']
+    psf_file = config['psf_file']['psf_file']
     psf_x0 =  config['psf_file']['x0']
     psf_y0 =  config['psf_file']['y0']
     psf_path = path.join(data_path, psf_file)
