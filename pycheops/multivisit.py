@@ -494,7 +494,7 @@ class MultiVisit(object):
         # Dict of initial parameter values for creation of models
         # Calculation of mean T_0 needs P and W so T_0 is not first in the list
         vals = OrderedDict()
-        for k in ['D', 'W', 'b', 'P', 'T_0', 'f_c', 'f_s']:
+        for k in ['D', 'W', 'b', 'P', 'T_0', 'f_c', 'f_s', 'l_3']:
             vals[k] = kwargs[k]
         fittype = self.__fittype__
         if fittype == 'transit' or fittype == 'eblm':
@@ -506,11 +506,12 @@ class MultiVisit(object):
 
         # dicts of parameter limits and step sizes for initialisation
         pmin = {'P':0, 'D':0, 'W':0, 'b':0, 'f_c':-1, 'f_s':-1,
-                'h_1':0, 'h_2':0, 'L':0}
+                'h_1':0, 'h_2':0, 'L':0, 'l_3':-0.99}
         pmax = {'D':0.3, 'W':0.3, 'b':2.0, 'f_c':1, 'f_s':1,
-                'h_1':1, 'h_2':1, 'L':1.0}
+                'h_1':1, 'h_2':1, 'L':1.0, 'l_3':1e6}
         step = {'D':1e-4, 'W':1e-4, 'b':1e-2, 'P':1e-6, 'T_0':1e-4,
-                'f_c':1e-4, 'f_s':1e-3, 'h_1':1e-3, 'h_2':1e-2, 'L':1e-5}
+                'f_c':1e-4, 'f_s':1e-3, 'h_1':1e-3, 'h_2':1e-2,
+                'L':1e-5, 'l_3':1e-3}
 
         # Create a Parameters() object with initial values and priors on model
         # parameters (including fixed parameters)
@@ -936,7 +937,7 @@ class MultiVisit(object):
             roll = self.__rolls__[i]
             f_unwrap = self.__fluxes_unwrap__[i]
     
-            for p in ('T_0', 'P', 'D', 'W', 'b', 'f_c', 'f_s',
+            for p in ('T_0', 'P', 'D', 'W', 'b', 'f_c', 'f_s', 'l_3', 
                     'h_1', 'h_2', 'L'):
                 if p in vn:
                     v = pos[vn.index(p)]
@@ -1052,7 +1053,8 @@ class MultiVisit(object):
     def fit_transit(self, 
             steps=128, nwalkers=64, burn=256, 
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
-            h_1=None, h_2=None, ttv=False, ttv_prior=3600, extra_priors=None, 
+            h_1=None, h_2=None, l_3=None,
+            ttv=False, ttv_prior=3600, extra_priors=None, 
             log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
             unroll=True, nroll=3, unwrap=False, thin=1, 
             init_scale=1e-2, progress=True, backend=None):
@@ -1079,10 +1081,10 @@ class MultiVisit(object):
     def fit_eclipse(self, 
             steps=128, nwalkers=64, burn=256, 
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
-            L=None, a_c=0, edv=False, edv_prior=1e-3, extra_priors=None, 
-            log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
-            unroll=True, nroll=3, unwrap=False, thin=1, 
-            init_scale=1e-2, progress=True, backend=None):
+            L=None, a_c=0, l_3=None, edv=False, edv_prior=1e-3,
+            extra_priors=None, log_sigma_w=None, log_omega0=None,
+            log_S0=None, log_Q=None, unroll=True, nroll=3, unwrap=False,
+            thin=1, init_scale=1e-2, progress=True, backend=None):
         """
         Use emcee to fit the eclipses in the current datasets 
 
@@ -1103,7 +1105,7 @@ class MultiVisit(object):
 
     def fit_eblm(self, steps=128, nwalkers=64, burn=256, 
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None, 
-            h_1=None, h_2=None, ttv=False, ttv_prior=3600, 
+            h_1=None, h_2=None, l_3=None, ttv=False, ttv_prior=3600, 
             L=None, a_c=0, edv=False, edv_prior=1e-3, extra_priors=None, 
             log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
             unroll=True, nroll=3, unwrap=False, thin=1, 
