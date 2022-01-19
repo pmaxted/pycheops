@@ -12,6 +12,8 @@ Changes since 1.0.0 onwards.
   locations during IOC.
 * Added l_3, f_c and f_s to _make_labels in dataset.py and multivisit.py
 * Fixed "SyntaxWarning: "is" with a literal." from multivisit.py and core.py
+* Update Contamination_33arcsec_aperture.p if older than the reference
+  psf_file in __init__.py
 
 1.0.2 (2021-12-09)
 ~~~~~~~~~~~~~~~~~~~
