@@ -11,6 +11,7 @@ Changes since 1.0.0 onwards.
 * Updated PSF reference file to average of in-flight PSFs measured at 9 CCD
   locations during IOC.
 * Added l_3, f_c and f_s to _make_labels in dataset.py and multivisit.py
+* Fixed "SyntaxWarning: "is" with a literal." from multivisit.py and core.py
 
 1.0.2 (2021-12-09)
 ~~~~~~~~~~~~~~~~~~~

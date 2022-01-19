@@ -134,7 +134,7 @@ def setup_config(configFile=None, overwrite=False, mode=0o600,
     prompt = "Enter data cache directory [{}] > ".format(data_cache_default)
     if data_cache_path is None:
         data_cache_path = input(prompt)
-    if data_cache_path is '':
+    if data_cache_path == '':
         data_cache_path = data_cache_default
     if not os.path.isdir(data_cache_path):
         os.mkdir(data_cache_path)
@@ -149,16 +149,8 @@ def setup_config(configFile=None, overwrite=False, mode=0o600,
     "[{}] > ".format(pdf_cmd_default))
     if pdf_cmd is None:
         pdf_cmd = input(prompt)
-    if pdf_cmd is '':
+    if pdf_cmd == '':
         pdf_cmd = pdf_cmd_default
-
-    #default_username = getpass.getuser()
-    #prompt = "Enter CHEOPS archive username [{}] > ".format(default_username)
-    #username = input(prompt)
-    #if username is '':
-        #username = default_username
-
-    #password = getpass.getpass("Enter CHEOPS archive password > ")
 
     c = ConfigParser()
     c['DEFAULT'] = {'data_cache_path': data_cache_path, 

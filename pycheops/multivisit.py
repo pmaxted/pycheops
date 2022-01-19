@@ -391,7 +391,7 @@ class MultiVisit(object):
             warn(f'No matching dataset names for target {target}', UserWarning)
             return
 
-        if ident is not 'none':
+        if ident != 'none':
             if ident is None: ident = target 
             self.star = StarProperties(ident, **id_kws)
 
@@ -525,7 +525,7 @@ class MultiVisit(object):
             if vals[k] is None:    # No user-defined value 
 
                 # Use mean of best-fit values from datasets
-                if k is 'T_0':  
+                if k == 'T_0':  
                     t = np.array([p[k].value for p in plist])
                     c = np.round((t-t[0])/params['P'])
                     c -= c.max()//2
