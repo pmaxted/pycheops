@@ -10,6 +10,7 @@ Changes since 1.0.0 onwards.
 * Fixed retrieving psf_file bug in init.py (#255)
 * Updated PSF reference file to average of in-flight PSFs measured at 9 CCD
   locations during IOC.
+* Added l_3 option to models.py, dataset.py and multivisit.py.
 * Added l_3, f_c and f_s to _make_labels in dataset.py and multivisit.py
 * Fixed "SyntaxWarning: "is" with a literal." from multivisit.py and core.py
 * Update Contamination_33arcsec_aperture.p if older than the reference
