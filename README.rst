@@ -20,10 +20,6 @@ algorithms and assumptions used in pycheops.
 Troubleshooting
 ***************
 
-"FileNotFoundError: .. CHEOPS_IT_PSFwhite_20180720AO1v1.0.txt"
---------------------------------------------------------------
-Delete your pycheops.cfg file and re-run ``setup_config``
-
 Installation fails with "ModuleNotFoundError: No module named 'pybind11'"
 --------------------------------------------------------------------------
 
