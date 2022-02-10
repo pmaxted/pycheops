@@ -51,12 +51,14 @@ data_path = path.join(here,'data','instrument')
 cache_path = config['DEFAULT']['data_cache_path']
 # Photometric aperture contamation calculation from PSF for make_xml_files
 pfile = path.join(cache_path,'Contamination_33arcsec_aperture.p')
-if not path.isfile(pfile):
+psf_path = path.join(data_path, config['psf_file']['psf_file'])
+if not path.isfile(pfile) or (path.getmtime(pfile) < path.getmtime(psf_path)):
     radius = 33  # Aperture radius in pixels
-    psffile = path.join(data_path, 'CHEOPS_IT_PSFwhite_20180720AO1v1.0.txt')
-    with open(psffile) as fp:
+    psf_x0 =  config['psf_file']['x0']
+    psf_y0 =  config['psf_file']['y0']
+    with open(psf_path) as fp:
         data = [[float(digit) for digit in line.split()] for line in fp]
-    position0 = [(99.5,99.5)]
+    position0 = [psf_x0, psf_y0]
     aperture0 = CircularAperture(position0, r=radius)
     photTable0 = aperture_photometry(data, aperture0)
     target_flux = photTable0['aperture_sum'][0]

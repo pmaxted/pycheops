@@ -39,6 +39,7 @@ from .ld import stagger_power2_interpolator, atlas_h1h2_interpolator
 from .ld import phoenix_h1h2_interpolator
 from numpy.random import normal
 import os
+from astropy.io.ascii import convert_numpy
 from contextlib import redirect_stderr
 with open(os.devnull,'w') as devnull:
     with redirect_stderr(devnull):
@@ -136,8 +137,12 @@ class StarProperties(object):
             self.gaiadr2 = db['obj_id_gaiadr2'][idx]
 
         else:
-            sweetCat = Table.read(sweetCatPath,format='csv')
-
+            converters={'gaia_dr2': [convert_numpy(np.int64)],
+                        'gaia_dr3': [convert_numpy(np.int64)] }
+            sweetCat = Table.read(sweetCatPath, encoding='UTF-8',
+                    format='csv', converters=converters)
+            # Use NaN for masked values
+            sweetCat = sweetCat.filled(fill_value=np.nan)
             if match_arcsec is None:
                 entry = None
             else:
