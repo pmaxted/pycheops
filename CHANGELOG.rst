@@ -1,6 +1,11 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.0.4 (2022-02-14)
+~~~~~~~~~~~~~~~~~~~
+* Added Dataset.bright_star_check()
+* Included relativistic corrections in Models.RVModel() (experimental)
+
 1.0.3 (2022-01-19)
 ~~~~~~~~~~~~~~~~~~~
 * BUG FIX. In dataset.py, decontaminate=True should apply the correction 

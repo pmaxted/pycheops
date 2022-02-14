@@ -2553,7 +2553,49 @@ class Dataset(object):
     
     # ------------------------------------------------------------
 
+    def bright_star_check(self, vmax=3, sepmax=6):
+        """
+        Check for bright stars near target
+        Only stars from the Bright Star Catalogue, 5th Revised Ed. 
+        (Hoffleit+, 1991) are checked.
+
+        vmax   - maximum V magnitude to check
+        sepmax - maximum separation in degrees to check
+
+        Return an astropy table with stars from the bright star catalog
+        brighter than V magnitude vmax within sepmax degrees from the target
+
+        """
+
+
+        if vmax > 6.5:
+            warnings.warn('Bright star catalogue only complete to V=6.5')
+        if sepmax > 24: 
+            warnings.warn('No internal reflections for stars > 24 deg away')
+
+        target_coo = SkyCoord(self.ra,self.dec,unit=('hour','degree'))
+        catpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                'data','BrightStarCat','bscat.fits')
+        T = Table.read(catpath)
+        T.remove_column('recno')
+        T = T[np.isfinite(T['RAJ2000'])]
+        bscat = SkyCoord(T['RAJ2000'], T['DEJ2000'],unit='degree, degree')
+        sep = target_coo.separation(bscat)
+        T.add_column(sep, name='Separation', index=0)
+        T['Separation'].info.format = '7.3f'
+        T['SpType'].info.format = '<18s'
+        i = (sep.degree < sepmax) & (T['Vmag'] < vmax)
+        T = T[i]
+        T.sort('Separation')
+        return T
+
+    # ------------------------------------------------------------
+
     def planet_check(self):
+        """
+        Show target separation from solar system objects at time of observation
+
+        """
         bjd = Time(self.bjd_ref+self.lc['time'][0],format='jd',scale='tdb')
         target_coo = SkyCoord(self.ra,self.dec,unit=('hour','degree'))
         print(f'BJD = {bjd}')
@@ -3055,6 +3097,9 @@ class Dataset(object):
             else:
                 print(f'G-band zero point = {G0mean:0.4f}')
 
+        self.lc['flux'] = flux
+        self.lc['flux_err'] = flux_err
+        self.decontaminated = True
         return time, flux, flux_err
         
 
