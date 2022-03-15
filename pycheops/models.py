@@ -30,11 +30,14 @@ import numpy as np
 from lmfit.model import Model
 from lmfit.models import COMMON_INIT_DOC, COMMON_GUESS_DOC
 from numba import jit
-from .funcs import t2z, xyz_planet, vrad
+from .funcs import t2z, xyz_planet, vrad, tzero2tperi, esolve
 from warnings import warn
 from scipy.optimize import brent, brentq
 from collections import OrderedDict
 from asteval import Interpreter, get_ast_names, valid_symbol_name
+from pycheops.constants import c 
+
+c_light = c/1000 # km/s
 
 __all__ = ['qpower2', 'ueclipse', 'TransitModel', 'EclipseModel', 
            'FactorModel', 'ThermalPhaseModel', 'ReflectionModel',
@@ -700,11 +703,16 @@ class ReflectionModel(Model):
 
     __init__.__doc__ = COMMON_INIT_DOC
 
-
 #----------------------
 
 class RVModel(Model):
-    r"""Radial velocity in a Keplerian orbit
+    r"""Radial velocity in a Keplerian orbit with post-Newtonion corrections.
+
+    The post-Newtonion corrections accounted for in this model are: the light
+    travel time across the orbit, the tranverse Doppler effect, and the
+    gravitational redshift.
+
+    Set the mass ratio q=0 to ignore post-Newtonion corrections.
 
     :param t:    - independent variable (time)
     :param T_0:  - time of inferior conjunction for the companion (mid-transit)
@@ -714,6 +722,12 @@ class RVModel(Model):
     :param f_c:  - sqrt(ecc).cos(omega)
     :param f_s:  - sqrt(ecc).sin(omega)
     :param sini: - sine of the orbital inclination
+    :param q:    - M_companion/M_star (or 0 for pure Keplerian orbit)
+
+    The equations for post-Newtonian effects can be found in Konacki et al.
+    (2010ApJ...719.1293K) or Sybilski et al. (2013MNRAS.431.2024S) but note
+    that the sin term in the equation for the light travel time should be
+    squared in these equations.
 
     """
 
@@ -722,11 +736,25 @@ class RVModel(Model):
         kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
                        'independent_vars': independent_vars})
 
-        def _rv(t, T_0, P, V_0, K, f_c, f_s, sini):
+        def _rv(t, T_0, P, V_0, K, f_c, f_s, sini, q):
             ecc = f_c**2 + f_s**2
             if ecc > 0.95 : return np.zeros_like(t)
-            om = np.arctan2(f_s, f_c)*180/np.pi
-            return V_0 + vrad(t, T_0, P, K, ecc, om, sini, primary=True)
+            omega = np.arctan2(f_s, f_c)
+            omdeg = omega*180/np.pi
+            
+            if q == 0:
+                return V_0 + vrad(t, T_0, P, K, ecc, omdeg, sini, primary=True)
+            
+            tp = tzero2tperi(T_0,P,sini,ecc,omdeg)
+            M = 2*np.pi*(t-tp)/P
+            E = esolve(M,ecc)
+            nu = 2*np.arctan(np.sqrt((1+ecc)/(1-ecc))*np.tan(E/2))
+            vr_nonrel =  V_0 + K*(np.cos(nu+omega) + ecc*np.cos(omega))
+            delta_LT = K**2*np.sin(nu+omega)**2*(1+ecc*np.cos(nu))/c_light
+            delta_TD = K**2*(1 + ecc*np.cos(nu) - (1-ecc**2)/2)/c_light/sini**2 
+            delta_GR = K**2*(1+1/q)*(1+ecc*np.cos(nu))/c_light/sini**2 
+            return vr_nonrel + delta_LT + delta_TD + delta_GR
+
 
         super(RVModel, self).__init__(_rv, **kwargs)
         self._set_paramhints_prefix()
@@ -737,6 +765,7 @@ class RVModel(Model):
         self.set_param_hint(f'{p}K', min=1e-15)
         self.set_param_hint(f'{p}f_c', value=0, vary=False, min=-1, max=1)
         self.set_param_hint(f'{p}f_s', value=0, vary=False, min=-1, max=1)
+        self.set_param_hint(f'{p}q', value=0, vary=False, min=0)
         expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
         self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
         self.set_param_hint(f'{p}sini', value=1, vary=False, min=0, max=1)
@@ -750,6 +779,14 @@ class RVModel(Model):
 class RVCompanion(Model):
     r"""Radial velocity in a Keplerian orbit for the companion
 
+    The post-Newtonion corrections accounted for in this model are: the light
+    travel time across the orbit, the tranverse Doppler effect, and the
+    gravitational redshift.
+
+    In the definitions of f_c and f_s, omega is the longitude of periastron
+    for the primary/host star, not the companion.
+
+    Set the mass ratio q=0 to ignore post-Newtonion corrections.
 
     :param t:    - independent variable (time)
     :param T_0:  - time of inferior conjunction for the companion (mid-transit)
@@ -759,6 +796,7 @@ class RVCompanion(Model):
     :param f_c:  - sqrt(ecc).cos(omega)
     :param f_s:  - sqrt(ecc).sin(omega)
     :param sini: - sine of the orbital inclination
+    :param q:    - M_companion/M_star (or 0 for pure Keplerian orbit)
 
     """
 
@@ -770,8 +808,23 @@ class RVCompanion(Model):
         def _rv(t, T_0, P, V_0, K, f_c, f_s, sini):
             ecc = f_c**2 + f_s**2
             if ecc > 0.95 : return np.zeros_like(t)
-            om = np.arctan2(f_s, f_c)*180/np.pi
-            return V_0 + vrad(t, T_0, P, K, ecc, om, sini, primary=False)
+            omega = np.arctan2(f_s, f_c)
+            omdeg = omega*180/np.pi
+
+            if q == 0:
+                return V_0 + vrad(t, T_0, P, K, ecc, omdeg, sini, primary=False)
+            
+            tp = tzero2tperi(T_0,P,sini,ecc,omdeg)
+            omega += np.pi
+            M = 2*np.pi*(t-tp)/P
+            E = esolve(M,ecc)
+            nu = 2*np.arctan(np.sqrt((1+ecc)/(1-ecc))*np.tan(E/2))
+            vr_nonrel =  V_0 + K*(np.cos(nu+omega) + ecc*np.cos(omega))
+            delta_LT = K**2*np.sin(nu+omega)**2*(1+ecc*np.cos(nu))/c_light
+            delta_TD = K**2*(1 + ecc*np.cos(nu) - (1-ecc**2)/2)/c_light/sini**2 
+            delta_GR = K**2*(1+q)*(1+ecc*np.cos(nu))/c_light/sini**2 
+            return vr_nonrel + delta_LT + delta_TD + delta_GR
+
 
         super(RVCompanion, self).__init__(_rv, **kwargs)
         self._set_paramhints_prefix()

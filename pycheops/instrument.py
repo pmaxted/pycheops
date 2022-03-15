@@ -118,12 +118,9 @@ def response(passband='CHEOPS'):
     """
      Instrument response functions.
 
-     The response functions have been digitized from Fig. 2 of
-     https://www.cosmos.esa.int/web/cheops/cheops-performances
-
      The available passband names are 'CHEOPS', 'MOST', 
      'Kepler', 'CoRoT', 'Gaia', 'B', 'V', 'R', 'I',
-     'u\_','g\_','r\_','i\_','z\_', and 'NGTS'
+     'u\_','g\_','r\_','i\_','z\_', 'NGTS' and 'TESS'
 
      :param passband: instrument/passband names (case sensitive).
 

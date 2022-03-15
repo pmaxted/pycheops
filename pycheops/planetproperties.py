@@ -209,7 +209,7 @@ class PlanetProperties(object):
                     dtype=np.str_)
             Decs=np.array(T[T.colnames[hdr.index('Decs')]][1:],
                     dtype=np.str_)
-            T0_vals=np.array(T[T.colnames[hdr.index('T0 (HJD or BJD)')]][1:],
+            T0_vals=np.array(T[T.colnames[hdr.index('T0(HJDorBJD)')]][1:],
                     dtype=np.float)
             T0_errs=np.array(T[T.colnames[hdr.index('T0err')]][1:],
                     dtype=np.float)
