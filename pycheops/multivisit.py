@@ -818,9 +818,10 @@ class MultiVisit(object):
         if progress:
             print('Running burn-in ..')
             stdout.flush()
-        pos,_,_,_ = sampler.run_mcmc(pos, kwargs['burn'], store=False, 
-            skip_initial_state_check=True, progress=progress)
-        sampler.reset()
+        if iteration == 0:
+            pos,_,_,_ = sampler.run_mcmc(pos, kwargs['burn'], store=False, 
+                skip_initial_state_check=True, progress=progress)
+            sampler.reset()
         if progress:
             print('Running sampler ..')
             stdout.flush()
@@ -1543,7 +1544,13 @@ class MultiVisit(object):
                 flux = self.__fluxes_det__[j]
                 fit = copy(self.__fluxes_sys__[j] + self.__fluxes_sho__[j])
             else:
-                c = self.__parbest__[f'c_{j+1:02d}'].value if renorm else 1
+                if renorm:
+                    if f'c_{j+1:02d}' in self.__parbest__:
+                        c = self.__parbest__[f'c_{j+1:02d}'].value
+                    else:
+                        c = 1
+                else:
+                    c = 1
                 flux = copy(dataset.lc['flux'])/c
                 fit = copy(self.__fluxes_fit__[j])/c
             fluxes.append(flux)

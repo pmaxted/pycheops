@@ -1,10 +1,20 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.0.5 (2022-03-14)
+~~~~~~~~~~~~~~~~~~~
+* Update planetproperties to use new header format for TEPCat
+* Fixed typos in output of dataset.get_lightcurve (#256)
+* Added teff attribute to Dataset, if T_EFF present in header (#266)
+* Fixed problem using backends to restart MultiVisit (#263)  
+* Catch cases where "c" is not a free parameter for datasets when plotting in
+  MultiVisit (#251)
+
 1.0.4 (2022-02-14)
 ~~~~~~~~~~~~~~~~~~~
 * Added Dataset.bright_star_check()
 * Included relativistic corrections in Models.RVModel() (experimental)
+* Added note to inline help for instrument.response that TESS is available
 
 1.0.3 (2022-01-19)
 ~~~~~~~~~~~~~~~~~~~

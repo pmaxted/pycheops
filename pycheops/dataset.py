@@ -399,6 +399,8 @@ class Dataset(object):
             self.e_gmag = hdr['MAG_GERR'] 
         else:
             self.gmag =None
+        if 'T_EFF' in hdr:
+            self.teff = self.teff = hdr['T_EFF']
         self.spectype = hdr['SPECTYPE']
         self.nexp = hdr['NEXP']
         self.exptime = hdr['EXPTIME']
@@ -871,7 +873,7 @@ class Dataset(object):
         self.ap_rad = ap_rad
         if verbose:
             print('Time stored relative to BJD = {:0.0f}'.format(bjd_ref))
-            print('Aperture radius used = {:0.0f} arcsec'.format(ap_rad))
+            print('Aperture radius used = {:0.1f} arcsec'.format(ap_rad))
             print('UTC start: ',table['UTC_TIME'][0][0:19])
             print('UTC end:   ',table['UTC_TIME'][-1][0:19])
             duration = (table['MJD_TIME'][-1] - table['MJD_TIME'][0])*86400
@@ -922,7 +924,7 @@ class Dataset(object):
                 1e6*np.nanstd(flux)/fluxmed))
             print('Median standard error = {:0.1f} [{:0.0f} ppm]'.format(
                 np.nanmedian(flux_err), 1e6*np.nanmedian(flux_err)/fluxmed))
-            print('Median background = {:0.0f} e-/pxl'.format(np.median(bg)))
+            print('Median background = {:0.0f} e-'.format(np.median(bg)))
             print('Mean contamination = {:0.1f} ppm'.format(1e6*contam.mean()))
             print('Mean smearing correction = {:0.1f} ppm'.
                     format(1e6*smear.mean()/fluxmed))
@@ -3245,7 +3247,7 @@ class Dataset(object):
         ax[0,0].set_ylim(0.998*np.quantile(flux_measure,0.16),
                          1.002*np.quantile(flux_measure,0.84))
         ax[0,0].set_xlabel('BJD')
-        ax[0,0].set_ylabel('Flux in ADU')
+        ax[0,0].set_ylabel('Flux [e-]')
         
         ax[0,1].scatter(rollangle,flux,s=2,c=cgood)
         if flagged:
@@ -3253,13 +3255,13 @@ class Dataset(object):
         ax[0,1].set_ylim(0.998*np.quantile(flux_measure,0.16),
                          1.002*np.quantile(flux_measure,0.84))
         ax[0,1].set_xlabel('Roll angle in degrees')
-        ax[0,1].set_ylabel('Flux in ADU')
+        ax[0,1].set_ylabel('Flux [e-]')
         
         ax[1,0].scatter(time,bg,s=2,c=cgood)
         if flagged:
             ax[1,0].scatter(tjdb_table,back_bad_table,s=2,c=cbad)
         ax[1,0].set_xlabel('BJD')
-        ax[1,0].set_ylabel('Background in ADU')
+        ax[1,0].set_ylabel('Background [e-]')
         ax[1,0].set_ylim(0.9*np.quantile(bg,0.005),
                          1.1*np.quantile(bg,0.995))
         
@@ -3267,7 +3269,7 @@ class Dataset(object):
         if flagged:
             ax[1,1].scatter(rollangle_table,back_bad_table,s=2,c=cbad)
         ax[1,1].set_xlabel('Roll angle in degrees')
-        ax[1,1].set_ylabel('Background in ADU')
+        ax[1,1].set_ylabel('Background [e-]')
         ax[1,1].set_ylim(0.9*np.quantile(bg,0.005),
                          1.1*np.quantile(bg,0.995))
         
@@ -3277,7 +3279,7 @@ class Dataset(object):
         ax[2,0].set_ylim(0.998*np.quantile(flux_measure,0.16),
                          1.002*np.quantile(flux_measure,0.84))
         ax[2,0].set_xlabel('Centroid x')
-        ax[2,0].set_ylabel('Flux in ADU')
+        ax[2,0].set_ylabel('Flux [e-]')
         
         ax[2,1].scatter(ycen,flux,s=2,c=cgood)
         if flagged:
@@ -3285,13 +3287,13 @@ class Dataset(object):
         ax[2,1].set_ylim(0.998*np.quantile(flux_measure,0.16),
                          1.002*np.quantile(flux_measure,0.84))
         ax[2,1].set_xlabel('Centroid y')
-        ax[2,1].set_ylabel('Flux in ADU')
+        ax[2,1].set_ylabel('Flux [e-]')
         
         ax[3,0].scatter(contam,flux,s=2,c=cgood)
         if flagged:
             ax[3,0].scatter(contam_table,flux_bad_table,s=2,c=cbad)
         ax[3,0].set_xlabel('Contamination estimate')
-        ax[3,0].set_ylabel('Flux in ADU')
+        ax[3,0].set_ylabel('Flux [e-]')
         ax[3,0].set_xlim(np.min(contam),np.max(contam))
         ax[3,0].set_ylim(0.998*np.quantile(flux_measure,0.16),
                          1.002*np.quantile(flux_measure,0.84))     
@@ -3300,7 +3302,7 @@ class Dataset(object):
         if flagged:
             ax[3,1].scatter(smear_table,flux_bad_table,s=2,c=cbad)
         ax[3,1].set_xlabel('Smear estimate')
-        ax[3,1].set_ylabel('Flux in ADU')
+        ax[3,1].set_ylabel('Flux [e-]')
         if np.ptp(smear) > 0:
             ax[3,1].set_xlim(np.min(smear),np.max(smear))
         else:
