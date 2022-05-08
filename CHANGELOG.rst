@@ -1,6 +1,12 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.0.6 (2022-05-08)
+~~~~~~~~~~~~~~~~~~~
+* Changing the input file formats so that it can accepts files from other
+  sources (PR #250)
+* Updated make_xml_files example files
+  
 1.0.5 (2022-03-14)
 ~~~~~~~~~~~~~~~~~~~
 * Update planetproperties to use new header format for TEPCat
