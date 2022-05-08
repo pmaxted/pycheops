@@ -83,6 +83,9 @@ with open(os.devnull,'w') as devnull:
         from dace.cheops import Cheops
 
 _file_key_re = re.compile(r'CH_PR(\d{2})(\d{4})_TG(\d{4})(\d{2})_V(\d{4})')
+_file_key_reT = re.compile(r'TIC_(\d{10})_SEC(\d{4})_V(\d{4})')
+_file_key_reP = re.compile(r'PIPE_CH_PR(\d{2})(\d{4})_TG(\d{4})(\d{2})_V(\d{4})')
+_file_key_reK = re.compile(r'KIC_(\d{10})_SEC_(\d{4})')
 
 # Utility function for model fitting
 def _kw_to_Parameter(name, kwarg):
@@ -310,16 +313,30 @@ class Dataset(object):
 
     """
 
-    def __init__(self, file_key, force_download=False, download_all=True,
+    def __init__(self, file_key, source='CHEOPS', force_download=False, download_all=True,
             configFile=None, target=None, verbose=True, metadata=True, 
             view_report_on_download=True):
 
-        m = _file_key_re.search(file_key)
+        if source == 'TESS':
+            m = _file_key_reT.search(file_key)
+        elif source == 'PIPE':
+            m = _file_key_reP.search(file_key)
+        elif source == 'Kepler' or source == 'K2':
+            m = _file_key_reK.search(file_key)
+        else:
+            m = _file_key_re.search(file_key)
+        
         if m is None:
             raise ValueError('Invalid file_key {}'.format(file_key))
         self.file_key = m[0]
         l = [int(i) for i in m.groups()]
-        self.progtype,self.prog_id,self.req_id,self.visitctr,self.ver = l
+        try:
+            self.progtype,self.prog_id,self.req_id,self.visitctr,self.ver = l
+        except:
+            try:
+                self.ticid, self.sector, self.ver = l
+            except:
+                self.kicid, self.num = l
 
         config = load_config(configFile)
         _cache_path = config['DEFAULT']['data_cache_path']

@@ -381,7 +381,7 @@ class MultiVisit(object):
 
         if target is None: return
 
-        ptn = target.replace(" ","_")+'__CH*.dataset'
+        ptn = target.replace(" ","_")+'__*.dataset'
         if datadir is not None:
             ptn = os.path.join(datadir,ptn)
 
