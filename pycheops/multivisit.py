@@ -1485,7 +1485,7 @@ class MultiVisit(object):
             binwidth=0.001, add_gaps=True, gap_tol=0.005, 
             data_offset=None, res_offset=None, phase0=None,
             xlim=None, data_ylim=None, res_ylim=None, renorm=True, 
-            figsize=None, fontsize=12):
+            show_gp=True, figsize=None, fontsize=12):
         """
         If there are gaps in the data longer than gap_tol phase units and
         add_gaps is True then put a gap in the lines used to plot the fit. The
@@ -1512,6 +1512,10 @@ class MultiVisit(object):
         For fits to datasets containing a mixture of transits and eclipses,
         the x-axis and y-axis limits for the data plots are specifed in the
         form ((min_left,max_left),(min_right,max-right))
+
+        For fits that include a Gaussian process (GP), use show_gp=True to
+        plot residuals that show the GP fit to the residuals, otherwise the
+        residuals from fit includding the GP are shown.
 
         """
         n = len(self.datasets)
@@ -1556,7 +1560,10 @@ class MultiVisit(object):
             fluxes.append(flux)
             iqrmax = np.max([iqrmax, iqr(flux)])
             f_sho = self.__fluxes_sho__[j]
-            resids.append(flux - fit + f_sho)
+            if show_gp:
+                resids.append(flux - fit + f_sho)
+            else:
+                resids.append(flux - fit)
 
             # Insert np.nan where there are gaps in phase so that the plotted
             # lines have a break
@@ -1608,7 +1615,7 @@ class MultiVisit(object):
             phmin_tr, phmax_tr = phase0, 1-phase0
             phmin_ecl, phmax_ecl = phase0, 1-phase0
             j_ecl, j_tr = 0, 0
-            for j, (ph,flx,i) in enumerate(zip(ph_fluxes, fluxes, is_ecl)):
+            for (ph,flx,i) in zip(ph_fluxes, fluxes, is_ecl):
                 if i:
                     off = j_ecl*doff_ecl
                     j_ecl += 1
@@ -1626,8 +1633,7 @@ class MultiVisit(object):
                             c='midnightblue', ms=5, capsize=2, zorder=3)
 
             j_ecl, j_tr = 0, 0
-            z = zip(ph_fits,fits,lcmodels,is_ecl)
-            for j,(ph,fit,lcmod,i) in enumerate(z):
+            for (ph,fit,lcmod,i) in zip(ph_fits,fits,lcmodels,is_ecl):
                 if i:
                     off = j_ecl*doff_ecl
                     j_ecl += 1
@@ -1642,7 +1648,7 @@ class MultiVisit(object):
                     ax.plot(ph[k],lcmod[k]+off,c='forestgreen',zorder=2,lw=2)
 
             j_ecl, j_tr = 0, 0
-            for j, (ph, fp, i) in enumerate(zip(ph_grid, lc_grid, is_ecl)):
+            for (ph, fp, i) in zip(ph_grid, lc_grid, is_ecl):
                 if i:
                     off = j_ecl*doff_ecl
                     j_ecl += 1
@@ -1664,7 +1670,7 @@ class MultiVisit(object):
                     roff_tr,roff_ecl = res_offset
             j_ecl = 0
             j_tr = 0
-            for j,(ph,res,i) in enumerate(zip(ph_fluxes,resids,is_ecl)):
+            for (ph,res,i) in zip(ph_fluxes,resids,is_ecl):
                 if i:
                     off = j_ecl*roff_ecl
                     j_ecl += 1
@@ -1679,6 +1685,19 @@ class MultiVisit(object):
                     r_, f_, e_, n_ = lcbin(ph, res, binwidth=binwidth)
                     ax.errorbar(r_, f_+off, yerr=e_,
                             fmt='o', c='midnightblue', ms=5, capsize=2)
+
+            if show_gp:
+                j_ecl, j_tr = 0, 0
+                for ph,rn,i in zip(ph_fits, rednoise, is_ecl):
+                    if i:
+                        off = j_ecl*roff_ecl
+                        j_ecl += 1
+                        ax = axes[1,1]
+                    else:
+                        off = j_tr*roff_tr
+                        j_tr += 1
+                        ax = axes[1,0]
+                    ax.plot(ph, rn+off, lw=2, c='saddlebrown')
 
             axes[0,0].set_xticklabels([])
             axes[0,1].set_xticklabels([])
