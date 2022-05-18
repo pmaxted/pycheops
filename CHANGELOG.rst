@@ -1,12 +1,14 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1.0.6 (2022-05-08)
+1.0.7 (2022-05-12)
 ~~~~~~~~~~~~~~~~~~~
 * Changing the input file formats so that it can accepts files from other
   sources (PR #250)
 * Updated make_xml_files example files
 * Added show-gp option to multivisit.plot_fit()
+* In core, use os.makedirs(path, exist_ok=True) to avoid FileNotFoundError
+  when creating cache directory requiring subdirectories.
 
 1.0.5 (2022-03-14)
 ~~~~~~~~~~~~~~~~~~~

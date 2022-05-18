@@ -65,7 +65,7 @@ def find_config():
 
     tryConfigFile = os.path.join(dirname, fname)
     if not os.path.isdir(dirname):
-        os.mkdir(dirname)
+        os.mkdirs(dirname, exist_ok=True)
     configFile = tryConfigFile
     return configFile
 
@@ -137,7 +137,7 @@ def setup_config(configFile=None, overwrite=False, mode=0o600,
     if data_cache_path == '':
         data_cache_path = data_cache_default
     if not os.path.isdir(data_cache_path):
-        os.mkdir(data_cache_path)
+        os.mkdirs(data_cache_path, exist_ok=True)
 
     if platform == "linux" or platform == "linux2":
         pdf_cmd_default = r'okular {} &'
