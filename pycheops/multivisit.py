@@ -1026,7 +1026,6 @@ class MultiVisit(object):
                     f_det = f_sys + f_fit - lc['flux']
                     fluxes_det.append(f_det)
                     fluxes_sho.append(np.zeros_like(f_sys))
-                    lc_fits.append(mod)
                 else:
                     lnlike += -0.5*(np.sum(resid**2/yvar+np.log(2*np.pi*yvar)))
     
@@ -1781,6 +1780,10 @@ class MultiVisit(object):
                     r_, f_, e_, n_ = lcbin(ph, res, binwidth=binwidth)
                     ax[1].errorbar(r_, f_+off, yerr=e_,
                             fmt='o', c='midnightblue', ms=5, capsize=2)
+            if show_gp:
+                for j, (ph,rn) in enumerate(zip(ph_fits, rednoise)):
+                    off=j*roff
+                    ax[1].plot(ph, rn+off, lw=2, c='saddlebrown')
         
             if xlim is None:
                 pad = (phmax-phmin)/10

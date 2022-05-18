@@ -1,12 +1,18 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.0.8 (2022-05-18)
+~~~~~~~~~~~~~~~~~~~
+* Added show_gp option to multivisit.plot_fit() for eclipse and transit fits
+* Removed spurious line lc_fits.append(mod) at line 1029 of the multivisit.py
+  file. (#271).
+
 1.0.7 (2022-05-12)
 ~~~~~~~~~~~~~~~~~~~
 * Changing the input file formats so that it can accepts files from other
   sources (PR #250)
 * Updated make_xml_files example files
-* Added show-gp option to multivisit.plot_fit()
+* Added show_gp option to multivisit.plot_fit() for results of eblm_fit()
 * In core, use os.makedirs(path, exist_ok=True) to avoid FileNotFoundError
   when creating cache directory requiring subdirectories.
 
