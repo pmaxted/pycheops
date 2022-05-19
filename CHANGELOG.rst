@@ -1,6 +1,10 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.0.9 (2022-05-19)
+~~~~~~~~~~~~~~~~~~~
+* Fix bug os.mkdirs() -> os.makedirs() in core.py
+
 1.0.8 (2022-05-18)
 ~~~~~~~~~~~~~~~~~~~
 * Added show_gp option to multivisit.plot_fit() for eclipse and transit fits
