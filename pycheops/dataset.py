@@ -688,9 +688,9 @@ class Dataset(object):
 
         def reconstruct_model(model_repr,state):
             if '_transit_func' in model_repr:
-                model = TransitModel()*self.__factor_model__()
+                model = TransitModel()*self.__factor_model__(self.__scale__)
             elif '_eclipse_func' in model_repr:
-                model = EclipseModel()*self.__factor_model__()
+                model = EclipseModel()*self.__factor_model__(self.__scale__)
             if 'glint_func' in model_repr:
                 model += Model(_glint_func, independent_vars=['t'],
                     f_theta=state['f_theta'], f_glint=state['f_glint'])
@@ -1134,7 +1134,7 @@ class Dataset(object):
  
  # Eclipse and transit fitting
 
-    def __factor_model__(self):
+    def __factor_model__(self, scale):
         time = np.array(self.lc['time'])
         phi = self.lc['roll_angle']*np.pi/180
         # For backwards compatibility
@@ -1146,7 +1146,8 @@ class Dataset(object):
             deltaT = self.lc['deltaT']
         except KeyError:
             deltaT = np.zeros_like(time)
-        return FactorModel(
+        if scale:
+            F = FactorModel(
             dx = _make_interp(time, self.lc['xoff'], scale='range'),
             dy = _make_interp(time, self.lc['yoff'], scale='range'),
             sinphi = _make_interp(time,np.sin(phi)),
@@ -1155,13 +1156,24 @@ class Dataset(object):
             contam = _make_interp(time,self.lc['contam'], scale='max'),
             smear = _make_interp(time,smear, scale='max'),
             deltaT = _make_interp(time,deltaT) )
+        else:
+            F = FactorModel(
+            dx = _make_interp(time, self.lc['xoff']),
+            dy = _make_interp(time, self.lc['yoff']),
+            sinphi = _make_interp(time,np.sin(phi)),
+            cosphi = _make_interp(time,np.cos(phi)),
+            bg = _make_interp(time,self.lc['bg']),
+            contam = _make_interp(time,self.lc['contam']),
+            smear = _make_interp(time,smear),
+            deltaT = _make_interp(time,deltaT) )
+        return F
 
 
     #---
 
     def lmfit_transit(self, 
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
-            h_1=None, h_2=None, l_3=None, 
+            h_1=None, h_2=None, l_3=None, scale=True, 
             c=None, dfdbg=None, dfdcontam=None, dfdsmear=None, ramp=None,
             dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
@@ -1185,11 +1197,13 @@ class Dataset(object):
         To enable decorrelation against a parameter, specifiy it as a free
         parameter, e.g., dfdbg=(0,1).
 
-        Decorrelation is done against is a scaled version of the quantity
-        specified with a range of either (-1,1) or, for strictly positive
-        quantities, (0,1). This means the coefficients dfdx, dfdy, etc.
-        correspond to the amplitude of the flux variation due to the
-        correlation with the relevant parameter.
+        If scale=True (default), decorrelation is done against is a scaled
+        version of the quantity specified with a range of either (-1,1) or,
+        for strictly positive quantities, (0,1). This means the coefficients
+        dfdx, dfdy, etc. correspond to the amplitude of the flux variation due
+        to the correlation with the relevant parameter. This only applies to
+        dfdbg, dfdcontam, dfdsmear, dfdx and dfdy No scaling is applied to time
+        axis for dfdt, d2fdt2, or to sin(phi), cos(phi), etc.
 
         Decorrelation against the telescope tube temperature can be included
         using the parameter ramp which has units of ppm/degree_C. If
@@ -1327,7 +1341,12 @@ class Dataset(object):
         params.add('q_1',min=0,max=1,expr='(1-h_2)**2')
         params.add('q_2',min=0,max=1,expr='(h_1-h_2)/(1-h_2)')
 
-        model = TransitModel()*self.__factor_model__()
+        l = ['dfdbg','dfdcontam','dfdsmear','dfdx','dfdy']
+        if True in [p in l for p in params]:
+            self.__scale__ = scale
+        else:
+            self.__scale__ = None
+        model = TransitModel()*self.__factor_model__(scale)
 
         if 'glint_scale' in params.valuesdict().keys():
             try:
@@ -1372,6 +1391,7 @@ class Dataset(object):
         return result
 
     # ----------------------------------------------------------------
+
     def correct_ramp(self, beta=None, plot=False, force=False, 
             figsize=(6,3), fontsize=12):
         """
@@ -1572,7 +1592,7 @@ class Dataset(object):
     def lmfit_eclipse(self, 
             T_0=None, P=None, D=None, W=None, b=None, L=None,
             f_c=None, f_s=None, l_3=None, a_c=None, dfdbg=None,
-            dfdcontam=None, dfdsmear=None, ramp=None, 
+            dfdcontam=None, dfdsmear=None, ramp=None, scale=True, 
             c=None, dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
             dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None,
@@ -1692,7 +1712,12 @@ class Dataset(object):
         params.add('sini',expr='sqrt(1 - (b/aR)**2)')
         params.add('e',min=0,max=1,expr='f_c**2 + f_s**2')
 
-        model = EclipseModel()*self.__factor_model__()
+        l = ['dfdbg','dfdcontam','dfdsmear','dfdx','dfdy']
+        if True in [p in l for p in params]:
+            self.__scale__ = scale
+        else:
+            self.__scale__ = None
+        model = EclipseModel()*self.__factor_model__(scale)
 
         if 'glint_scale' in params.valuesdict().keys():
             try:
@@ -1774,6 +1799,14 @@ class Dataset(object):
                     report += "\n    %s:%s" % (p, ' '*(namelen-len(p)))
                     report += ' %12.3f' % (B)
 
+        # Decorrelation parameter scaling
+        if self.__scale__ is not None:
+            report += '\n[[Notes]]'
+            if self.__scale__:
+                report +='\n    Decorrelation parameters were scaled to (-1,1) or (0,1)'
+            else:
+                report +='\n    Decorrelation parameters were not scaled'
+
         report += '\n[[Software versions]]'
         report += '\n    CHEOPS DRP : %s' % self.pipe_ver
         report += '\n    pycheops   : %s' % __version__
@@ -1795,7 +1828,6 @@ class Dataset(object):
         of the backend keyword.
 
         """
-
 
         try:
             time = np.array(self.lc['time'])
@@ -2004,6 +2036,15 @@ class Dataset(object):
                     noPriors = False
                 report += "\n    %s:%s" % (p, ' '*(namelen-len(p)))
                 report += '%s +/-%s' % (gformat(u.n), gformat(u.s))
+        
+        # Decorrelation parameter scaling
+        if self.__scale__ is not None:
+            report += '\n[[Notes]]'
+            if self.__scale__:
+                report +='\n    Decorrelation parameters were scaled to (-1,1) or (0,1)'
+            else:
+                report +='\n    Decorrelation parameters were not scaled'
+
         report += '\n[[Software versions]]'
         report += '\n    CHEOPS DRP : %s' % self.pipe_ver
         report += '\n    pycheops   : %s' % __version__
@@ -3349,7 +3390,7 @@ class Dataset(object):
                 dfdy=False, d2fdy2=False, d2fdxdy=False, dfdsinphi=False, 
                 dfdcosphi=False, dfdsin2phi=False, dfdcos2phi=False,
                 dfdsin3phi=False, dfdcos3phi=False, dfdbg=False,
-                dfdcontam=False, dfdsmear=False):
+                dfdcontam=False, dfdsmear=False, scale=True):
 
         time = np.array(self.lc['time'])
         flux = np.array(self.lc['flux'])
@@ -3361,7 +3402,7 @@ class Dataset(object):
         dx = interp1d(time,self.lc['xoff'], fill_value=0, bounds_error=False)
         dy = interp1d(time,self.lc['yoff'], fill_value=0, bounds_error=False)
 
-        model = self.__factor_model__()
+        model = self.__factor_model__(scale)
         params = model.make_params()
         params.add('dfdt', value=0, vary=dfdt)
         params.add('d2fdt2', value=0, vary=d2fdt2)
@@ -3409,7 +3450,7 @@ class Dataset(object):
         return flux_d, flux_err_d
         
 #-----------------------------------
-    def should_I_decorr(self,mask_centre=0,mask_width=0):
+    def should_I_decorr(self,mask_centre=0,mask_width=0,scale=True):
         
         flux = np.array(self.lc['flux'])
         flux_err = np.array(self.lc['flux_err'])
@@ -3490,7 +3531,7 @@ class Dataset(object):
             dfdsin2phi=decorr_arr[11][index]
             dfdcos2phi=decorr_arr[12][index]
             
-            model = self.__factor_model__()
+            model = self.__factor_model__(scale)
             params = model.make_params()
             params.add('dfdt', value=0, vary=dfdt)
             params.add('dfdx', value=0, vary=dfdx)

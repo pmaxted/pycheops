@@ -73,7 +73,9 @@ def uprint(u, n, w=8, sf=2, wn=None, indent=1, short=False, asym=True):
         else:
             b = 10**ndp
         err = round(err,ndp)*b
-        
+        if err == 10:
+            err = 1
+            ndp -= 1
         f='{:{wn}s} = {:{w}.{ndp}f} ({:{sf}.0f})'
         s = f.format(n, val,err,ndp=ndp,w=w,wn=wn,sf=sf)
     else:
@@ -250,7 +252,10 @@ def lcbin(time, flux, binwidth=0.06859, nmin=4, time0=None,
                 e_bin[i] = 1.25*np.nanmean(abs(flux[j] - f_bin[i]))/np.sqrt(n)
             else:
                 f_bin[i] = np.nanmean(flux[j])
-                e_bin[i] = np.std(flux[j])/np.sqrt(n-1)
+                if n > 1:
+                    e_bin[i] = np.std(flux[j])/np.sqrt(n-1)
+                else:
+                    e_bin[i] = 0.0
 
     j = (n_bin >= nmin)
     return t_bin[j], f_bin[j], e_bin[j], n_bin[j]

@@ -805,7 +805,7 @@ class RVCompanion(Model):
         kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
                        'independent_vars': independent_vars})
 
-        def _rv(t, T_0, P, V_0, K, f_c, f_s, sini):
+        def _rv(t, T_0, P, V_0, K, f_c, f_s, sini, q):
             ecc = f_c**2 + f_s**2
             if ecc > 0.95 : return np.zeros_like(t)
             omega = np.arctan2(f_s, f_c)
@@ -833,6 +833,7 @@ class RVCompanion(Model):
         p = self.prefix
         self.set_param_hint(f'{p}P', min=1e-15)
         self.set_param_hint(f'{p}K', min=1e-15)
+        self.set_param_hint(f'{p}q', value=0, vary=False, min=0)
         self.set_param_hint(f'{p}f_c', value=0, vary=False, min=-1, max=1)
         self.set_param_hint(f'{p}f_s', value=0, vary=False, min=-1, max=1)
         self.set_param_hint(f'{p}sini', value=1, vary=False, min=0, max=1)

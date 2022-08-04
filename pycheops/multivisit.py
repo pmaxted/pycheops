@@ -94,36 +94,6 @@ def _glint_func(t, glint_scale, f_theta=None, f_glint=None, delta_t=None):
 
 #--------
 
-def _make_model(model_repr, lc, f_theta=None, f_glint=None, delta_t=None):
-    t = lc['time']
-    try:
-        smear = lc['smear']
-    except KeyError:
-        smear = np.zeros_like(t)
-    try:
-        deltaT = lc['deltaT']
-    except KeyError:
-        deltaT = np.zeros_like(t)
-    factor_model = FactorModel(
-            dx = _make_interp(t,lc['xoff'], scale='range'),
-            dy = _make_interp(t,lc['yoff'], scale='range'),
-            bg = _make_interp(t,lc['bg'], scale='max'),
-            contam = _make_interp(t,lc['contam'], scale='max'),
-            smear = _make_interp(t,smear, scale='max'),
-            deltaT = _make_interp(t,deltaT) )
-    if '_transit_func' in model_repr:
-        model = TransitModel()*factor_model
-    elif '_eclipse_func' in model_repr:
-        model = EclipseModel()*factor_model
-    elif '_eblm_func' in model_repr:
-        model = EBLMModel()*factor_model
-    if not f_theta is None and not f_glint is None: 
-        model += Model(_glint_func, independent_vars=['t'],
-            f_theta=f_theta, f_glint=f_glint, delta_t=delta_t)
-    return model
-
-#---------------
-
 def _make_labels(plotkeys, d0):
     labels = []
     r = re.compile('dfd(.*)_([0-9][0-9])')
@@ -254,7 +224,7 @@ class MultiVisit(object):
     specified as a dictionary of ufloat values using the extra_priors
     keyword, e.g., extra_priors={'e':ufloat(0.2,0.01)}. Priors on parameters
     that apply to individual datasets can also be specified in extra_priors,
-    e.g., extra_priors['dfdt_01'] = ufloat(0.0,0.001). Priors listed in
+    e.g., extra_priors = {'dfdt_01':ufloat(0.0,0.001)}. Priors listed in
     extra_priors will supercede priors on parameters saved with the individual
     datasets.
     
@@ -398,8 +368,8 @@ class MultiVisit(object):
         if verbose:
             print(self.star)
             print('''
- N  file_key                   Aperture last_ GP  Glint pipe_ver
- ---------------------------------------------------------------------------''')
+ N  file_key                   Aperture last_ GP  Glint Scale pipe_ver
+ ---------------------------------------------------------------------------------''')
 
         for n,fl in enumerate(g):
             d = Dataset.load(fl)
@@ -452,8 +422,14 @@ class MultiVisit(object):
                 except AttributeError:
                     gp = 'No'
                 gl = 'Yes' if 'f_glint' in dd else 'No'
+                if d.__scale__ == None:
+                    sc = 'n/a'
+                elif d.__scale__:
+                    sc = 'True'
+                else:
+                    sc = 'False'
                 pv = d.pipe_ver
-                print(f' {n+1:2} {d.file_key} {ap:8} {lf:5} {gp:3} {gl:5} {pv}')
+                print(f' {n+1:2} {d.file_key} {ap:8} {lf:5} {gp:3} {gl:5} {sc:5} {pv}')
 
 #--------------------------------------------------------------------------
 #
@@ -666,6 +642,7 @@ class MultiVisit(object):
         rolls = []
         models = []
         modpars = []
+        scales = []
 
         # Cycle over datasets, each with its own set of parameters
         for i,(d,p) in enumerate(zip(self.datasets, plist)):
@@ -689,12 +666,21 @@ class MultiVisit(object):
                 deltaT = d.lc['deltaT']
             except KeyError:
                 deltaT = np.zeros_like(t)
-            factor_model = FactorModel(
+            if d.__scale__:
+                factor_model = FactorModel(
                     dx = _make_interp(t,d.lc['xoff'], scale='range'),
                     dy = _make_interp(t,d.lc['yoff'], scale='range'),
                     bg = _make_interp(t,d.lc['bg'], scale='max'),
                     contam = _make_interp(t,d.lc['contam'], scale='max'),
                     smear = _make_interp(t,smear, scale='max'),
+                    deltaT = _make_interp(t,deltaT) )
+            else:
+                factor_model = FactorModel(
+                    dx = _make_interp(t,d.lc['xoff']),
+                    dy = _make_interp(t,d.lc['yoff']),
+                    bg = _make_interp(t,d.lc['bg']),
+                    contam = _make_interp(t,d.lc['contam']),
+                    smear = _make_interp(t,smear),
                     deltaT = _make_interp(t,deltaT) )
             if fittype == 'transit':
                 model = TransitModel()*factor_model
@@ -702,6 +688,11 @@ class MultiVisit(object):
                 model = EclipseModel()*factor_model
             elif fittype == 'eblm':
                 model = EBLMModel()*factor_model
+            l = ['dfdbg','dfdcontam','dfdsmear','dfdx','dfdy']
+            if True in [p_ in l for p_ in p]:
+                scales.append(d.__scale__)
+            else:
+                scales.append(None)
 
             if 'glint_scale' in p:
                 delta_t = d._old_bjd_ref - d.bjd_ref
@@ -771,7 +762,7 @@ class MultiVisit(object):
             else:
                 rolls.append(None)
         # END of for dataset in self.datasets:
-        
+
         # Copy parameters, models, priors, etc. to self.
         self.__rolls__ = rolls
         self.__models__ = models
@@ -780,6 +771,7 @@ class MultiVisit(object):
         self.__priors__ = priors
         self.__var_names__ = vn # Change of name for consistency with result
         self.__fluxes_unwrap__ = fluxes_unwrap
+        self.__scales__ = scales
 
         backend = kwargs['backend']
         if backend is None:
@@ -1044,7 +1036,10 @@ class MultiVisit(object):
                 z = (modpar[p] - pn)/ps
             elif p == 'logrho':
                 z = (np.log10(modpar['rho']) - pn)/ps
-            lnprior += -0.5*(z**2 + np.log(2*np.pi*ps**2))
+            else:
+                z = None
+            if z is not None:
+                lnprior += -0.5*(z**2 + np.log(2*np.pi*ps**2))
     
         return lnlike + lnprior, lnlike
 
@@ -1156,6 +1151,18 @@ class MultiVisit(object):
             q = result.priors[p]
             report += "\n    %s:%s" % (p, ' '*(namelen-len(p)))
             report += '%s +/-%s' % (gformat(q.n), gformat(q.s))
+
+        if True in self.__scales__ or False in self.__scales__:
+            report += '\n[[Notes]]'
+        for i,s in enumerate(self.__scales__):
+            if s is not None:
+                report += f'\n    Dataset {i+1}: '
+                if s:
+                    report += 'decorrelation parameters were scaled to (-1,1) or (0,1)'
+                else:
+                    report +='decorrelation parameters were not scaled'
+
+
         report += '\n[[Software versions]]'
         pipe_vers = ""
         for s in set([d.pipe_ver for d in self.datasets]):
