@@ -14,7 +14,7 @@ See pycheops/docs/PyCheops_Cookbook.pdf for a guide to using pycheops.
 See pycheops/examples/Notebooks for Jupyter notebook that illustrate the
 features of pycheops.
 
-See Maxted et al. 2021 (arxiv:2111.08828) for a full description of the
+See Maxted et al. 2022MNRAS.514...77M for a full description of the
 algorithms and assumptions used in pycheops. 
 
 Troubleshooting

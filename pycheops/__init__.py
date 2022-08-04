@@ -122,4 +122,5 @@ from .dataset import Dataset
 from .multivisit import MultiVisit
 from .starproperties import StarProperties
 from .planetproperties import PlanetProperties
+from .power2 import Power2
 

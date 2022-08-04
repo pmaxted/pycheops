@@ -1,6 +1,17 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.0 (2022-08-04)
+~~~~~~~~~~~~~~~~~~~
+* Added Power2 class for improved handling of power-2 limb darkening
+* Bug fix for missing argument "q" in funcs.RVCompanion
+* Update reference to Maxted et al. in README.rst
+* Added PLATO passband to ld.py
+* Use Logg_gaia from SWEET-Cat instead of Logg (#276)
+* In utils.pprint fix short format error where sf=1 appears as '(10)'
+* Removed redundant _make_models function from multivisit
+* Added "scale" option to dataset and multivisit fitting routines. 
+
 1.0.9 (2022-05-19)
 ~~~~~~~~~~~~~~~~~~~
 * Fix bug os.mkdirs() -> os.makedirs() in core.py

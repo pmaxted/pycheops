@@ -24,7 +24,7 @@ Limb darkening functions
 
 The available passband names are:
 
-* 'CHEOPS', 'MOST', 'Kepler', 'CoRoT', 'Gaia', 'TESS'
+* 'CHEOPS', 'MOST', 'Kepler', 'CoRoT', 'Gaia', 'TESS', 'PLATO'
 
 * 'U', 'B', 'V', 'R', 'I' (Bessell/Johnson)
 
@@ -60,8 +60,8 @@ Examples
 
 
 .. rubric:: References
-.. [1] Maxted, P.F.L., 2018, A&A, submitted 
-.. [2] Short, D.R., et al., 2019, RNAAS, ..., ...
+.. [1] Maxted, P.F.L., 2018, A&A, 616, A39 
+.. [2] Short, D.R., et al., 2019, RNAAS, 3, 117
 
 """
 
@@ -83,7 +83,7 @@ except:
 
 __all__ = ['ld_power2', 'ld_claret', 'stagger_power2_interpolator',
         'atlas_h1h2_interpolator', 'phoenix_h1h2_interpolator',
-        'ca_to_h1h2', 'h1h2_to_ca' , 'q1q2_to_h1h2', 'h1h2_to_q1q2' ]
+        'ca_to_h1h2', 'h1h2_to_ca' , 'q1q2_to_h1h2', 'h1h2_to_q1q2']
 
 _data_path_ = join(dirname(abspath(__file__)),'data','limbdarkening')
 config = load_config()
@@ -99,7 +99,6 @@ def ld_power2(mu, a):
     :returns:  1 - c * (1-mu**alpha)
     
     """
-
     c, alpha = a
     return  1 - c * (1-mu**alpha)
 
@@ -161,6 +160,7 @@ def q1q2_to_h1h2(q1, q2):
 
     """
     return 1 - np.sqrt(q1) + q2*np.sqrt(q1), 1 - np.sqrt(q1)
+
 
 def ld_claret(mu, a):
     """

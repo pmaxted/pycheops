@@ -119,8 +119,8 @@ def response(passband='CHEOPS'):
      Instrument response functions.
 
      The available passband names are 'CHEOPS', 'MOST', 
-     'Kepler', 'CoRoT', 'Gaia', 'B', 'V', 'R', 'I',
-     'u\_','g\_','r\_','i\_','z\_', 'NGTS' and 'TESS'
+     'Kepler', 'CoRoT', 'Gaia', 'U', 'B', 'V', 'R', 'I',
+     'u\_','g\_','r\_','i\_','z\_', 'NGTS', 'TESS' and 'PLATO'
 
      :param passband: instrument/passband names (case sensitive).
 
