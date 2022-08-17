@@ -384,10 +384,11 @@ class Dataset(object):
                 hdr = hdul[1].header
         else:
             tar = tarfile.open(self.tgzfile)
-            r=re.compile('(?!\.)(.*_SCI_COR_Lightcurve-{}_.*.fits)'.format(aperture))
+            s = '(?!\.)(.*_SCI_COR_Lightcurve-{}_.*.fits)'
+            r=re.compile(s.format(aperture))
             datafile = list(filter(r.match, self.list))
             if len(datafile) == 0:
-                raise Exception('Dataset does not contain light curve data.')
+                raise Exception('Dataset does not contain light curve requested.')
             if len(datafile) > 1:
                 raise Exception('Multiple light curve files in datset')
             with tar.extractfile(datafile[0]) as fd:
@@ -814,10 +815,20 @@ class Dataset(object):
 
         return cube
 
+#----
+
+    def list_apertures(self):
+        r=re.compile('.*_SCI_COR_Lightcurve-(.*)_V.*.fits')
+        apertures = [r.match(f).group(1) for f in filter(r.match, self.list)]
+        apertures.sort()
+        return apertures 
+
+#----
+
     def get_lightcurve(self, aperture=None, decontaminate=None,
             returnTable=False, reject_highpoints=False, verbose=True):
         """
-        :param aperture: 'OPTIMAL', 'DEFAULT', 'RSUP' or 'RINF'
+        :param aperture: use Dataset.list_apertures() to list options
         :param decontaminate: if True, subtract flux from background stars 
         :param returnTable: 
         :param reject_highpoints: 
@@ -830,7 +841,7 @@ class Dataset(object):
 
         """
 
-        if aperture not in ('OPTIMAL','RSUP','RINF','DEFAULT'):
+        if aperture not in self.list_apertures():
             raise ValueError('Invalid/missing aperture name')
 
         if decontaminate not in (True, False):
@@ -846,7 +857,8 @@ class Dataset(object):
         else:
             if verbose: print ('Extracting light curve from ',self.tgzfile)
             tar = tarfile.open(self.tgzfile)
-            r=re.compile('(?!\.)(.*_SCI_COR_Lightcurve-{}_.*.fits)'.format(aperture))
+            s = '(?!\.)(.*_SCI_COR_Lightcurve-{}_.*.fits)'
+            r=re.compile(s.format(aperture))
             datafile = list(filter(r.match, self.list))
             if len(datafile) == 0:
                 raise Exception('Dataset does not contain light curve data.')
@@ -1093,7 +1105,8 @@ class Dataset(object):
                                     hdr = hdul[1].header
                             else:
                                 tar = tarfile.open(self.tgzfile)
-                                r=re.compile('(?!\.)(.*_SCI_COR_Lightcurve-{}_.*.fits)'.format(aperture))
+                                s = '(?!\.)(.*_SCI_COR_Lightcurve-{}_.*.fits)'
+                                r=re.compile(s.format(aperture))
                                 datafile = list(filter(r.match, self.list))
                                 with tar.extractfile(datafile[0]) as fd:
                                     hdul = fits.open(fd)

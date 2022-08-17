@@ -1,8 +1,14 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1.1.0 (2022-08-04)
-~~~~~~~~~~~~~~~~~~~
+1.0.11 (2022-08-04)
+~~~~~~~~~~~~~~~~~~~~
+* Starproperties - use Logg if Logg_gaia missing from SWEETCat
+* Added Dataset.list_apertures()
+* Updated Dataset to allow for new DRP14 aperture names
+  
+1.0.10 (2022-08-04)
+~~~~~~~~~~~~~~~~~~~~
 * Added Power2 class for improved handling of power-2 limb darkening
 * Bug fix for missing argument "q" in funcs.RVCompanion
 * Update reference to Maxted et al. in README.rst

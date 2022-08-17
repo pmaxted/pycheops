@@ -159,8 +159,12 @@ class StarProperties(object):
             except:
                 self.teff = None
             try:
-                self.logg = ufloat(entry['Logg_gaia'],entry['eLogg_gaia'])
-                self.logg_note = "SWEET-Cat"
+                if entry['Logg_gaia'] > 0:
+                    self.logg = ufloat(entry['Logg_gaia'],entry['eLogg_gaia'])
+                    self.logg_note = "SWEET-Cat (gaia)"
+                else:
+                    self.logg = ufloat(entry['Logg'],entry['eLogg'])
+                    self.logg_note = "SWEET-Cat (spec)"
             except:
                 self.logg = None
             try:
