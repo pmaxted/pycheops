@@ -195,7 +195,7 @@ class MultiVisit(object):
 
     * fixed value, e.g., P=1.234
     * free parameter with uniform prior interval specified as a 2-tuple,
-      e.g., dfdx=(-1,1). The initial value is taken as the the mid-point of
+      e.g., f_c=(-0.5,0.5). The initial value is taken as the the mid-point of
       the allowed interval;
     * free parameter with uniform prior interval and initial value
       specified as a 3-tuple, e.g., (0.1, 0.2, 1);
