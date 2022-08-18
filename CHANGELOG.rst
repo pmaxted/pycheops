@@ -1,7 +1,11 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1.0.11 (2022-08-04)
+1.0.12 (2022-08-18)
+~~~~~~~~~~~~~~~~~~~~
+* Enable Dataset to load old saved datasets with no __scale__ attribute
+
+1.0.11 (2022-08-17)
 ~~~~~~~~~~~~~~~~~~~~
 * Starproperties - use Logg if Logg_gaia missing from SWEETCat
 * Added Dataset.list_apertures()

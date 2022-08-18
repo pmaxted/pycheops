@@ -687,6 +687,10 @@ class Dataset(object):
 
     def __setstate__(self, state):
 
+        # Fix for old saved datasets with no __scale__ attribute
+        if not hasattr(self, '__scale__'):
+            self.__scale__ = True
+
         def reconstruct_model(model_repr,state):
             if '_transit_func' in model_repr:
                 model = TransitModel()*self.__factor_model__(self.__scale__)
