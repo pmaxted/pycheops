@@ -741,14 +741,15 @@ class MultiVisit(object):
                         params[pj].user_data = priors[pj]
                     vn.append(pj)
                     vv.append(p[dfdp].value)
-                    if dfdp == 'c':
-                        vs.append(1e-6)
-                    elif dfdp == 'glint_scale':
-                        vs.append(0.01)
-                    elif dfdp == 'ramp':
-                        vs.append(50)
-                    else:
-                        vs.append(1e-6)
+                    try:
+                        vs.append(p[dfdp].stderr)
+                    except KeyError:
+                        if dfdp == 'glint_scale':
+                            vs.append(0.01)
+                        elif dfdp == 'ramp':
+                            vs.append(50)
+                        else:
+                            vs.append(1e-6)
 
             if kwargs['unroll']:
                 sinphi = np.sin(np.radians(d.lc['roll_angle']))
@@ -1052,7 +1053,7 @@ class MultiVisit(object):
             ttv=False, ttv_prior=3600, extra_priors=None, 
             log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
             unroll=True, nroll=3, unwrap=False, thin=1, 
-            init_scale=1e-2, progress=True, backend=None):
+            init_scale=0.5, progress=True, backend=None):
         """
         Use emcee to fit the transits in the current datasets 
 
@@ -1079,7 +1080,7 @@ class MultiVisit(object):
             L=None, a_c=0, l_3=None, edv=False, edv_prior=1e-3,
             extra_priors=None, log_sigma_w=None, log_omega0=None,
             log_S0=None, log_Q=None, unroll=True, nroll=3, unwrap=False,
-            thin=1, init_scale=1e-2, progress=True, backend=None):
+            thin=1, init_scale=0.5, progress=True, backend=None):
         """
         Use emcee to fit the eclipses in the current datasets 
 
@@ -1104,7 +1105,7 @@ class MultiVisit(object):
             L=None, a_c=0, edv=False, edv_prior=1e-3, extra_priors=None, 
             log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
             unroll=True, nroll=3, unwrap=False, thin=1, 
-            init_scale=1e-2, progress=True, backend=None):
+            init_scale=0.5, progress=True, backend=None):
         """
         Use emcee to fit the transits and eclipses in the current datasets
         using a model for an eclipsing binary with a low-mass companion.
