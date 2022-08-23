@@ -1,6 +1,11 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.0.13 (2022-08-28)
+~~~~~~~~~~~~~~~~~~~~
+* Use parameter stderr values to initialize walkers in Dataset. 
+* Default init_scale value in Dataset fit functions changed from 0.01 to 0.5
+  
 1.0.12 (2022-08-18)
 ~~~~~~~~~~~~~~~~~~~~
 * Enable Dataset to load old saved datasets with no __scale__ attribute
