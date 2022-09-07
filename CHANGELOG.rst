@@ -1,6 +1,11 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.0.14 (2022-09-07)
+~~~~~~~~~~~~~~~~~~~~
+* Fixed bug in Dataset that prevents import of R25 aperture lightcurve.
+* Temporarily disabled power2
+
 1.0.13 (2022-08-28)
 ~~~~~~~~~~~~~~~~~~~~
 * Use parameter stderr values to initialize walkers in Dataset. 

@@ -384,7 +384,7 @@ class Dataset(object):
                 hdr = hdul[1].header
         else:
             tar = tarfile.open(self.tgzfile)
-            s = '(?!\.)(.*_SCI_COR_Lightcurve-{}_.*.fits)'
+            s = '(?!\.)(.*_SCI_COR_Lightcurve-{}_V[0-9]{{4}}.fits)'
             r=re.compile(s.format(aperture))
             datafile = list(filter(r.match, self.list))
             if len(datafile) == 0:
@@ -861,7 +861,7 @@ class Dataset(object):
         else:
             if verbose: print ('Extracting light curve from ',self.tgzfile)
             tar = tarfile.open(self.tgzfile)
-            s = '(?!\.)(.*_SCI_COR_Lightcurve-{}_.*.fits)'
+            s = '(?!\.)(.*_SCI_COR_Lightcurve-{}_V[0-9]{{4}}.fits)'
             r=re.compile(s.format(aperture))
             datafile = list(filter(r.match, self.list))
             if len(datafile) == 0:
