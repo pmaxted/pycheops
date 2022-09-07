@@ -21,6 +21,8 @@ from scipy.interpolate import LinearNDInterpolator
 from os.path import join,abspath,dirname,isfile
 from astropy.table import Table
 
+raise NotImplemented("Work in progress")
+
 _data_path_ = join(dirname(abspath(__file__)),'data','limbdarkening')
 
 class Power2(object):
@@ -42,11 +44,12 @@ class Power2(object):
     q1 = (1 - h2)**2
     q2 = (h1 - h2)/(1-h2)
     
-    Different definitions for the radius at which mu=0 exist so the value of h2 is 
-    ambiguous. To avoid this issue, we can use the following parameter instead:
-    
+    Different definitions for the radius at which mu=0 exist so the value of
+    h2 is ambiguous. To avoid this issue, we can use the following parameters
+    instead:
 
-    h2pp = h1 - I(0.1) = 0.5**alpha - 0.1**alpha
+    h1p = I(2/3) = 
+    h2p = h1 - I(1/3) = 0.5**alpha - 0.1**alpha
     
     Attributes
     ----------
@@ -63,8 +66,11 @@ class Power2(object):
     h2 : float
         Parameter h2 = h1 - I(0) = c*0.5**alpha
 
-    h2pp : float
-        Parameter h2pp = h1 - I(0.1) = 0.5**alpha - 0.1**alpha
+    h1p : float
+        Parameter h1p = I(2/3) = 1 - c*(1 - (2/3)**alpha)
+        
+    h2p : float
+        Parameter h2p = h1p - I(1/3) = (2/3)**alpha - (1/3)**alpha
         
     q1 : float
         Parameter q1 = (1 - h2)**2
@@ -80,6 +86,7 @@ class Power2(object):
     .. rubric:: References
     .. [1] Maxted, P.F.L., 2018, A&A, 616, A39
     .. [2] Short, D.R., et al., 2019, RNAAS, 3, 117
+
     """
     
     def _badq(self, q1,q2):
@@ -94,32 +101,33 @@ class Power2(object):
         if self._badq(q1, q2):
             return np.nan, np.nan
         return 1 - np.sqrt(q1) + q2*np.sqrt(q1), 1 - np.sqrt(q1)
-    def _ca_to_h1h2pp(self, c, a):
-        return 1 - c*(1-0.5**a), c*(0.5**a - 0.1**a)
-    def _h1h2pp_to_ca(self, h1, h2pp):
-        def _f(a, h1, h2pp):
-            return (0.5**a - 0.1**a)*(1-h1)/(1-0.5**a) - h2pp    
+    def _ca_to_h1ph2p(self, c, a):
+        return 1 - c*(1-(2/3)**a), c*((2/3)**a - (1/3)**a)
+    def _h1ph2p_to_ca(self, h1p, h2p):
+        def _f(a, h1p, h2p):
+            return ((2/3)**a - (1/3)**a)*(1-h1p)/(1-(2/3)**a) - h2p    
         try:
             r = root_scalar(_f, 
                         bracket=(self._amin, self._amax), 
                         x0=0.8, 
                         method='bisect', 
-                        args=(h1, h2pp))
+                        args=(h1p, h2p))
         except ValueError:
             return np.nan, np.nan
-        return (1-h1)/(1-0.5**r.root), r.root
+        return (1-h1)/(1-(2/3)**r.root), r.root
 
-    def __init__(self, c=None, alpha=None, h1=None, h2=None, h2pp=None,
-            q1=None, q2=None, passband=None, source='User'):
+    def __init__(self, c=None, alpha=None, h1=None, h2=None,
+            h1p=None, h2p=None, q1=None, q2=None, passband=None,
+            source='User'):
 
-        if sum(x is not None for x in [alpha, c, h1, h2, h2pp, q1, q2]) != 2:
+        if sum(x is not None for x in [alpha,c,h1,h2,h1p,h2p,q1,q2]) != 2:
             raise ValueError('specify two input values to initialize object.')
 
-        self._amin = 0.001
-        self._amax = 1000
+        self._amin = 0.0001
+        self._amax = 10000
             
         if c is not None and alpha is not None:
-            if any([h1, h2, h2pp, q1, q2]):
+            if any([h1, h2, h1p, h2p, q1, q2]):
                 raise ValueError('only two input values can be specified')
             if (c < 0) | (c > 1):
                 raise ValueError('c outside range 0 < c < 1')
@@ -130,36 +138,36 @@ class Power2(object):
             if self._badq(q1, q2):
                 raise ValueError('invalid c, alpha combination')
             a = alpha
-            _, h2pp = self._ca_to_h1h2pp(c, alpha)
+            h1p, h2p = self._ca_to_h1ph2p(c, alpha)
 
         elif h1 is not None and h2 is not None:
-            if any([c, alpha, h2pp, q1, q2]):
+            if any([c, alpha, h1p, h2p, q1, q2]):
                 raise ValueError('only two input values can be specified')
             q1, q2 = self._h1h2_to_q1q2(h1, h2)
             if self._badq(q1, q2):
                 raise ValueError('invalid h1, h2 combination')
             c, a = self._h1h2_to_ca(h1, h2)
-            _, h2pp = self._ca_to_h1h2pp(c, a)
+            _, h2pp = self._ca_to_h1ph2p(c, a)
 
-        elif h1 is not None and h2pp is not None:
-            if any([c, alpha, h2, q1, q2]):
+        elif h1p is not None and h2p is not None:
+            if any([c, alpha, h1, h2, q1, q2]):
                 raise ValueError('only two input values can be specified')
-            c, a  = self._h1h2pp_to_ca(h1, h2pp)
+            c, a  = self._h1ph2p_to_ca(h1p, h2p)
             if np.isnan(c) | np.isnan(a):
-                raise ValueError('invalid h1, h2pp combination')
-            _, h2 = self._ca_to_h1h2(c, a)
+                raise ValueError('invalid h1p, h2p combination')
+            h1, h2 = self._ca_to_h1h2(c, a)
             q1, q2 = self._h1h2_to_q1q2(h1, h2)
             if self._badq(q1, q2):
-                raise ValueError('invalid h1, h2pp combination')
+                raise ValueError('invalid h1p, h2p combination')
 
         elif q1 is not None and q2 is not None:
-            if any([c, alpha, h1, h2, h2pp]):
+            if any([c, alpha, h1, h2, h1p, h2p]):
                 raise ValueError('only two input values can be specified')
             if self._badq(q1, q2):
                 raise ValueError('invalid q1, q2 value(s).')
             h1, h2 = self._q1q2_to_h1h2(q1, q2)
             c, a = self._h1h2_to_ca(h1, h2)
-            _, h2pp = self._ca_to_h1h2pp(c, a)
+            h1p, h2p = self._ca_to_h1ph2p(c, a)
 
         else:
             raise ValueError('invalid combination of initial parameters')
@@ -170,13 +178,14 @@ class Power2(object):
         self.h2 = h2
         self.q1 = q1
         self.q2 = q2
-        self.h2pp = h2pp
+        self.h1p = h1p
+        self.h2p = h2p
         self.passband = passband
         self.source = source
 
     def __call__(self, mu):
         """
-        Evaulate power-2 limb-darkening laww
+        Evaulate power-2 limb-darkening law
 
         Parameters
         ----------
@@ -198,7 +207,8 @@ class Power2(object):
         s += f'alpha    : {self.alpha:7.4f}\n'
         s += f'h_1      : {self.h1:7.4f}\n'
         s += f'h_2      : {self.h2:7.4f}\n'
-        s += f'h\'\'_2    : {self.h2pp:7.4f}\n'
+        s += f'h\'_1    : {self.h1p:7.4f}\n'
+        s += f'h\'_2    : {self.h2p:7.4f}\n'
         s += f'q_1      : {self.q1:7.4f}\n'
         s += f'q_2      : {self.q2:7.4f}\n'
         s += f'Passband :  {self.passband}\n'
@@ -206,7 +216,8 @@ class Power2(object):
         return s
     
     @classmethod
-    def lookup(cls, teff, logg, metal=0, passband='CHEOPS', table='stagger'):
+    def lookup(cls, teff, logg, metal=0, passband='CHEOPS',
+            table='stagger', empirical=True):
         """
 
         The available passband names are:
@@ -233,12 +244,11 @@ class Power2(object):
         coefficients from these spherical atmosphere models cannot be used
         directly but have to be adjusted to a radius scale r'=r0.r, where
         r0=sqrt(1-mucri**2) is the radius at the stellar limb. This is done by
-        matching the intensity profile at mu=0.5 and mu=0.1, or setting
+        matching the intensity profile at mu=2/3 and mu=1/3, or setting
         I(mu=0)=0 if the latter condition leads to negative intensities at
         the limb. See import_phoenix-cond-claret-2021.py for details.
 
         """
-
         if table == 'stagger':
             datfile = join(_data_path_, 'power2.dat')
             Tpower2 = Table.read(datfile,format='ascii',
