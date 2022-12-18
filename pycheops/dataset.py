@@ -696,6 +696,8 @@ class Dataset(object):
                 model = TransitModel()*self.__factor_model__(self.__scale__)
             elif '_eclipse_func' in model_repr:
                 model = EclipseModel()*self.__factor_model__(self.__scale__)
+            else:
+                model = None
             if 'glint_func' in model_repr:
                 model += Model(_glint_func, independent_vars=['t'],
                     f_theta=state['f_theta'], f_glint=state['f_glint'])

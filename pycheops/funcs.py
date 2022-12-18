@@ -57,11 +57,10 @@ Functions
 from __future__ import (absolute_import, division, print_function,
                                 unicode_literals)
 from .constants import *
-import numpy as np
+from numpy import *
 from scipy.optimize import brent
 from numba import vectorize
 from uncertainties import ufloat, UFloat
-from uncertainties.umath import sqrt as usqrt
 import requests
 from .utils import mode, parprint, ellpar
 from random import sample as random_sample
@@ -81,12 +80,12 @@ __all__ = [ 'a_rsun','f_m','m1sin3i','m2sin3i','asini','rhostar','g_2',
         'K_kms','m_comp','transit_width','esolve','t2z',
         'tperi2tzero','tzero2tperi', 'vrad', 'xyz_planet']
 
-_arsun   = (GM_SunN*mean_solar_day**2/(4*np.pi**2))**(1/3.)/R_SunN
-_f_m     = mean_solar_day*1e9/(2*np.pi)/GM_SunN
-_asini   = mean_solar_day*1e3/2/np.pi/R_SunN
-_rhostar = 3*np.pi*V_SunN/(GM_SunN*mean_solar_day**2)
+_arsun   = (GM_SunN*mean_solar_day**2/(4*pi**2))**(1/3.)/R_SunN
+_f_m     = mean_solar_day*1e9/(2*pi)/GM_SunN
+_asini   = mean_solar_day*1e3/2/pi/R_SunN
+_rhostar = 3*pi*V_SunN/(GM_SunN*mean_solar_day**2)
 _model_path = join(dirname(abspath(__file__)),'data','models')
-_rho_Earth_cgs = M_EarthN/(4/3*np.pi*R_EarthN**3)/1000
+_rho_Earth_cgs = M_EarthN/(4/3*pi*R_EarthN**3)/1000
 
 config = load_config()
 _cache_path = config['DEFAULT']['data_cache_path']
@@ -153,7 +152,7 @@ def asini(K, P, ecc=0):
      :returns: a.sin(i) in solar radii
 
     """
-    return _asini * K * P *np.sqrt(1-ecc**2)
+    return _asini * K * P *sqrt(1-ecc**2)
 
 def r_star(rho, P, q=0):
     """ 
@@ -197,7 +196,7 @@ def g_2(r_2, P, K, sini=1, ecc=0):
     :returns: companion surface gravity in m.s-2
 
     """
-    return 2*np.pi*np.sqrt(1-ecc**2)*K*1e3/(P*mean_solar_day*r_2**2*sini) 
+    return 2*pi*sqrt(1-ecc**2)*K*1e3/(P*mean_solar_day*r_2**2*sini) 
 
 def K_kms(m_1, m_2, P, sini, ecc):
     """
@@ -216,7 +215,7 @@ def K_kms(m_1, m_2, P, sini, ecc):
     """
     M = m_1 + m_2
     a = a_rsun(P, M)
-    K = 2*np.pi*a*R_SunN*sini/(P*mean_solar_day*np.sqrt(1-ecc**2))/1000
+    K = 2*pi*a*R_SunN*sini/(P*mean_solar_day*sqrt(1-ecc**2))/1000
     K_1 = K * m_2/M
     K_2 = K * m_1/M
     return K_1, K_2
@@ -239,7 +238,7 @@ def m_comp(f_m, m_1, sini):
     DC = DA*m_1**2
     Q = (DA**2 - 3*DB)/9
     R = (2*DA**3 - 9*DA*DB + 27*DC)/54
-    DAA = -np.sign(R)*(np.sqrt(R**2 - Q**3) + np.abs(R))**(1/3)
+    DAA = -sign(R)*(sqrt(R**2 - Q**3) + abs(R))**(1/3)
     DBB = Q/DAA
     return DAA + DBB - DA/3
 
@@ -260,7 +259,7 @@ def transit_width(r, k, b, P=1):
 
     """
 
-    return P*np.arcsin(r*np.sqrt( ((1+k)**2-b**2) / (1-b**2*r**2) ))/np.pi
+    return P*arcsin(r*sqrt( ((1+k)**2-b**2) / (1-b**2*r**2) ))/pi
 
 #---------------
 
@@ -285,36 +284,36 @@ def esolve(M, ecc):
      >>> from numpy import pi, sin, abs, max
      >>> from numpy.random import uniform
      >>> ecc = uniform(0,1,1000)
-     >>> M = uniform(-2*np.pi,4*np.pi,1000)
+     >>> M = uniform(-2*pi,4*pi,1000)
      >>> E = esolve(M, ecc)
-     >>> maxerr = max(abs(E - ecc*sin(E) - (M % (2*np.pi)) ))
+     >>> maxerr = max(abs(E - ecc*sin(E) - (M % (2*pi)) ))
      >>> print("Maximum error = {:0.2e}".format(maxerr))
      Maximum error = 8.88e-16
 
     """
-    M = M % (2*np.pi)
+    M = M % (2*pi)
     if ecc == 0:
         return M
-    if M > np.pi:
-        M = 2*np.pi - M
+    if M > pi:
+        M = 2*pi - M
         flip = True
     else:
         flip = False
-    alpha = (3*np.pi + 1.6*(np.pi-np.abs(M))/(1+ecc) )/(np.pi - 6/np.pi)
+    alpha = (3*pi + 1.6*(pi-abs(M))/(1+ecc) )/(pi - 6/pi)
     d = 3*(1 - ecc) + alpha*ecc
     r = 3*alpha*d * (d-1+ecc)*M + M**3
     q = 2*alpha*d*(1-ecc) - M**2
-    w = (np.abs(r) + np.sqrt(q**3 + r**2))**(2/3)
+    w = (abs(r) + sqrt(q**3 + r**2))**(2/3)
     E = (2*r*w/(w**2 + w*q + q**2) + M) / d
-    f_0 = E - ecc*np.sin(E) - M
-    f_1 = 1 - ecc*np.cos(E)
-    f_2 = ecc*np.sin(E)
+    f_0 = E - ecc*sin(E) - M
+    f_1 = 1 - ecc*cos(E)
+    f_2 = ecc*sin(E)
     f_3 = 1-f_1
     d_3 = -f_0/(f_1 - 0.5*f_0*f_2/f_1)
     d_4 = -f_0/(f_1 + 0.5*d_3*f_2 + (d_3**2)*f_3/6)
     E = E -f_0/(f_1 + 0.5*d_4*f_2 + d_4**2*f_3/6 - d_4**3*f_2/24)
     if flip:
-        E =  2*np.pi - E
+        E =  2*pi - E
     return E
 
 #---------------
@@ -358,25 +357,25 @@ def t2z(t, tzero, P, sini, rstar, ecc=0, omdeg=90, returnMask=False):
         
     """
     if ecc == 0:
-        nu = 2*np.pi*(t-tzero)/P
-        omrad = 0.5*np.pi
-        z = np.sqrt(1 - np.cos(nu)**2*sini**2)/rstar
+        nu = 2*pi*(t-tzero)/P
+        omrad = 0.5*pi
+        z = sqrt(1 - cos(nu)**2*sini**2)/rstar
     else:
         tp = tzero2tperi(tzero,P,sini,ecc,omdeg,return_nan_on_error=True)
-        if tp is np.nan:
+        if tp is nan:
             if returnMask:
-                return np.full_like(t,np.nan),np.full_like(t,True,dtype=np.bool)
+                return full_like(t,nan),full_like(t,True,dtype=bool)
             else:
-                return np.full_like(t,np.nan)
-        M = 2*np.pi*(t-tp)/P
+                return full_like(t,nan)
+        M = 2*pi*(t-tp)/P
         E = esolve(M,ecc)
-        nu = 2*np.arctan(np.sqrt((1+ecc)/(1-ecc))*np.tan(E/2))
-        omrad = np.pi*omdeg/180
+        nu = 2*arctan(sqrt((1+ecc)/(1-ecc))*tan(E/2))
+        omrad = pi*omdeg/180
         # Equation (5.63) from Hilditch
         z = (((1-ecc**2)/
-            (1+ecc*np.cos(nu))*np.sqrt(1-np.sin(omrad+nu)**2*sini**2))/rstar)
+            (1+ecc*cos(nu))*sqrt(1-sin(omrad+nu)**2*sini**2))/rstar)
     if returnMask:
-        return z, np.sin(nu + omrad)*sini < 0
+        return z, sin(nu + omrad)*sini < 0
     else:
         return z
 
@@ -411,30 +410,30 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg,
     def _delta(th, sin2i, omrad, ecc):
         # Equation (4.9) from Hilditch
         return (1-ecc**2)*(
-                np.sqrt(1-sin2i*np.sin(th+omrad)**2)/(1+ecc*np.cos(th)))
+                sqrt(1-sin2i*sin(th+omrad)**2)/(1+ecc*cos(th)))
 
-    omrad = omdeg*np.pi/180
+    omrad = omdeg*pi/180
     sin2i = sini**2
-    theta = 0.5*np.pi-omrad
-    if (1-sin2i) > np.finfo(0.).eps :
-        ta = theta-0.125*np.pi
+    theta = 0.5*pi-omrad
+    if (1-sin2i) > finfo(0.).eps :
+        ta = theta-0.125*pi
         tb = theta
-        tc = theta+0.125*np.pi
+        tc = theta+0.125*pi
         fa = _delta(ta, sin2i, omrad, ecc)
         fb = _delta(tb, sin2i, omrad, ecc)
         fc = _delta(tc, sin2i, omrad, ecc)
         if ((fb>fa)|(fb>fc)):
-            t_ = np.linspace(0,2*np.pi,1024)
+            t_ = linspace(0,2*pi,1024)
             d_ = _delta(t_, sin2i, omrad, ecc)
             try:
-                i_= argrelextrema(d_, np.less)[0]
+                i_= argrelextrema(d_, less)[0]
                 t_ = t_[i_]
                 if len(t_)>1:
-                    i_ = (np.abs(t_ - tb)).argmin()
+                    i_ = (abs(t_ - tb)).argmin()
                     t_ = t_[i_]
                 ta,tb,tc = (t_-0.01, t_, t_+0.01)
             except:
-                if return_nan_on_error: return np.nan
+                if return_nan_on_error: return nan
                 print(sin2i, omrad, ecc)
                 print(ta, tb, tc)
                 print(fa, fb, fc)
@@ -442,17 +441,17 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg,
         try:
             theta = brent(_delta, args=(sin2i, omrad, ecc), brack=(ta, tb, tc))
         except ValueError:
-            if return_nan_on_error: return np.nan
+            if return_nan_on_error: return nan
             print(sin2i, omrad, ecc)
             print(ta, tb, tc)
             print(fa, fb, fc)
             raise ValueError('Not a bracketing interval.')
 
-    if theta == np.pi:
-        E = np.pi 
+    if theta == pi:
+        E = pi 
     else:
-        E = 2*np.arctan(np.sqrt((1-ecc)/(1+ecc))*np.tan(theta/2))
-    return tzero - (E - ecc*np.sin(E))*P/(2*np.pi)
+        E = 2*arctan(sqrt((1-ecc)/(1+ecc))*tan(theta/2))
+    return tzero - (E - ecc*sin(E))*P/(2*pi)
 
 #---------
 
@@ -484,26 +483,26 @@ def tperi2tzero(tperi,P,sini,ecc,omdeg,eclipse=False):
     def _delta(th, sin2i, omrad, ecc):
         # Equation (4.9) from Hilditch
         return (1-ecc**2)*(
-                np.sqrt(1-sin2i*np.sin(th+omrad)**2)/(1+ecc*np.cos(th)))
+                sqrt(1-sin2i*sin(th+omrad)**2)/(1+ecc*cos(th)))
 
-    omrad = omdeg*np.pi/180
+    omrad = omdeg*pi/180
     sin2i = sini**2
-    theta = 0.5*np.pi-omrad + np.pi*eclipse
-    if (1-sin2i) > np.finfo(0.).eps :
-        ta = theta-0.125*np.pi
+    theta = 0.5*pi-omrad + pi*eclipse
+    if (1-sin2i) > finfo(0.).eps :
+        ta = theta-0.125*pi
         tb = theta
-        tc = theta+0.125*np.pi
+        tc = theta+0.125*pi
         fa = _delta(ta, sin2i, omrad, ecc)
         fb = _delta(tb, sin2i, omrad, ecc)
         fc = _delta(tc, sin2i, omrad, ecc)
         if ((fb>fa)|(fb>fc)):
-            t_ = np.linspace(0,2*np.pi,1024)
+            t_ = linspace(0,2*pi,1024)
             d_ = _delta(t_, sin2i, omrad, ecc)
             try:
-                i_= argrelextrema(d_, np.less)[0]
+                i_= argrelextrema(d_, less)[0]
                 t_ = t_[i_]
                 if len(t_)>1:
-                    i_ = (np.abs(t_ - tb)).argmin()
+                    i_ = (abs(t_ - tb)).argmin()
                     t_ = t_[i_]
                 ta,tb,tc = (t_-0.01, t_, t_+0.01)
             except:
@@ -519,11 +518,11 @@ def tperi2tzero(tperi,P,sini,ecc,omdeg,eclipse=False):
             print(fa, fb, fc)
             raise ValueError('Not a bracketing interval.')
 
-    if theta == np.pi:
-        E = np.pi 
+    if theta == pi:
+        E = pi 
     else:
-        E = 2*np.arctan(np.sqrt((1-ecc)/(1+ecc))*np.tan(theta/2))
-    return tperi + (E - ecc*np.sin(E))*P/(2*np.pi)
+        E = 2*arctan(sqrt((1-ecc)/(1+ecc))*tan(theta/2))
+    return tperi + (E - ecc*sin(E))*P/(2*pi)
 
 #---------------
 
@@ -573,7 +572,7 @@ def nu_max(Teff, logg):
     .. [2] Campante, 2016, ApJ 830, 138.
 
     """
-    return 3090 * 10**(logg-4.438)/np.sqrt(Teff/5777)
+    return 3090 * 10**(logg-4.438)/sqrt(Teff/5777)
 
 
 #---------------
@@ -595,13 +594,13 @@ def vrad(t,tzero,P,K,ecc=0,omdeg=90,sini=1, primary=True):
 
     """
     tp = tzero2tperi(tzero,P,sini,ecc,omdeg)
-    M = 2*np.pi*(t-tp)/P
+    M = 2*pi*(t-tp)/P
     E = esolve(M,ecc)
-    nu = 2*np.arctan(np.sqrt((1+ecc)/(1-ecc))*np.tan(E/2))
-    omrad = np.pi*omdeg/180
+    nu = 2*arctan(sqrt((1+ecc)/(1-ecc))*tan(E/2))
+    omrad = pi*omdeg/180
     if not primary:
-        omrad = omrad + np.pi
-    return K*(np.cos(nu+omrad)+ecc*np.cos(omrad))
+        omrad = omrad + pi
+    return K*(cos(nu+omrad)+ecc*cos(omrad))
 
 #---------------
 
@@ -639,23 +638,23 @@ def xyz_planet(t, tzero, P, sini, ecc=0, omdeg=90):
         
     """
     if ecc == 0:
-        nu = 2*np.pi*(t-tzero)/P
+        nu = 2*pi*(t-tzero)/P
         r = 1
         cosw = 0
         sinw = -1
     else:
         tp = tzero2tperi(tzero,P,sini,ecc,omdeg)
-        M = 2*np.pi*(t-tp)/P
+        M = 2*pi*(t-tp)/P
         E = esolve(M,ecc)
-        nu = 2*np.arctan(np.sqrt((1+ecc)/(1-ecc))*np.tan(E/2))
-        r = (1-ecc**2)/(1+ecc*np.cos(nu))
-        omrad = np.pi*omdeg/180
+        nu = 2*arctan(sqrt((1+ecc)/(1-ecc))*tan(E/2))
+        r = (1-ecc**2)/(1+ecc*cos(nu))
+        omrad = pi*omdeg/180
         # negative here since om_planet = om_star + pi
-        cosw = -np.cos(omrad)
-        sinw = -np.sin(omrad)
-    sinv = np.sin(nu) 
-    cosv = np.cos(nu)
-    cosi = np.sqrt(1-sini**2)
+        cosw = -cos(omrad)
+        sinw = -sin(omrad)
+    sinv = sin(nu) 
+    cosv = cos(nu)
+    cosi = sqrt(1-sini**2)
     x = r*(-sinv*sinw + cosv*cosw)
     y = r*cosi*(cosv*sinw + sinv*cosw)
     z = -r*sini*(cosw*sinv + cosv*sinw)
@@ -793,19 +792,19 @@ def massradius(P=None, k=None, sini=None, ecc=None,
     # Generate a sample of values for a parameter
     def _s(x, nm=NM):
         if isinstance(x,float) or isinstance(x,int):
-            return np.full(nm, x, dtype=np.float)
+            return full(nm, x, dtype=float)
         elif isinstance(x, UFloat):
-            return np.random.normal(x.n, x.s, nm)
-        elif isinstance(x, np.ndarray):
+            return random.normal(x.n, x.s, nm)
+        elif isinstance(x, ndarray):
             if len(x) == nm:
                 return x
             elif len(x) > nm:
                 return x[random_sample(range(len(x)), nm)]
             else:
-                return x[(np.random.random(nm)*len(x+1)).astype(int)]
+                return x[(random.random(nm)*len(x+1)).astype(int)]
         elif isinstance(x, tuple):
             if len(x) == 2:
-                return np.random.normal(x[0], x[1], nm)
+                return random.normal(x[0], x[1], nm)
             elif len(x) == 3:
                 raise NotImplementedError
         raise ValueError("Unrecognised type for parameter values")
@@ -816,7 +815,7 @@ def massradius(P=None, k=None, sini=None, ecc=None,
         d['mean'] = x.mean()
         d['stderr'] = x.std()
         d['mode'] = mode(x)
-        q = np.percentile(x, [5,15.8655,50,84.1345,95])
+        q = percentile(x, [5,15.8655,50,84.1345,95])
         d['median'] = q[2]
         d['e_hi'] = q[3]-q[2]
         d['e_lo'] = q[2]-q[1]
@@ -828,24 +827,24 @@ def massradius(P=None, k=None, sini=None, ecc=None,
     fig = None
 
     # Use e=0 if input value is none, otherwise sample in the range [0,1)
-    _e = 0 if ecc is None else np.clip(np.abs(_s(ecc)),0,0.999999)
+    _e = 0 if ecc is None else clip(abs(_s(ecc)),0,0.999999)
 
     # Look for input values that are numpy arrays of the same length, in which
     # case sample these together.
     pv = [P, k, sini, _e, m_star, r_star, K, aR]
     pn = ['P', 'k', 'sini', 'e', 'm_star', 'r_star', 'K', 'aR']
     ps = {}  # dictionary of samples for each input parameter
-    _n = [len(p) if isinstance(p, np.ndarray) else 0 for p in pv]
-    _u = np.unique(_n)
+    _n = [len(p) if isinstance(p, ndarray) else 0 for p in pv]
+    _u = unique(_n)
     for _m in _u[_u>0]:
-        _i = np.where(_n == _m)[0]
+        _i = where(_n == _m)[0]
         if len(_i) > 1:
             if _m == NM:
                 _j = range(_m)
             elif _m > NM:
                 _j = random_sample(range(_m), NM)
             else:
-                _j = (np.random.random(NM)*_m).astype(int)
+                _j = (random.random(NM)*_m).astype(int)
             for _k in _i:
                 ps[pn[_k]] = pv[_k][_j]
 
@@ -854,7 +853,7 @@ def massradius(P=None, k=None, sini=None, ecc=None,
     # avoid negative values.
     for n in set(pn) - set(ps.keys()):
         _i = pn.index(n)
-        ps[n] = None if pv[_i] is None else np.abs(_s(pv[_i]))
+        ps[n] = None if pv[_i] is None else abs(_s(pv[_i]))
 
     if jovian:
         if solar: raise ValueError("Cannot specify both jovian and solar units")
@@ -924,20 +923,20 @@ def massradius(P=None, k=None, sini=None, ecc=None,
         result['g_p'] = _d(ps['g_p'])
         if verbose:
             print(parprint(ps['g_p'],'g_p',wn=8,w=10) + ' m.s-2')
-            _loggp = np.log10(ps['g_p'])+2
+            _loggp = log10(ps['g_p'])+2
             print(parprint(_loggp,'log g_p',wn=8,w=10)+' [cgs]')
         if m_star is not None:
             _rho = (3 * ps['g_p']**1.5 / 
-                    ( 4*np.pi * G_2014**1.5 * (ps['_mp']*M_SunN)**0.5) )
+                    ( 4*pi * G_2014**1.5 * (ps['_mp']*M_SunN)**0.5) )
             if jovian:
-                rho_Jup  = M_JupN / (4/3*np.pi*R_JupN**3)
+                rho_Jup  = M_JupN / (4/3*pi*R_JupN**3)
                 ps['rho_p'] = _rho/rho_Jup
                 rhostr = ' rho_Jup'
             elif solar:
                 ps['rho_p'] = _rho
                 rhostr = ' rho_Sun'
             else:
-                rho_Earth  = M_EarthN / (4/3*np.pi*R_EarthN**3)
+                rho_Earth  = M_EarthN / (4/3*pi*R_EarthN**3)
                 ps['rho_p'] = _rho/rho_Earth
                 rhostr = ' rho_Earth'
             if verbose:
@@ -1044,8 +1043,8 @@ def massradius(P=None, k=None, sini=None, ecc=None,
                     print('TEPCat data downloaded from \n {}'.format(url))
         # Awkward table to deal with because of repeated column names
         T = Table.read(TEPCatPath,format='ascii.no_header')
-        M_b=np.array(T[T.colnames[list(T[0]).index('M_b')]][1:],dtype=np.float)
-        R_b=np.array(T[T.colnames[list(T[0]).index('R_b')]][1:],dtype=np.float)
+        M_b=array(T[T.colnames[list(T[0]).index('M_b')]][1:],dtype=float)
+        R_b=array(T[T.colnames[list(T[0]).index('R_b')]][1:],dtype=float)
         ok = (M_b > 0) & (R_b > 0)
         M_b = M_b[ok]
         R_b = R_b[ok]
