@@ -1,10 +1,13 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.0.16 (2022-12-18)
+~~~~~~~~~~~~~~~~~~~~
+* Remove power2
+
 1.0.15 (2022-10-14)
 ~~~~~~~~~~~~~~~~~~~~
 * Fix bug in dataset.load() for datasets with no defined model
-* Use uncertainties.umath in funcs to allow use with ufloats
   
 1.0.14 (2022-09-07)
 ~~~~~~~~~~~~~~~~~~~~
