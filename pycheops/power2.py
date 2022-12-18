@@ -18,12 +18,9 @@
 #   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import numpy as np
 from scipy.interpolate import LinearNDInterpolator
-from os.path import join,abspath,dirname,isfile
+from os.path import join,abspath,dirname
 from astropy.table import Table
-
-raise NotImplemented("Work in progress")
-
-_data_path_ = join(dirname(abspath(__file__)),'data','limbdarkening')
+from uncertainties import ufloat, UFloat
 
 class Power2(object):
     """Object class for handling power-2 limb-darkening law
@@ -48,8 +45,12 @@ class Power2(object):
     h2 is ambiguous. To avoid this issue, we can use the following parameters
     instead:
 
-    h1p = I(2/3) = 
-    h2p = h1 - I(1/3) = 0.5**alpha - 0.1**alpha
+    h1p = I(2/3) = 1 - c*(1-(2/3)**alpha)
+    h2p = h1p - I(1/3) = c*(2/3)**alpha - c*(1/3)**alpha
+
+    Priors based on these parameters and the results published in Maxted 2022
+    can be used to calculate semi-empirical priors on the limb-darkening for
+    fits to light curves of solar-type stars.
     
     Attributes
     ----------
@@ -70,7 +71,7 @@ class Power2(object):
         Parameter h1p = I(2/3) = 1 - c*(1 - (2/3)**alpha)
         
     h2p : float
-        Parameter h2p = h1p - I(1/3) = (2/3)**alpha - (1/3)**alpha
+        Parameter h2p = h1p - I(1/3) = c*(2/3)**alpha - c*(1/3)**alpha
         
     q1 : float
         Parameter q1 = (1 - h2)**2
@@ -89,20 +90,28 @@ class Power2(object):
 
     """
     
+    __interpolator_passband__ = None
+
     def _badq(self, q1,q2):
         return (q1<0) | (q1>1) | (q2<0) | (q2>1)
+
     def _ca_to_h1h2(self, c, a):
         return 1 - c*(1-0.5**a), c*0.5**a
+
     def _h1h2_to_ca(self, h1, h2):
         return 1 - h1 + h2, np.log2((1 - h1 + h2)/h2)
+
     def _h1h2_to_q1q2(self, h1, h2):
         return (1 - h2)**2, (h1 - h2)/(1-h2)
+
     def _q1q2_to_h1h2(self, q1, q2):
         if self._badq(q1, q2):
             return np.nan, np.nan
         return 1 - np.sqrt(q1) + q2*np.sqrt(q1), 1 - np.sqrt(q1)
+
     def _ca_to_h1ph2p(self, c, a):
         return 1 - c*(1-(2/3)**a), c*((2/3)**a - (1/3)**a)
+
     def _h1ph2p_to_ca(self, h1p, h2p):
         def _f(a, h1p, h2p):
             return ((2/3)**a - (1/3)**a)*(1-h1p)/(1-(2/3)**a) - h2p    
@@ -207,8 +216,8 @@ class Power2(object):
         s += f'alpha    : {self.alpha:7.4f}\n'
         s += f'h_1      : {self.h1:7.4f}\n'
         s += f'h_2      : {self.h2:7.4f}\n'
-        s += f'h\'_1    : {self.h1p:7.4f}\n'
-        s += f'h\'_2    : {self.h2p:7.4f}\n'
+        s += f'h\'_1     : {self.h1p:7.4f}\n'
+        s += f'h\'_2     : {self.h2p:7.4f}\n'
         s += f'q_1      : {self.q1:7.4f}\n'
         s += f'q_2      : {self.q2:7.4f}\n'
         s += f'Passband :  {self.passband}\n'
@@ -216,84 +225,72 @@ class Power2(object):
         return s
     
     @classmethod
-    def lookup(cls, teff, logg, metal=0, passband='CHEOPS',
-            table='stagger', empirical=True):
+    def lookup(self, teff, logg, metal, passband='CHEOPS'):
         """
 
-        The available passband names are:
+        Limb-darkening parameters from MPS-ATLAS models using linear
+        interpolation in Table 5 from Kostogryz et al. (arXiv:2206.06641).
 
-        * 'CHEOPS', 'MOST', 'Kepler', 'CoRoT', 'Gaia', 'TESS', 'PLATO'
+        The available passband names are 'CHEOPS', 'Kepler', 'TESS' and
+        'PLATO'
 
-        * 'U', 'B', 'V', 'R', 'I' (Bessell/Johnson)
-
-        * 'u\_', 'g\_', 'r\_', 'i\_', 'z\_'  (SDSS)
-
-        * 'NGTS'
-
-        The available table names are:
-
-        * 'stagger' - all passbands, see Maxted (2018) [1]
-        * 'atlas' - CHEOPS, UBVRI, ugriz, Gaia, Kepler, and TESS
-        * 'phoenix-cond' - CHEOPS, metal=0 only.
-
-        Data for atlas tables are from Claret & Southworth (arXiv:2206.11098)
-        and Claret (2021RNAAS...5...13C). See import_atlas_claret-2021.py for
-        details.
-
-         Data for phoenix-cond are from Claret (2021RNAAS...5...13C). The
-        coefficients from these spherical atmosphere models cannot be used
-        directly but have to be adjusted to a radius scale r'=r0.r, where
-        r0=sqrt(1-mucri**2) is the radius at the stellar limb. This is done by
-        matching the intensity profile at mu=2/3 and mu=1/3, or setting
-        I(mu=0)=0 if the latter condition leads to negative intensities at
-        the limb. See import_phoenix-cond-claret-2021.py for details.
+        Input values for T_eff, log g and metallicity [M/H] can be float or
+        ufloat values.
 
         """
-        if table == 'stagger':
-            datfile = join(_data_path_, 'power2.dat')
-            Tpower2 = Table.read(datfile,format='ascii',
-                names=['Tag','T_eff','log_g','Fe_H','c','alpha','h1','h2'])
-            tag = passband[0:min(len(passband),2)]
-            T = Tpower2[(Tpower2['Tag'] == tag)]
-            p = np.array([T['T_eff'],T['log_g'],T['Fe_H']]).T
-            v = np.array([T['h1'], T['h2']]).T            
-            f = LinearNDInterpolator(p,v)
-            h1, h2 = f(teff, logg, metal)
-            if np.isnan(h1) | np.isnan(h2):
-                raise ValueError('teff, logg and/or metal out of range')
-            return cls(h1=h1,h2=h2, passband=passband, source='STAGGER-grid')
 
-        elif table == 'atlas':
-            datfile = join(_data_path_, 'atlas-claret-2021.dat')
-            Tatlas = Table.read(datfile,format='ascii',guess=False,
-                names=['Tag','T_eff','log_g','Fe_H','c','alpha'])
-            tag = passband[0:min(len(passband),2)]
-            T = Tatlas[(Tatlas['Tag'] == tag)]
-            if len(T) == 0:
-                raise ValueError('no such passband')
-            p = np.array([T['T_eff'],T['log_g'],T['Fe_H']]).T
-            v = np.array([T['c'], T['alpha']]).T            
-            f = LinearNDInterpolator(p,v)
-            c, a = f(teff, logg, metal)
-            if np.isnan(c) | np.isnan(a):
-                raise ValueError('teff, logg and/or metal out of range')
-            s = 'atlas-claret-2021'
-            return cls(c=c, alpha=a, passband=passband, source=s)
+        if not passband in ['CHEOPS', 'Kepler', 'TESS', 'PLATO']:
+            raise ValueError('no such passband')
 
-        elif table == 'phoenix-cond':
-            if metal != 0:
-                raise ValueError('metal=0 only for phoenix-cond')
-            if passband != 'CHEOPS':
-                raise ValueError('no such passband')
-            fl = join(_data_path_, 'phoenix-cond-claret-2021.dat')
-            teff_, logg_, c_, a_ = np.loadtxt(fl, unpack=True)
-            p = np.array([teff_, logg_]).T
-            v = np.array([c_, a_]).T
-            f = LinearNDInterpolator(p,v)
-            c,a = f(teff, logg)
-            if np.isnan(c) | np.isnan(a):
-                raise ValueError('teff and/or logg  out of range')
-            s = 'phoenix-cond-claret-2021'
-            return cls(c=c, alpha=a, passband=passband, source=s)
+        if passband != self.__interpolator_passband__:
+            d = join(dirname(abspath(__file__)), 'data','limbdarkening')
+            f = join(d, 'table5.txt.fits')
+            T = Table.read(f)
+            T = T[T['Band'] == passband]
+            p = np.array([T['Teff'],T['logg'],T['met']]).T
+            v = np.array([T['c'], T['alpha']]).T
+            self.__table5_interpolator__ = LinearNDInterpolator(p,v)
+            self.__interpolator_passband__ = passband
+
+        if np.isnan(c) | np.isnan(a):
+            raise ValueError('parameters out of range')
+
+        def isu(x):
+            return isinstance(x, UFloat)
+
+        if isu(teff) | isu(logg) | isu(metal):
+            teff0 = teff.n if isu(teff) else teff
+            logg0 = logg.n if isu(logg) else logg
+            metal0 = metal.n if isu(metal) else metal
+            c0,a0 = self.__table5_interpolator__(teff0, logg0, metal0)
         else:
-            raise ValueError('no such table')
+            c,a = self.__table5_interpolator__(teff, logg, metal)
+
+        return self(c=c, alpha=a, passband=passband, source='MPS-ATLAS')
+
+    def priors(self, empirical=True):
+        """
+        Priors for h'_1 h'_2.
+
+        If empirical=True (default) then apply empirical corrections and error
+        budget from Maxted (2022).
+
+        Empirical corrections for the CHEOPS and PLATO bands are assumed to be
+        equal to the observed offsets for the Kepler band.
+
+        Returns
+        -------
+        h1p, h2p: ufloat,ufloat
+
+        """
+
+        if self.passband == 'TESS':
+            dh1p = ufloat(+0.004, 0.004) + ufloat(0, 0.002)
+            dh2p = ufloat(-0.009, 0.004) + ufloat(0, 0.002) + ufloat(0, 0.005)
+        else:
+            dh1p = ufloat(+0.006, 0.002) + ufloat(0, 0.004)
+            dh2p = ufloat(-0.012, 0.004) + ufloat(0, 0.012) + ufloat(0, 0.005)
+
+        h1p = self.h1p + dh1p
+        h2p = self.h2p + dh2p
+        return h1p, h2p
