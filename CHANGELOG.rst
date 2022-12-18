@@ -1,6 +1,11 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.0.15 (2022-10-14)
+~~~~~~~~~~~~~~~~~~~~
+* Fix bug in dataset.load() for datasets with no defined model
+* Use uncertainties.umath in funcs to allow use with ufloats
+  
 1.0.14 (2022-09-07)
 ~~~~~~~~~~~~~~~~~~~~
 * Fixed bug in Dataset that prevents import of R25 aperture lightcurve.
