@@ -3433,7 +3433,11 @@ class Dataset(object):
         psf_y0 =  config['psf_file']['y0']
         here = os.path.abspath(os.path.dirname(__file__))
         data_path = os.path.join(here,'data','instrument')
-        psf_path = os.path.join(data_path, psf_file)
+        try:
+            psf_path = os.path.join(data_path, psf_file)
+        except KeyError:
+            raise KeyError("Run pycheops.core.setup_config(overwrite=True) to"
+                           " update your config file.")
         with open(psf_path) as fp:
             psf = [[float(digit) for digit in line.split()] for line in fp]
         position0 = [psf_x0, psf_y0]

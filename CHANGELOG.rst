@@ -18,7 +18,8 @@ Changes since 1.0.0 onwards.
 * Remove power2
 * Fixed "warnings is not defined" bug in planetproperties.
 * Replace python-dace-client dependency with dace-query.
-* Supress UnitsWarning in Dataset when reading from FITS files.
+* Suppress UnitsWarning in Dataset when reading from FITS files.
+* Add advice to update config file if psf_file generates KeyError
 
 1.0.15 (2022-10-14)
 ~~~~~~~~~~~~~~~~~~~~
