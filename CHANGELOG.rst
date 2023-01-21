@@ -1,9 +1,24 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1.0.16 (2022-12-18)
+1.0.16 (2022-12-31)
 ~~~~~~~~~~~~~~~~~~~~
+* Added Dataset.aperture_scan() to help users find the best aperture choice
+* Added Dataset.select_detrend() to help users select detrending model
+  parameters using Bayes factors.
+* Changed scaling of bg, contam and smear basis functions for decorrelation
+  from (0,1) to (-1,1). This reduces the strong correlations between the
+  constant scaling factor "c" and the decorrelation coefficients dfdbg,
+  dfdsmear and dfdcontam. 
+* Update examples/Notebooks/KELT-11b for consistency with changes above.
+* Change examples/Notebooks/WASP-189 to download data from DACE. Remove
+  example data examples/Notebooks/CH_PR100041_TG00020?_V0102.tgz
+* Catch decorrelation against parameters with zero range in
+  dataset.lmfit_transit and dataset.lmfit_eclipse. (#207)
 * Remove power2
+* Fixed "warnings is not defined" bug in planetproperties.
+* Replace python-dace-client dependency with dace-query.
+* Supress UnitsWarning in Dataset when reading from FITS files.
 
 1.0.15 (2022-10-14)
 ~~~~~~~~~~~~~~~~~~~~
@@ -53,7 +68,7 @@ Changes since 1.0.0 onwards.
 1.0.7 (2022-05-12)
 ~~~~~~~~~~~~~~~~~~~
 * Changing the input file formats so that it can accepts files from other
-  sources (PR #250)
+  sources (PR #250, issue #249)
 * Updated make_xml_files example files
 * Added show_gp option to multivisit.plot_fit() for results of eblm_fit()
 * In core, use os.makedirs(path, exist_ok=True) to avoid FileNotFoundError

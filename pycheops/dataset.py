@@ -78,9 +78,7 @@ import cdspyreadme
 from textwrap import fill, indent
 import os
 from contextlib import redirect_stderr
-with open(os.devnull,'w') as devnull:
-    with redirect_stderr(devnull):
-        from dace.cheops import Cheops
+from dace_query.cheops import Cheops
 
 _file_key_re = re.compile(r'CH_PR(\d{2})(\d{4})_TG(\d{4})(\d{2})_V(\d{4})')
 _file_key_reT = re.compile(r'TIC_(\d{10})_SEC(\d{4})_V(\d{4})')
@@ -325,6 +323,7 @@ class Dataset(object):
             m = _file_key_reK.search(file_key)
         else:
             m = _file_key_re.search(file_key)
+        self.source = source
         
         if m is None:
             raise ValueError('Invalid file_key {}'.format(file_key))
@@ -392,9 +391,11 @@ class Dataset(object):
             if len(datafile) > 1:
                 raise Exception('Multiple light curve files in datset')
             with tar.extractfile(datafile[0]) as fd:
-                hdul = fits.open(fd)
-                table = Table.read(hdul[1])
-                hdr = hdul[1].header
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", UnitsWarning)
+                    hdul = fits.open(fd)
+                    hdr = hdul[1].header
+                    table = Table.read(hdul[1])
                 hdul.writeto(lcPath)
             tar.close()
         self.pi_name = hdr['PI_NAME']
@@ -441,7 +442,9 @@ class Dataset(object):
             metaFile = "{}-meta.fits".format(self.file_key)
             metaPath = Path(self.tgzfile).parent/metaFile
             if metaPath.is_file():
-                self.metadata = Table.read(metaPath)
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", UnitsWarning)
+                    self.metadata = Table.read(metaPath)
             else:
                 tar = tarfile.open(self.tgzfile)
                 r=re.compile('(?!\.)(.*SCI_RAW_SubArray.*.fits)')
@@ -453,15 +456,16 @@ class Dataset(object):
                     warnings.warn(msg)
                 else:
                     with tar.extractfile(metafile[0]) as fd:
-                        hdul = fits.open(fd)
-                        table = Table.read(hdul,hdu='SCI_RAW_ImageMetadata')
-                        hdr = hdul['SCI_RAW_ImageMetadata'].header
                         with warnings.catch_warnings():
-                            warnings.filterwarnings("ignore",
-                                    category=UnitsWarning)
+                            warnings.simplefilter("ignore", UnitsWarning)
+                            hdul = fits.open(fd)
+                            table = Table.read(hdul,hdu='SCI_RAW_ImageMetadata')
+                            hdr = hdul['SCI_RAW_ImageMetadata'].header
                             table.write(metaPath)
                     tar.close()
-                    self.metadata = Table.read(metaPath)
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore", UnitsWarning)
+                        self.metadata = Table.read(metaPath)
 
         if view_report:
             self.view_report(configFile=configFile)
@@ -751,7 +755,9 @@ class Dataset(object):
             with fits.open(imPath) as hdul:
                 cube = hdul['SCI_RAW_Imagette'].data
                 hdr = hdul['SCI_RAW_Imagette'].header
-                meta = Table.read(hdul['SCI_RAW_ImagetteMetadata'])
+                with warnings.catch_warnings():
+                   warnings.simplefilter("ignore", UnitsWarning)
+                   meta = Table.read(hdul['SCI_RAW_ImagetteMetadata'])
             if verbose: print ('Imagette data loaded from ',imPath)
         else:
             if verbose: print ('Extracting imagette data from ',self.tgzfile)
@@ -766,7 +772,9 @@ class Dataset(object):
                 hdul = fits.open(fd)
                 cube = hdul['SCI_RAW_Imagette'].data
                 hdr = hdul['SCI_RAW_Imagette'].header
-                meta = Table.read(hdul['SCI_RAW_ImagetteMetadata'])
+                with warnings.catch_warnings():
+                   warnings.simplefilter("ignore", UnitsWarning)
+                   meta = Table.read(hdul['SCI_RAW_ImagetteMetadata'])
                 hdul.writeto(imPath)
             tar.close()
             if verbose: print('Saved imagette data to ',imPath)
@@ -784,8 +792,10 @@ class Dataset(object):
         if subPath.is_file():
             with fits.open(subPath) as hdul:
                 cube = hdul['SCI_COR_SubArray'].data
-                hdr = hdul['SCI_COR_SubArray'].header
-                meta = Table.read(hdul['SCI_COR_ImageMetadata'])
+                with warnings.catch_warnings():
+                   warnings.simplefilter("ignore", UnitsWarning)
+                   hdr = hdul['SCI_COR_SubArray'].header
+                   meta = Table.read(hdul['SCI_COR_ImageMetadata'])
             if verbose: print ('Subarray data loaded from ',subPath)
         else:
             if verbose: print ('Extracting subarray data from ',self.tgzfile)
@@ -811,8 +821,10 @@ class Dataset(object):
                     raise KeyError('No SubArray extension in file')
                 cube = hdul[ext].data
                 hdr = hdul[ext].header
-                meta = Table.read(hdul[mext])
-                hdul.writeto(subPath)
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", UnitsWarning)
+                    meta = Table.read(hdul[mext])
+                    hdul.writeto(subPath)
             tar.close()
             if verbose: print('Saved subarray data to ',subPath)
 
@@ -828,12 +840,52 @@ class Dataset(object):
         apertures = [r.match(f).group(1) for f in filter(r.match, self.list)]
         apertures.sort()
         return apertures 
+#----
+
+    def _get_table_(self, aperture, verbose):
+        lcFile = "{}-{}.fits".format(self.file_key, aperture)
+        lcPath = Path(self.tgzfile).parent / lcFile
+        if lcPath.is_file(): 
+            with fits.open(lcPath) as hdul:
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', UnitsWarning)
+                    table = Table.read(hdul[1])
+                    hdr = hdul[1].header
+            if verbose: print ('Light curve data loaded from ',lcPath)
+        else:
+            if verbose: print ('Extracting light curve from ',self.tgzfile)
+            tar = tarfile.open(self.tgzfile)
+            s = '(?!\.)(.*_SCI_COR_Lightcurve-{}_V[0-9]{{4}}.fits)'
+            r=re.compile(s.format(aperture))
+            datafile = list(filter(r.match, self.list))
+            if len(datafile) == 0:
+                raise Exception('Dataset does not contain light curve data.')
+            if len(datafile) > 1:
+                raise Exception('Multiple light curve files in dataset')
+            with tar.extractfile(datafile[0]) as fd:
+                hdul = fits.open(fd)
+                with warnings.catch_warnings():
+                   warnings.simplefilter("ignore", UnitsWarning)
+                   table = Table.read(hdul[1])
+                hdr = hdul[1].header
+                hdul.writeto(lcPath)
+            if verbose: print('Saved lc data to ',lcPath)
+
+        return table, hdr
 
 #----
 
     def get_lightcurve(self, aperture=None, decontaminate=None,
             returnTable=False, reject_highpoints=False, verbose=True):
         """
+        Read light curve data for current data set for selected aperture.
+
+        By default, return time, flux and flux_error. Use returnTable=True to
+        return the full table of light curve data and metadata.
+
+        Use reject_highpoints=True to remove points to remove positive
+        outliers automatically. 
+
         :param aperture: use Dataset.list_apertures() to list options
         :param decontaminate: if True, subtract flux from background stars 
         :param returnTable: 
@@ -853,29 +905,7 @@ class Dataset(object):
         if decontaminate not in (True, False):
             raise ValueError('Set decontaminate =True or =False')
 
-        lcFile = "{}-{}.fits".format(self.file_key,aperture)
-        lcPath = Path(self.tgzfile).parent / lcFile
-        if lcPath.is_file(): 
-            with fits.open(lcPath) as hdul:
-                table = Table.read(hdul[1])
-                hdr = hdul[1].header
-            if verbose: print ('Light curve data loaded from ',lcPath)
-        else:
-            if verbose: print ('Extracting light curve from ',self.tgzfile)
-            tar = tarfile.open(self.tgzfile)
-            s = '(?!\.)(.*_SCI_COR_Lightcurve-{}_V[0-9]{{4}}.fits)'
-            r=re.compile(s.format(aperture))
-            datafile = list(filter(r.match, self.list))
-            if len(datafile) == 0:
-                raise Exception('Dataset does not contain light curve data.')
-            if len(datafile) > 1:
-                raise Exception('Multiple light curve files in datset')
-            with tar.extractfile(datafile[0]) as fd:
-                hdul = fits.open(fd)
-                table = Table.read(hdul[1])
-                hdr = hdul[1].header
-                hdul.writeto(lcPath)
-            if verbose: print('Saved lc data to ',lcPath)
+        table, hdr = self._get_table_(aperture, verbose)
 
         ok = (((table['EVENT'] == 0) | (table['EVENT'] == 100))
                 & (table['FLUX']>0))
@@ -1171,9 +1201,9 @@ class Dataset(object):
             dy = _make_interp(time, self.lc['yoff'], scale='range'),
             sinphi = _make_interp(time,np.sin(phi)),
             cosphi = _make_interp(time,np.cos(phi)),
-            bg = _make_interp(time,self.lc['bg'], scale='max'),
-            contam = _make_interp(time,self.lc['contam'], scale='max'),
-            smear = _make_interp(time,smear, scale='max'),
+            bg = _make_interp(time,self.lc['bg'], scale='range'),
+            contam = _make_interp(time,self.lc['contam'], scale='range'),
+            smear = _make_interp(time,smear, scale='range'),
             deltaT = _make_interp(time,deltaT) )
         else:
             F = FactorModel(
@@ -1186,7 +1216,6 @@ class Dataset(object):
             smear = _make_interp(time,smear),
             deltaT = _make_interp(time,deltaT) )
         return F
-
 
     #---
 
@@ -1314,26 +1343,47 @@ class Dataset(object):
             params.add(name='c', value=1, min=min(flux)/2,max=2*max(flux))
         else:
             params['c'] = _kw_to_Parameter('c', c)
+        # Error message for decorrelation against parameters with 0 range
+        zero_range_err = "Decorrelation against parameter with zero range - "
         if dfdbg is not None:
+            if np.ptp(bg) == 0:
+                raise ValueError(zero_range_err+'bg')
             params['dfdbg'] = _kw_to_Parameter('dfdbg', dfdbg)
         if dfdcontam is not None:
+            if np.ptp(contam) == 0:
+                raise ValueError(zero_range_err+'contam')
             params['dfdcontam'] = _kw_to_Parameter('dfdcontam', dfdcontam)
         if dfdsmear is not None:
+            if np.ptp(smear) == 0:
+                raise ValueError(zero_range_err+'smear')
             params['dfdsmear'] = _kw_to_Parameter('dfdsmear', dfdsmear)
         if ramp is not None:
+            if np.ptp(deltaT) == 0:
+                raise ValueError(zero_range_err+'ramp')
             params['ramp'] = _kw_to_Parameter('ramp', ramp)
         if dfdx is not None:
+            if np.ptp(xoff) == 0:
+                raise ValueError(zero_range_err+'x')
             params['dfdx'] = _kw_to_Parameter('dfdx', dfdx)
         if dfdy is not None:
+            if np.ptp(yoff) == 0:
+                raise ValueError(zero_range_err+'y')
             params['dfdy'] = _kw_to_Parameter('dfdy', dfdy)
         if d2fdx2 is not None:
+            if np.ptp(xoff) == 0:
+                raise ValueError(zero_range_err+'x')
             params['d2fdx2'] = _kw_to_Parameter('d2fdx2', d2fdx2)
         if d2fdy2 is not None:
+            if np.ptp(yoff) == 0:
+                raise ValueError(zero_range_err+'y')
             params['d2fdy2'] = _kw_to_Parameter('d2fdy2', d2fdy2)
         if dfdt is not None:
             params['dfdt'] = _kw_to_Parameter('dfdt', dfdt)
         if d2fdt2 is not None:
             params['d2fdt2'] = _kw_to_Parameter('d2fdt2', d2fdt2)
+        l = [dfdsinphi, dfdcosphi,dfdsin2phi,dfdcos2phi,dfdsin3phi,dfdcos3phi]
+        if (l.count(None) < 6) and (np.ptp(phi) == 0):
+            raise ValueError(zero_range_err+'phi')
         if dfdsinphi is not None:
             params['dfdsinphi'] = _kw_to_Parameter('dfdsinphi', dfdsinphi)
         if dfdcosphi is not None:
@@ -1373,9 +1423,8 @@ class Dataset(object):
                 f_glint = self.f_glint
             except AttributeError:
                 raise AttributeError("Use add_glint() to first.")
-            GlintModel = Model(_glint_func, independent_vars=['t'],
-                f_theta=f_theta, f_glint=f_glint)
-            model += GlintModel
+            model += Model(_glint_func, independent_vars=['t'],
+                           f_theta=f_theta, f_glint=f_glint)
 
         # Additional white noise
         if log_sigma is not None:
@@ -1617,7 +1666,7 @@ class Dataset(object):
             dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None,
             glint_scale=None, log_sigma=None):
         """
-        See fit_transit for options
+        See lmfit_transit for options
         """
 
         def _chisq_prior(params, *args):
@@ -1691,26 +1740,47 @@ class Dataset(object):
             params.add(name='a_c', value=0, vary=False)
         else:
             params['a_c'] = _kw_to_Parameter('a_c', a_c)
+        # Error message for decorrelation against parameters with 0 range
+        zero_range_err = "Decorrelation against parameter with zero range - "
         if dfdbg is not None:
+            if np.ptp(bg) == 0:
+                raise ValueError(zero_range_err+'bg')
             params['dfdbg'] = _kw_to_Parameter('dfdbg', dfdbg)
         if dfdcontam is not None:
+            if np.ptp(contam) == 0:
+                raise ValueError(zero_range_err+'contam')
             params['dfdcontam'] = _kw_to_Parameter('dfdcontam', dfdcontam)
         if dfdsmear is not None:
+            if np.ptp(smear) == 0:
+                raise ValueError(zero_range_err+'smear')
             params['dfdsmear'] = _kw_to_Parameter('dfdsmear', dfdsmear)
         if ramp is not None:
+            if np.ptp(deltaT) == 0:
+                raise ValueError(zero_range_err+'ramp')
             params['ramp'] = _kw_to_Parameter('ramp', ramp)
         if dfdx is not None:
+            if np.ptp(xoff) == 0:
+                raise ValueError(zero_range_err+'x')
             params['dfdx'] = _kw_to_Parameter('dfdx', dfdx)
         if dfdy is not None:
+            if np.ptp(yoff) == 0:
+                raise ValueError(zero_range_err+'y')
             params['dfdy'] = _kw_to_Parameter('dfdy', dfdy)
         if d2fdx2 is not None:
+            if np.ptp(xoff) == 0:
+                raise ValueError(zero_range_err+'x')
             params['d2fdx2'] = _kw_to_Parameter('d2fdx2', d2fdx2)
         if d2fdy2 is not None:
+            if np.ptp(yoff) == 0:
+                raise ValueError(zero_range_err+'y')
             params['d2fdy2'] = _kw_to_Parameter('d2fdy2', d2fdy2)
         if dfdt is not None:
             params['dfdt'] = _kw_to_Parameter('dfdt', dfdt)
         if d2fdt2 is not None:
             params['d2fdt2'] = _kw_to_Parameter('d2fdt2', d2fdt2)
+        l = [dfdsinphi, dfdcosphi,dfdsin2phi,dfdcos2phi,dfdsin3phi,dfdcos3phi]
+        if (l.count(None) < 6) and (np.ptp(phi) == 0):
+            raise ValueError(zero_range_err+'phi')
         if dfdsinphi is not None:
             params['dfdsinphi'] = _kw_to_Parameter('dfdsinphi', dfdsinphi)
         if dfdcosphi is not None:
@@ -1744,9 +1814,8 @@ class Dataset(object):
                 f_glint = self.f_glint
             except AttributeError:
                 raise AttributeError("Use add_glint() to first.")
-            GlintModel = Model(_glint_func, independent_vars=['t'],
-                f_theta=f_theta, f_glint=f_glint)
-            model += GlintModel
+            model += Model(_glint_func, independent_vars=['t'],
+                           f_theta=f_theta, f_glint=f_glint)
         
         # Additional white noise
         if log_sigma is not None:
@@ -1833,6 +1902,230 @@ class Dataset(object):
         return(report)
 
     # ----------------------------------------------------------------
+    def select_detrend(self, exclude=None, dprior=None, tprior=None,
+                       t2prior=None):
+        """
+        Select choice of detrending model coefficients using Bayes factors
+
+        See Maxted et al. 2022MNRAS.514...77M section 2.7.2 for an explanation
+        of how the Bayes factor is calculated for models with/without a given
+        decorrelation parameter. As suggested, decorrelation parameters are
+        added one-by-one, selecting  the parameter that has the highest Bayes
+        factor at each step until no parameters have a Bayes factor > 1. To 
+        avoid overfitting, if any parameters then have a Bayes factor < 1,
+        they are removed one-by-one. 
+
+        A least-squares fit to the light curve using Dataset.lmfit_transit()
+        or Dataset.lmfit_eclipse() must be run succesfully prior to calling
+        Dataset.select_detrend(). Any detrending parameters included in this
+        prior least-squares fit will be included in the dictionary of
+        detrending parameters returned by this method, irrespective of their
+        Bayes factor.
+
+        Use exclude=[] to specify a list of decorrelation parameters that
+        should never be included in the decorrelation model, irrespective of
+        their Bayes factors.
+
+        If dprior=None (default) then the priors on all decorrelation 
+        parameters apart from dfdt and d2fdt2 are Gaussians with mean of 0 and
+        standard deviation equal to the root mean square residual (rms) of the
+        prior least-squares fit. Otherwise, the priors on these decorrelation
+        parameters are Gaussians with mean of 0 and standard deviation
+        specified by the user using this keyword.
+
+        If tprior=None (default) then the prior on dfdt is a Gaussian with
+        mean of 0 and standard deviation rms/ptp(time), where ptp(time) is the
+        length of time (in days) covered by the light curve.  Otherwise, the
+        prior on this decorrelation parameter is a Gaussian with mean of 0 and
+        standard deviation specified by the user using this keyword.
+
+        If t2prior=None (default) then the prior on d2fdt2 is a Gaussian with
+        mean of 0 and standard deviation rms/ptp(time)**2.  Otherwise, the
+        prior on this decorrelation parameter is a Gaussian with mean of 0 and
+        standard deviation specified by the user using this keyword.
+
+        N.B. the prior least-squares fit is not affected by running
+        Dataset.select_detrend(). To overwrite the prior least-squares fit,
+        call Dataset.lmfit_transit() or Dataset.lmfit_eclipse() including the
+        argument "**detrend" in the argument list, where "detrend" in the
+        python dict returned by Dataset.select_detrend().
+
+        """
+
+        raise NotImplemented("")
+
+
+    # ----------------------------------------------------------------
+
+    def aperture_scan(self, xy_detrend_fixed=True, data_match=True,
+                        verbose=True, return_full=False):
+        """
+        Repeat lmfit fit to light curve for all available apertures 
+
+        If data_match=True (default), all data that have been removed from the
+        light curve in the current dataset are excluded from the fits.
+
+        If ramp=None (default), ramp correction is applied if and only if ramp
+        correctio has been applied to the light curve in the current dataset.
+        Set ramp=False or ramp=True to force ramp correction off or on,
+        respectively.
+
+        If xy_detrend_fixed=True (default) then dfdx and dfdy are included in
+        the fit to the "FIXED" aperture(s), whether or not they were included
+        in the previous fit to the light curve.
+
+        If verbose=True (default), a summary of the results is printed to the
+        terminal.
+
+        If return_full=True, return a dict that includes the MinimizerResult
+        objects for each aperture. Default is False, in which case an astropy
+        Table is returned containing a summary of the fits to each aperture.
+
+        The signal-to-noise ratio (SNR) given in the output from this method
+        is (depth)/(standard error on depth) for the depth of the eclipse or
+        transit, depending on whether the prior least-squares fit the current
+        light curve was done using lmfit_transit() or lmfit_eclipse().
+
+        N.B. the existing light curve in the current dataset is not affected
+        by running Dataset.aperture_scan(). Use Dataset.get_lightcurve() to
+        change the choice aperture for the light curve in the current dataset
+        based on the results from Dataset.aperture_scan().
+
+        """
+
+        try:
+            bjd0 = self.lc['time'] + self.bjd_ref
+        except AttributeError:
+            raise AttributeError("Use get_lightcurve() to load data first.")
+
+        if self.source != 'CHEOPS': 
+            raise TypeError('aperture_scan only available for CHEOPS data')
+
+        try:
+            params = self.lmfit.params.copy()
+        except AttributeError:
+            raise AttributeError('no valid lmfit result in dataset.')
+
+        aplist = self.list_apertures()
+        # Re-order apertures so that they are in radius order with
+        # DEFAULT ahead place of R25
+        if ('DEFAULT' in aplist) and ('R25' in aplist):
+            aplist.remove('DEFAULT')
+            aplist.insert(aplist.index('R25'),'DEFAULT')
+        if ('RINF' in aplist) and ('R23' in aplist) :
+            aplist.remove('RINF')
+            aplist.insert(aplist.index('R23'),'RINF')
+
+        # For data matching, interpolate BJD to array index
+        i = np.arange(len(bjd0))
+        I=interp1d(np.round(bjd0,6),i,bounds_error=False,fill_value=0.5)
+            
+        def _chisq_prior(params, *args):
+            r =  (flux - model.eval(params, t=time))/flux_err
+            for p in params:
+                u = params[p].user_data
+                if isinstance(u, UFloat):
+                    r = np.append(r, (u.n - params[p].value)/u.s)
+            return r
+
+        results = {}
+        rad_var = set([])
+        rad_fix = set([])
+
+        if verbose:
+            hdr = 'Aperture  Type    R[pxl]  rms[ppm]  mad[ppm] chisq/ndf SNR'
+            print(hdr)
+        for ap in aplist:
+            params = self.lmfit.params.copy()
+            table, hdr = self._get_table_(ap, False)
+            rad = hdr['AP_RADI']
+            ap_type = table.meta['AP_TYPE']
+            if ap_type == 'Fixed':
+                if rad in rad_fix:
+                    continue
+                rad_fix.add(rad)
+                if xy_detrend_fixed:
+                    if not 'dfdx' in params:
+                        params['dfdx'] = Parameter('dfdx', value=0, vary=True)
+                    if not 'dfdy' in params:
+                        params['dfdy'] = Parameter('dfdy', value=0, vary=True)
+            else:
+                if rad in rad_var:
+                    continue
+                rad_var.add(rad)
+
+            ok = (((table['EVENT'] == 0) | (table['EVENT'] == 100))
+                & (table['FLUX']>0) & np.isfinite(table['FLUX']))
+            bjd = np.array(table['BJD_TIME'])
+            if data_match:
+                ok &= I(np.round(bjd,6)) % 1 == 0
+            time = bjd[ok]-self.bjd_ref
+            fluxmed = np.nanmedian(table['FLUX'][ok])
+            flux = np.array(table['FLUX'][ok])/fluxmed
+            flux_err = np.array(table['FLUXERR'][ok])/fluxmed
+            bg = np.array(table['BACKGROUND'][ok])/fluxmed
+            smear = np.array(table['SMEARING_LC'][ok])/fluxmed
+            xoff = np.array(table['CENTROID_X'][ok]- table['LOCATION_X'][ok])
+            yoff = np.array(table['CENTROID_Y'][ok]- table['LOCATION_Y'][ok])
+            phi = np.array(table['ROLL_ANGLE'][ok])*np.pi/180
+            contam = np.array(table['CONTA_LC'][ok])
+            deltaT = np.array(self.metadata['thermFront_2'][ok]) + 12
+            if self.decontaminated:
+                flux /= (1 + contam) 
+            if '_transit_func' in self.model.__repr__():
+                model = TransitModel()
+            else:
+                model = EclipseModel()
+            model *= FactorModel(
+                    dx = _make_interp(time, xoff),
+                    dy = _make_interp(time, yoff), 
+                    sinphi = _make_interp(time,np.sin(phi)),
+                    cosphi = _make_interp(time,np.cos(phi)),
+                    bg = _make_interp(time,bg),
+                    contam = _make_interp(time,contam),
+                    smear = _make_interp(time,smear),
+                    deltaT = _make_interp(time,deltaT) )
+            if hasattr(self,'f_theta'):
+                model += Model(_glint_func, independent_vars=['t'],
+                               f_theta=self.f_theta, f_glint=self.f_glint)
+
+            result = minimize(_chisq_prior, params, nan_policy='propagate',
+                args=(model, time, flux, flux_err))
+            fit = model.eval(result.params,t=time)
+            rad = hdr['AP_RADI']
+            rms = 1e6*(flux-fit).std()
+            mad = 1e6*abs(flux-fit).mean()
+            chisq = np.sum((flux-fit)**2/flux_err**2)
+            ndf = len(flux)-sum([params[p].vary for p in params])
+            chisqr = np.sum((flux-fit)**2/flux_err**2)/ndf
+            if '_transit_func' in self.model.__repr__():
+                snr = result.params['D']/result.params['D'].stderr
+            else:
+                snr = result.params['L']/result.params['L'].stderr
+
+            if verbose:
+                txt = f'{ap:9s} {ap_type:9s} {rad:4.1f} {rms:9.1f} {mad:9.1f}'
+                txt += f' {chisqr:9.4f} {snr:8.2f}'
+                print(txt)
+            results[ap] = {'aperture_radius':rad, 'ap_type':ap_type,
+                           'rms':rms, 'mad':mad, 'ndf':ndf, 'chisq':chisq,
+                           'snr':snr}
+            if return_full:
+                results[ap]['result'] = result
+
+        if return_full:
+            return results
+        else:
+            T = Table()
+            keys = list(results.keys())
+            T['aperture'] = keys
+            for f in ['aperture_radius','rms','mad','ndf','chisq','snr']:
+                T[f] = [round(results[k][f],3) for k in keys]
+            T['rms'].unit = 'ppm'
+            T['mad'].unit = 'ppm'
+            return T
+
+    # ----------------------------------------------------------------
 
     def emcee_sampler(self, params=None,
             steps=128, nwalkers=64, burn=256, thin=1, log_sigma=None, 
@@ -1861,7 +2154,7 @@ class Dataset(object):
             raise AttributeError(
                     "Use lmfit_transit() or lmfit_eclipse() first.")
 
-        # Make a copy of the lmfit Minimizer result as a template for the
+        # Make a copy of the lmfit MinimizerResult as a template for the
         # output of this method
         result = deepcopy(self.lmfit)
         result.method ='emcee'
