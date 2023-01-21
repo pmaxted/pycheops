@@ -41,9 +41,7 @@ from numpy.random import normal
 import os
 from astropy.io.ascii import convert_numpy
 from contextlib import redirect_stderr
-with open(os.devnull,'w') as devnull:
-    with redirect_stderr(devnull):
-        from dace.cheops import Cheops
+from dace_query.cheops import Cheops
 
 
 

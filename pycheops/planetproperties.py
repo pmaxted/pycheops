@@ -45,10 +45,9 @@ from uncertainties.umath import sin as usin
 from uncertainties.umath import cos as ucos
 from uncertainties.umath import atan2 as uatan2
 import os
+import warnings
 from contextlib import redirect_stderr
-with open(os.devnull,'w') as devnull:
-    with redirect_stderr(devnull):
-        from dace.cheops import Cheops
+from dace_query.cheops import Cheops
 
 class PlanetProperties(object):
     """
