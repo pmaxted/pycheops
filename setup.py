@@ -90,6 +90,7 @@ setup(
             'celerite2',
             'cdspyreadme',
             'dace-query',
+            'IPython',
             'tqdm'],
 
     dependency_links=[],
