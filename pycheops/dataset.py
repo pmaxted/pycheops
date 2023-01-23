@@ -357,7 +357,7 @@ class Dataset(object):
             with open(os.devnull,'w+') as devnull:
                 with redirect_stderr(devnull):
                     Cheops.download(file_type,
-                        filters={'file_key':{'contains':file_key}},
+                        filters={'file_key':{'contains':[file_key]}},
                         output_directory=str(tgzPath.parent),
                         output_filename=str(tgzPath.name) )
 

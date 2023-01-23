@@ -20,6 +20,7 @@ Changes since 1.0.0 onwards.
 * Replace python-dace-client dependency with dace-query.
 * Suppress UnitsWarning in Dataset when reading from FITS files.
 * Add advice to update config file if psf_file generates KeyError
+* Add IPython to requirements in setup.py
 
 1.0.15 (2022-10-14)
 ~~~~~~~~~~~~~~~~~~~~
