@@ -1,11 +1,9 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1.0.16 (2022-12-31)
+1.0.16 (2023-02-01)
 ~~~~~~~~~~~~~~~~~~~~
 * Added Dataset.aperture_scan() to help users find the best aperture choice
-* Added Dataset.select_detrend() to help users select detrending model
-  parameters using Bayes factors.
 * Changed scaling of bg, contam and smear basis functions for decorrelation
   from (0,1) to (-1,1). This reduces the strong correlations between the
   constant scaling factor "c" and the decorrelation coefficients dfdbg,

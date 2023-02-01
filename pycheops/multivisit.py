@@ -1159,7 +1159,7 @@ class MultiVisit(object):
             if s is not None:
                 report += f'\n    Dataset {i+1}: '
                 if s:
-                    report += 'decorrelation parameters were scaled to (-1,1) or (0,1)'
+                    report += 'decorrelation parameters were scaled to (-1,1)'
                 else:
                     report +='decorrelation parameters were not scaled'
 
@@ -1378,7 +1378,7 @@ class MultiVisit(object):
         F9.7  ---     contam   Fraction of flux in aperture from nearby stars
         F9.7  ---     smear    Fraction of flux in aperture from readout trails
         F9.7  ---     bg       Fraction of flux in aperture from background
-        F6.3  ---     temp_2   thermFront_2 temperature sensor reading
+        F7.3  ---     temp_2   thermFront_2 temperature sensor reading
 
         :param title: title
         :param author: First author
@@ -1449,7 +1449,7 @@ class MultiVisit(object):
                     "Fraction of flux in aperture from background" )
             if np.ptp(d.lc['deltaT']) > 0:
                 T['temp_2'] = d.lc['deltaT'] - 12
-                T['temp_2'].info.format = '6.3f'
+                T['temp_2'].info.format = '7.3f'
                 T['temp_2'].description = (
                         "thermFront_2 temperature sensor reading" )
                 T['temp_2'].units = u.Celsius
