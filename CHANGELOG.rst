@@ -3,6 +3,10 @@ Changes since 1.0.0 onwards.
 
 1.0.16 (2023-02-01)
 ~~~~~~~~~~~~~~~~~~~~
+* Replaced np.int and np.float with int and float everywhere. (#292) 
+  
+1.0.16 (2023-02-01)
+~~~~~~~~~~~~~~~~~~~~
 * Added Dataset.aperture_scan() to help users find the best aperture choice
 * Changed scaling of bg, contam and smear basis functions for decorrelation
   from (0,1) to (-1,1). This reduces the strong correlations between the

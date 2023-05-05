@@ -1889,7 +1889,7 @@ class MultiVisit(object):
         # Generate a sample of values for a parameter
         def _s(x, nm=100_000):
             if isinstance(x,float) or isinstance(x,int):
-                return np.full(nm, x, dtype=np.float)
+                return np.full(nm, x, dtype=float)
             elif isinstance(x, UFloat):
                 return np.random.normal(x.n, x.s, nm)
             elif isinstance(x, np.ndarray):

@@ -33,7 +33,6 @@ import numpy as np
 
 from os.path import join,abspath,dirname,isfile
 import pickle 
-from numpy import int as np_int 
 from astropy.table import Table
 from .core import load_config
 from .models import TransitModel, scaled_transit_fit, minerr_transit_fit
@@ -109,7 +108,7 @@ def visibility(ra, dec):
 
     """
 
-    return (_visibility_interpolator(ra, dec)*100).astype(np_int)
+    return (_visibility_interpolator(ra, dec)*100).astype(int)
 
 
 #-----------------------------
