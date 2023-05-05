@@ -98,9 +98,9 @@ class PlanetProperties(object):
                 width_val = planet_data['obj_trans_duration_days'][0]
                 width_err = planet_data['obj_trans_duration_days_err'][0]
                 # 'obj_rv_k_mps' is in km/s so need to convert to m/s
-                # Note use of np.float to avoid problems with 'NaN' values
-                K_val = np.float(planet_data['obj_rv_k_mps'][0])*1000
-                K_err = np.float(planet_data['obj_rv_k_mps_err'][0])*1000
+                # Note use of float() to avoid problems with 'NaN' values
+                K_val = float(planet_data['obj_rv_k_mps'][0])*1000
+                K_err = float(planet_data['obj_rv_k_mps_err'][0])*1000
                 
                 # Still need to get errors on these parameters and replace
                 # np.nan with None
@@ -209,17 +209,17 @@ class PlanetProperties(object):
             Decs=np.array(T[T.colnames[hdr.index('Decs')]][1:],
                     dtype=np.str_)
             T0_vals=np.array(T[T.colnames[hdr.index('T0(HJDorBJD)')]][1:],
-                    dtype=np.float)
+                    dtype=float)
             T0_errs=np.array(T[T.colnames[hdr.index('T0err')]][1:],
-                    dtype=np.float)
+                    dtype=float)
             periods=np.array(T[T.colnames[hdr.index('Period(day)')]][1:],
-                    dtype=np.float)
+                    dtype=float)
             perrors=np.array(T[T.colnames[hdr.index('Perioderr')]][1:],
-                    dtype=np.float)
+                    dtype=float)
             lengths=np.array(T[T.colnames[hdr.index('length')]][1:],
-                    dtype=np.float)
+                    dtype=float)
             depths =np.array(T[T.colnames[hdr.index('depth')]][1:],
-                    dtype=np.float)
+                    dtype=float)
 
             ok = [t.startswith(identifier.replace(' ','_')) for t in targets]
             if sum(ok) > 1:

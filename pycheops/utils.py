@@ -56,7 +56,7 @@ def uprint(u, n, w=8, sf=2, wn=None, indent=1, short=False, asym=True):
         wn = len(n)+1
     val = u.n
     err = u.s
-    ndp = sf if err == 0 else sf - np.int(np.floor(np.log10(err))) - 1
+    ndp = sf if err == 0 else sf - int(np.floor(np.log10(err))) - 1
     if ndp < 0:
         b = 10**(-ndp-1)
         val = round(val/b)*b
@@ -122,7 +122,7 @@ def parprint(x,n, w=8, sf=2, wn=None, indent=4, short=False, asym=True):
     err = 0.5*(std_u-std_l)
     e_hi = std_u - val
     e_lo = val - std_l
-    ndp = sf if err == 0 else sf - np.int(np.floor(np.log10(err))) - 1
+    ndp = sf if err == 0 else sf - int(np.floor(np.log10(err))) - 1
     if ndp < 0:
         b = 10**(-ndp-1)
         val = round(val/b)*b
@@ -229,7 +229,7 @@ def lcbin(time, flux, binwidth=0.06859, nmin=4, time0=None,
         time0 = tgap[np.argmax(gap)]
         time0 = time0 - binwidth*np.ceil((time0-min(time))/binwidth)
 
-    n = np.int(1+np.ceil(np.ptp(time)/binwidth))
+    n = int(1+np.ceil(np.ptp(time)/binwidth))
     r = (time0,time0+n*binwidth)
     n_in_bin,bin_edges = np.histogram(time,bins=n,range=r)
     bin_indices = np.digitize(time,bin_edges)
@@ -237,7 +237,7 @@ def lcbin(time, flux, binwidth=0.06859, nmin=4, time0=None,
     t_bin = np.zeros(n)
     f_bin = np.zeros(n)
     e_bin = np.zeros(n)
-    n_bin = np.zeros(n, dtype=np.int)
+    n_bin = np.zeros(n, dtype=int)
 
     for i,n in enumerate(n_in_bin):
         if n >= nmin:

@@ -915,7 +915,7 @@ class Dataset(object):
             warnings.warn(msg)
             ok = ok & ~m
         bjd = np.array(table['BJD_TIME'][ok])
-        bjd_ref = np.int(bjd[0])
+        bjd_ref = int(bjd[0])
         self.bjd_ref = bjd_ref
         time = bjd-bjd_ref
         flux = np.array(table['FLUX'][ok])
@@ -2725,7 +2725,7 @@ class Dataset(object):
                     pp /= model.right.eval(parbest, t=tp) 
                 ax[0].plot(tp,pp,c='saddlebrown',zorder=1)
             for i in np.linspace(0,nchain,nsamples,endpoint=False,
-                    dtype=np.int):
+                    dtype=int):
                 for j, n in enumerate(self.emcee.var_names):
                     partmp[n].value = self.emcee.chain[i,j]
                 rr = flux0 - model.eval(partmp, t=time)
@@ -2748,7 +2748,7 @@ class Dataset(object):
                 
         else:
             for i in np.linspace(0,nchain,nsamples,endpoint=False,
-                    dtype=np.int):
+                    dtype=int):
                 for j, n in enumerate(self.emcee.var_names):
                     partmp[n].value = self.emcee.chain[i,j]
                     fp = model.eval(partmp,t=tp)
@@ -2846,7 +2846,7 @@ class Dataset(object):
         # Generate a sample of values for a parameter
         def _s(x, nm=100_000):
             if isinstance(x,float) or isinstance(x,int):
-                return np.full(nm, x, dtype=np.float)
+                return np.full(nm, x, dtype=float)
             elif isinstance(x, UFloat):
                 return np.random.normal(x.n, x.s, nm)
             elif isinstance(x, np.ndarray):
