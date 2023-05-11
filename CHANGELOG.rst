@@ -1,10 +1,15 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1.0.16 (2023-02-01)
+1.0.18 (2023-05-06)
+~~~~~~~~~~~~~~~~~~~~
+* Fixed bug in calculation of the Moon - target separation for planet_check()  
+* Added funcs.delta_t_sec(), light travel time correction for eclipses.
+  
+1.0.17 (2023-05-05)
 ~~~~~~~~~~~~~~~~~~~~
 * Replaced np.int and np.float with int and float everywhere. (#292) 
-  
+
 1.0.16 (2023-02-01)
 ~~~~~~~~~~~~~~~~~~~~
 * Added Dataset.aperture_scan() to help users find the best aperture choice

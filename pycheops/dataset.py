@@ -2968,17 +2968,19 @@ class Dataset(object):
         Show target separation from solar system objects at time of observation
 
         """
-        bjd = Time(self.bjd_ref+self.lc['time'][0],format='jd',scale='tdb')
+        visit_mid_time = Time(np.median(self.lc['table']['MJD_TIME']),
+                              format='mjd', scale='utc')
         target_coo = SkyCoord(self.ra,self.dec,unit=('hour','degree'))
-        print(f'BJD = {bjd}')
+        print(f'UTC = {visit_mid_time.isot}')
+        print(f'Target coordinates = {target_coo.to_string("hmsdms")}')
         print('Body     R.A.         Declination  Sep(deg)')
         print('-------------------------------------------')
         for p in ('moon','mars','jupiter','saturn','uranus','neptune'):
-            c = get_body(p, bjd)
+            c = get_body(p, visit_mid_time)
             ra = c.ra.to_string(precision=2,unit='hour',sep=':',pad=True)
             dec = c.dec.to_string(precision=1,sep=':',unit='degree',
                     alwayssign=True,pad=True)
-            sep = target_coo.separation(c).degree
+            sep = c.separation(target_coo).degree
             print(f'{p.capitalize():8s} {ra:12s} {dec:12s} {sep:8.1f}')
         
     
