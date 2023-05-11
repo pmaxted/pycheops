@@ -78,7 +78,7 @@ import warnings
 
 __all__ = [ 'a_rsun','f_m','m1sin3i','m2sin3i','asini','rhostar','g_2',
         'K_kms','m_comp','transit_width','esolve','t2z',
-        'tperi2tzero','tzero2tperi', 'vrad', 'xyz_planet']
+        'tperi2tzero','tzero2tperi', 'vrad', 'xyz_planet', 'delta_t_sec']
 
 _arsun   = (GM_SunN*mean_solar_day**2/(4*pi**2))**(1/3.)/R_SunN
 _f_m     = mean_solar_day*1e9/(2*pi)/GM_SunN
@@ -1070,3 +1070,32 @@ def massradius(P=None, k=None, sini=None, ecc=None,
 
     return result, fig
         
+
+#---------------
+
+def delta_t_sec(P, M=1, sini=1, ecc=0, omdeg=90, q=0):
+    """
+    Correction to time of mid-eclipse due to light travel time.
+
+    From Borkovits, et al. 2015MNRAS.448..946B, equation (25)
+
+    :param P: orbital period in days
+    :param Mass: primary star mass in solar masses (optional, default 1)
+    :param sini: sine of orbital inclination (optional, default 1)
+    :param ecc: eccentricity (optional, default=0)
+    :param omdeg: longitude of periastron in degrees (optional, default=90)
+    :param q: mass ratio = M_companion/M_star (optional, default 0)
+
+    N.B. omdeg is the longitude of periastron for the primary star's orbit
+
+    :returns: light travel time correction in seconds
+
+    """
+
+    asini = a_rsun(P, M*(1+q))*R_SunN*sini
+    esinw = ecc*sin(radians(omdeg))
+    return 2*(1-q)/(1+q)*asini*(1-ecc**2)/(1-esinw**2)/c
+
+
+
+
