@@ -2148,10 +2148,13 @@ class Dataset(object):
             chisq = np.sum((flux-fit)**2/flux_err**2)
             ndf = len(flux)-sum([params[p].vary for p in params])
             chisqr = np.sum((flux-fit)**2/flux_err**2)/ndf
-            if '_transit_func' in self.model.__repr__():
-                snr = result.params['D']/result.params['D'].stderr
-            else:
-                snr = result.params['L']/result.params['L'].stderr
+            try:
+                if '_transit_func' in self.model.__repr__():
+                    snr = result.params['D']/result.params['D'].stderr
+                else:
+                    snr = result.params['L']/result.params['L'].stderr
+            except TypeError:
+                snr = np.nan
 
             if verbose:
                 txt = f'{ap:9s} {ap_type:9s} {rad:4.1f} {rms:9.1f} {mad:9.1f}'
