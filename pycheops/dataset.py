@@ -1996,6 +1996,10 @@ class Dataset(object):
         transit, depending on whether the prior least-squares fit the current
         light curve was done using lmfit_transit() or lmfit_eclipse().
 
+        N.B. the fits to the light curves for each aperture will do the
+        equivalent of "scale=True", even if the previous least-squares fit to
+        the light curve used scale=False. 
+
         N.B. the existing light curve in the current dataset is not affected
         by running Dataset.aperture_scan(). Use Dataset.get_lightcurve() to
         change the choice aperture for the light curve in the current dataset
@@ -2076,15 +2080,12 @@ class Dataset(object):
 
             ok = (((table['EVENT'] == 0) | (table['EVENT'] == 100))
                 & (table['FLUX']>0) & np.isfinite(table['FLUX']))
-            bjd = np.array(table['BJD_TIME'])
-            if data_match:
-                ok &= I(np.round(bjd,6)) % 1 == 0
-            time = bjd[ok]-self.bjd_ref
-            fluxmed = np.nanmedian(table['FLUX'][ok])
-            flux = np.array(table['FLUX'][ok])/fluxmed
-            flux_err = np.array(table['FLUXERR'][ok])/fluxmed
-            bg = np.array(table['BACKGROUND'][ok])/fluxmed
-            smear = np.array(table['SMEARING_LC'][ok])/fluxmed
+            bjd = np.array(table['BJD_TIME'])[ok]
+            time = bjd-self.bjd_ref
+            flux = np.array(table['FLUX'][ok])
+            flux_err = np.array(table['FLUXERR'][ok])
+            bg = np.array(table['BACKGROUND'][ok])
+            smear = np.array(table['SMEARING_LC'][ok])
             xoff = np.array(table['CENTROID_X'][ok]- table['LOCATION_X'][ok])
             yoff = np.array(table['CENTROID_Y'][ok]- table['LOCATION_Y'][ok])
             phi = np.array(table['ROLL_ANGLE'][ok])*np.pi/180
@@ -2092,21 +2093,43 @@ class Dataset(object):
             deltaT = np.array(self.metadata['thermFront_2'][ok]) + 12
             if self.decontaminated:
                 flux /= (1 + contam) 
+
+            if data_match:
+                j = I(np.round(bjd,6)) % 1 == 0
+                time =time[j] 
+                flux =flux[j] 
+                flux_err =flux_err[j] 
+                bg =bg[j] 
+                smear =smear[j] 
+                xoff =xoff[j] 
+                yoff =yoff[j] 
+                phi =phi[j] 
+                contam =contam[j] 
+                deltaT =deltaT[j] 
+
+            fluxmed = np.nanmedian(flux)
+            flux = flux/fluxmed
+            flux_err = flux_err/fluxmed
+            smear = smear/fluxmed
+            bg = bg/fluxmed
+
             if do_ramp:
                 flux *= (1+beta(rad)*deltaT)
+
             if '_transit_func' in self.model.__repr__():
                 model = TransitModel()
             else:
                 model = EclipseModel()
             model *= FactorModel(
-                    dx = _make_interp(time, xoff),
-                    dy = _make_interp(time, yoff), 
-                    sinphi = _make_interp(time,np.sin(phi)),
-                    cosphi = _make_interp(time,np.cos(phi)),
-                    bg = _make_interp(time,bg),
-                    contam = _make_interp(time,contam),
-                    smear = _make_interp(time,smear),
-                    deltaT = _make_interp(time,deltaT) )
+                    dx=_make_interp(time, self.lc['xoff'], scale='range'),
+                    dy=_make_interp(time, self.lc['yoff'], scale='range'),
+                    sinphi=_make_interp(time,np.sin(phi)),
+                    cosphi=_make_interp(time,np.cos(phi)),
+                    bg=_make_interp(time,self.lc['bg'], scale='range'),
+                    contam=_make_interp(time,self.lc['contam'], scale='range'),
+                    smear=_make_interp(time,smear, scale='range'),
+                    deltaT=_make_interp(time,deltaT) )
+
             if hasattr(self,'f_theta'):
                 model += Model(_glint_func, independent_vars=['t'],
                                f_theta=self.f_theta, f_glint=self.f_glint)
@@ -2139,6 +2162,9 @@ class Dataset(object):
                            'snr':snr,'ndata':len(flux)}
             if return_full:
                 results[ap]['result'] = result
+                results[ap]['time'] = time
+                results[ap]['flux'] = flux
+                results[ap]['flux_err'] = flux_err
 
         if return_full:
             return results
