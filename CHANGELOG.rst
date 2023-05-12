@@ -1,6 +1,15 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.0.19 (2023-05-12)
+~~~~~~~~~~~~~~~~~~~~
+* Added "aperture" attribute to Dataset to store aperture name.
+* Added scaling of detrending functions to Dataset.aperture_scan() 
+* Added N_data to output of Dataset.aperture_scan()
+* Added copy_initial option to Dataset.aperture_scan()
+* Added "ramp" in Dataset.aperture_scan() - was documented but not implemented
+* Dataset.aperture_scan(return_full=true) now also returns time,flux,flux_err 
+  
 1.0.18 (2023-05-06)
 ~~~~~~~~~~~~~~~~~~~~
 * Fixed bug in calculation of the Moon - target separation for planet_check()  

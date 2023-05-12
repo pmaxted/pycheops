@@ -936,6 +936,7 @@ class Dataset(object):
         ap_rad = hdr['AP_RADI']
         self.bjd_ref = bjd_ref
         self.ap_rad = ap_rad
+        self.aperture = aperture
         if verbose:
             print('Time stored relative to BJD = {:0.0f}'.format(bjd_ref))
             print('Aperture radius used = {:0.1f} arcsec'.format(ap_rad))
@@ -1958,7 +1959,8 @@ class Dataset(object):
     # ----------------------------------------------------------------
 
     def aperture_scan(self, xy_detrend_fixed=True, data_match=True,
-                        verbose=True, return_full=False):
+                        verbose=True, return_full=False, ramp=None,
+                        copy_initial=False):
         """
         Repeat lmfit fit to light curve for all available apertures 
 
@@ -1966,7 +1968,7 @@ class Dataset(object):
         light curve in the current dataset are excluded from the fits.
 
         If ramp=None (default), ramp correction is applied if and only if ramp
-        correctio has been applied to the light curve in the current dataset.
+        correction has been applied to the light curve in the current dataset.
         Set ramp=False or ramp=True to force ramp correction off or on,
         respectively.
 
@@ -1977,14 +1979,26 @@ class Dataset(object):
         If verbose=True (default), a summary of the results is printed to the
         terminal.
 
+        If copy_initial=False (default) then the initial parameter values are
+        taken from the last best-fit values using lmfit_transit,
+        lmfit_eclipse, etc. If copy_initial=True, the initial parameter values
+        will be the same as the initial values from the last call to
+        lmfit_transit, lmfit_eclipse, etc. 
+
         If return_full=True, return a dict that includes the MinimizerResult
         objects for each aperture. Default is False, in which case an astropy
         Table is returned containing a summary of the fits to each aperture.
+        N.B. the MinimizerResult object includes any Gaussian priors on
+        parameter as part of the data, i.e. n_data = n_obs + n_priors
 
         The signal-to-noise ratio (SNR) given in the output from this method
         is (depth)/(standard error on depth) for the depth of the eclipse or
         transit, depending on whether the prior least-squares fit the current
         light curve was done using lmfit_transit() or lmfit_eclipse().
+
+        N.B. the fits to the light curves for each aperture will do the
+        equivalent of "scale=True", even if the previous least-squares fit to
+        the light curve used scale=False. 
 
         N.B. the existing light curve in the current dataset is not affected
         by running Dataset.aperture_scan(). Use Dataset.get_lightcurve() to
@@ -2032,8 +2046,18 @@ class Dataset(object):
         rad_var = set([])
         rad_fix = set([])
 
+        if ramp == None:
+            do_ramp = hasattr(self,'ramp_correction')
+        else:
+            do_ramp = ramp
+        if do_ramp:
+            beta = interp1d([22.5, 25, 30, 40],
+                            [0.00014,0.00020,0.00033,0.00040],
+                            bounds_error=False, fill_value='extrapolate')
+
         if verbose:
             hdr = 'Aperture  Type    R[pxl]  rms[ppm]  mad[ppm] chisq/ndf SNR'
+            hdr += "      N_data"
             print(hdr)
         for ap in aplist:
             params = self.lmfit.params.copy()
@@ -2056,15 +2080,12 @@ class Dataset(object):
 
             ok = (((table['EVENT'] == 0) | (table['EVENT'] == 100))
                 & (table['FLUX']>0) & np.isfinite(table['FLUX']))
-            bjd = np.array(table['BJD_TIME'])
-            if data_match:
-                ok &= I(np.round(bjd,6)) % 1 == 0
-            time = bjd[ok]-self.bjd_ref
-            fluxmed = np.nanmedian(table['FLUX'][ok])
-            flux = np.array(table['FLUX'][ok])/fluxmed
-            flux_err = np.array(table['FLUXERR'][ok])/fluxmed
-            bg = np.array(table['BACKGROUND'][ok])/fluxmed
-            smear = np.array(table['SMEARING_LC'][ok])/fluxmed
+            bjd = np.array(table['BJD_TIME'])[ok]
+            time = bjd-self.bjd_ref
+            flux = np.array(table['FLUX'][ok])
+            flux_err = np.array(table['FLUXERR'][ok])
+            bg = np.array(table['BACKGROUND'][ok])
+            smear = np.array(table['SMEARING_LC'][ok])
             xoff = np.array(table['CENTROID_X'][ok]- table['LOCATION_X'][ok])
             yoff = np.array(table['CENTROID_Y'][ok]- table['LOCATION_Y'][ok])
             phi = np.array(table['ROLL_ANGLE'][ok])*np.pi/180
@@ -2072,22 +2093,51 @@ class Dataset(object):
             deltaT = np.array(self.metadata['thermFront_2'][ok]) + 12
             if self.decontaminated:
                 flux /= (1 + contam) 
+
+            if data_match:
+                j = I(np.round(bjd,6)) % 1 == 0
+                time =time[j] 
+                flux =flux[j] 
+                flux_err =flux_err[j] 
+                bg =bg[j] 
+                smear =smear[j] 
+                xoff =xoff[j] 
+                yoff =yoff[j] 
+                phi =phi[j] 
+                contam =contam[j] 
+                deltaT =deltaT[j] 
+
+            fluxmed = np.nanmedian(flux)
+            flux = flux/fluxmed
+            flux_err = flux_err/fluxmed
+            smear = smear/fluxmed
+            bg = bg/fluxmed
+
+            if do_ramp:
+                flux *= (1+beta(rad)*deltaT)
+
             if '_transit_func' in self.model.__repr__():
                 model = TransitModel()
             else:
                 model = EclipseModel()
             model *= FactorModel(
-                    dx = _make_interp(time, xoff),
-                    dy = _make_interp(time, yoff), 
-                    sinphi = _make_interp(time,np.sin(phi)),
-                    cosphi = _make_interp(time,np.cos(phi)),
-                    bg = _make_interp(time,bg),
-                    contam = _make_interp(time,contam),
-                    smear = _make_interp(time,smear),
-                    deltaT = _make_interp(time,deltaT) )
+                    dx=_make_interp(time, self.lc['xoff'], scale='range'),
+                    dy=_make_interp(time, self.lc['yoff'], scale='range'),
+                    sinphi=_make_interp(time,np.sin(phi)),
+                    cosphi=_make_interp(time,np.cos(phi)),
+                    bg=_make_interp(time,self.lc['bg'], scale='range'),
+                    contam=_make_interp(time,self.lc['contam'], scale='range'),
+                    smear=_make_interp(time,smear, scale='range'),
+                    deltaT=_make_interp(time,deltaT) )
+
             if hasattr(self,'f_theta'):
                 model += Model(_glint_func, independent_vars=['t'],
                                f_theta=self.f_theta, f_glint=self.f_glint)
+
+            if copy_initial:
+                for p in params:
+                    if params[p].vary:
+                        params[p].value = params[p].init_value
 
             result = minimize(_chisq_prior, params, nan_policy='propagate',
                 args=(model, time, flux, flux_err))
@@ -2105,13 +2155,16 @@ class Dataset(object):
 
             if verbose:
                 txt = f'{ap:9s} {ap_type:9s} {rad:4.1f} {rms:9.1f} {mad:9.1f}'
-                txt += f' {chisqr:9.4f} {snr:8.2f}'
+                txt += f' {chisqr:9.4f} {snr:8.2f} {len(flux):6d}'
                 print(txt)
             results[ap] = {'aperture_radius':rad, 'ap_type':ap_type,
                            'rms':rms, 'mad':mad, 'ndf':ndf, 'chisq':chisq,
-                           'snr':snr}
+                           'snr':snr,'ndata':len(flux)}
             if return_full:
                 results[ap]['result'] = result
+                results[ap]['time'] = time
+                results[ap]['flux'] = flux
+                results[ap]['flux_err'] = flux_err
 
         if return_full:
             return results
