@@ -936,6 +936,7 @@ class Dataset(object):
         ap_rad = hdr['AP_RADI']
         self.bjd_ref = bjd_ref
         self.ap_rad = ap_rad
+        self.aperture = aperture
         if verbose:
             print('Time stored relative to BJD = {:0.0f}'.format(bjd_ref))
             print('Aperture radius used = {:0.1f} arcsec'.format(ap_rad))
@@ -1958,7 +1959,8 @@ class Dataset(object):
     # ----------------------------------------------------------------
 
     def aperture_scan(self, xy_detrend_fixed=True, data_match=True,
-                        verbose=True, return_full=False):
+                        verbose=True, return_full=False, ramp=None,
+                        copy_initial=False):
         """
         Repeat lmfit fit to light curve for all available apertures 
 
@@ -1966,7 +1968,7 @@ class Dataset(object):
         light curve in the current dataset are excluded from the fits.
 
         If ramp=None (default), ramp correction is applied if and only if ramp
-        correctio has been applied to the light curve in the current dataset.
+        correction has been applied to the light curve in the current dataset.
         Set ramp=False or ramp=True to force ramp correction off or on,
         respectively.
 
@@ -1977,9 +1979,17 @@ class Dataset(object):
         If verbose=True (default), a summary of the results is printed to the
         terminal.
 
+        If copy_initial=False (default) then the initial parameter values are
+        taken from the last best-fit values using lmfit_transit,
+        lmfit_eclipse, etc. If copy_initial=True, the initial parameter values
+        will be the same as the initial values from the last call to
+        lmfit_transit, lmfit_eclipse, etc. 
+
         If return_full=True, return a dict that includes the MinimizerResult
         objects for each aperture. Default is False, in which case an astropy
         Table is returned containing a summary of the fits to each aperture.
+        N.B. the MinimizerResult object includes any Gaussian priors on
+        parameter as part of the data, i.e. n_data = n_obs + n_priors
 
         The signal-to-noise ratio (SNR) given in the output from this method
         is (depth)/(standard error on depth) for the depth of the eclipse or
@@ -2032,8 +2042,18 @@ class Dataset(object):
         rad_var = set([])
         rad_fix = set([])
 
+        if ramp == None:
+            do_ramp = hasattr(self,'ramp_correction')
+        else:
+            do_ramp = ramp
+        if do_ramp:
+            beta = interp1d([22.5, 25, 30, 40],
+                            [0.00014,0.00020,0.00033,0.00040],
+                            bounds_error=False, fill_value='extrapolate')
+
         if verbose:
             hdr = 'Aperture  Type    R[pxl]  rms[ppm]  mad[ppm] chisq/ndf SNR'
+            hdr += "      N_data"
             print(hdr)
         for ap in aplist:
             params = self.lmfit.params.copy()
@@ -2072,6 +2092,8 @@ class Dataset(object):
             deltaT = np.array(self.metadata['thermFront_2'][ok]) + 12
             if self.decontaminated:
                 flux /= (1 + contam) 
+            if do_ramp:
+                flux *= (1+beta(rad)*deltaT)
             if '_transit_func' in self.model.__repr__():
                 model = TransitModel()
             else:
@@ -2089,6 +2111,11 @@ class Dataset(object):
                 model += Model(_glint_func, independent_vars=['t'],
                                f_theta=self.f_theta, f_glint=self.f_glint)
 
+            if copy_initial:
+                for p in params:
+                    if params[p].vary:
+                        params[p].value = params[p].init_value
+
             result = minimize(_chisq_prior, params, nan_policy='propagate',
                 args=(model, time, flux, flux_err))
             fit = model.eval(result.params,t=time)
@@ -2105,11 +2132,11 @@ class Dataset(object):
 
             if verbose:
                 txt = f'{ap:9s} {ap_type:9s} {rad:4.1f} {rms:9.1f} {mad:9.1f}'
-                txt += f' {chisqr:9.4f} {snr:8.2f}'
+                txt += f' {chisqr:9.4f} {snr:8.2f} {len(flux):6d}'
                 print(txt)
             results[ap] = {'aperture_radius':rad, 'ap_type':ap_type,
                            'rms':rms, 'mad':mad, 'ndf':ndf, 'chisq':chisq,
-                           'snr':snr}
+                           'snr':snr,'ndata':len(flux)}
             if return_full:
                 results[ap]['result'] = result
 
