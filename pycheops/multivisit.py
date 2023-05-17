@@ -94,7 +94,7 @@ def _glint_func(t, glint_scale, f_theta=None, f_glint=None, delta_t=None):
 
 #--------
 
-def _make_labels(plotkeys, d0):
+def _make_labels(plotkeys, d0, extra_labels):
     labels = []
     r = re.compile('dfd(.*)_([0-9][0-9])')
     r2 = re.compile('d2fd(.*)2_([0-9][0-9])')
@@ -103,7 +103,9 @@ def _make_labels(plotkeys, d0):
     rl = re.compile('L_([0-9][0-9])')
     rc = re.compile('c_([0-9][0-9])')
     for key in plotkeys:
-        if key == 'T_0':
+        if key in extra_labels.keys():
+            labels.append(extra_labels[key])
+        elif key == 'T_0':
             labels.append(r'T$_0-{:.0f}$'.format(d0))
         elif key == 'h_1':
             labels.append(r'$h_1$')
@@ -117,9 +119,11 @@ def _make_labels(plotkeys, d0):
             labels.append(r'$\ell_3$')
         elif r.match(key):
             p,n = r.match(key).group(1,2)
+            p = p.replace('_','\_')
             labels.append(r'$df\,/\,d{}_{{{}}}$'.format(p,n))
         elif r2.match(key):
             p,n = r2.match(key).group(1,2)
+            p = p.replace('_','\_')
             labels.append(r'$d^2f\,/\,d{}^2_{{{}}}$'.format(p,n))
         elif rt.match(key):
             n = rt.match(key).group(1)
@@ -173,6 +177,8 @@ class MultiVisit(object):
     :param target: target name to identify pickled datasets
 
     :param datadir: directory containing pickled datasets
+
+    :param tag: tag used when desired datasets were saved 
 
     :param ident: identifier in star properties table. If None use target. If
     'none' 
@@ -341,7 +347,7 @@ class MultiVisit(object):
 
     """
 
-    def __init__(self, target=None, datadir=None,
+    def __init__(self, target=None, datadir=None, tag="", 
             ident=None, id_kws={'dace':True},
             verbose=True):
 
@@ -351,7 +357,7 @@ class MultiVisit(object):
 
         if target is None: return
 
-        ptn = target.replace(" ","_")+'__*.dataset'
+        ptn = target.replace(" ","_")+'_'+tag+'_*.dataset'
         if datadir is not None:
             ptn = os.path.join(datadir,ptn)
 
@@ -368,8 +374,8 @@ class MultiVisit(object):
         if verbose:
             print(self.star)
             print('''
- N  file_key                   Aperture last_ GP  Glint Scale pipe_ver
- ---------------------------------------------------------------------------------''')
+ N  file_key                   Aperture last_ GP Glint Scale pipe_ver extra
+ --------------------------------------------------------------------------''')
 
         for n,fl in enumerate(g):
             d = Dataset.load(fl)
@@ -380,6 +386,8 @@ class MultiVisit(object):
             d.bjd_ref = 2457000
             d.lc['time'] += dBJD
             d.lc['bjd_ref'] = dBJD
+            for xbf in d.__extra_basis_funcs__:
+                d.__extra_basis_funcs__[xbf].x += dBJD
             if 'lmfit' in d.__dict__:
                 p = deepcopy(d.lmfit.params['T_0'])
                 p._val += dBJD
@@ -429,7 +437,9 @@ class MultiVisit(object):
                 else:
                     sc = 'False'
                 pv = d.pipe_ver
-                print(f' {n+1:2} {d.file_key} {ap:8} {lf:5} {gp:3} {gl:5} {sc:5} {pv}')
+                nx = len(d.__extra_basis_funcs__)
+                print(f' {n+1:2} {d.file_key} {ap:8} {lf:5} {gp:3}'
+                      f'{gl:5} {sc:5}   {pv}     {nx}')
 
 #--------------------------------------------------------------------------
 #
@@ -468,7 +478,7 @@ class MultiVisit(object):
     def __run_emcee__(self, **kwargs):
 
         # Dict of initial parameter values for creation of models
-        # Calculation of mean T_0 needs P and W so T_0 is not first in the list
+        # Calculation of mean needs P and W so T_0 is not first in the list
         vals = OrderedDict()
         for k in ['D', 'W', 'b', 'P', 'T_0', 'f_c', 'f_s', 'l_3']:
             vals[k] = kwargs[k]
@@ -562,6 +572,15 @@ class MultiVisit(object):
         expr = 'log10(4.3275e-4*((1+k)**2-b**2)**1.5/W**3/P**2)'
         params.add('logrho',expr=expr,min=-9,max=6)
         params.add('e',min=0,max=1,expr='f_c**2 + f_s**2')
+        # For eccentric orbits only from Winn, arXiv:1001.2010
+        if (params['e'].value>0) or params['f_c'].vary or params['f_s'].vary:
+            params.add('esinw',expr='sqrt(e)*f_s')
+            params.add('ecosw',expr='sqrt(e)*f_c')
+            params.add('b_tra',expr='b*(1-e**2)/(1+esinw)')
+            params.add('b_occ',expr='b*(1-e**2)/(1-esinw)')
+            params.add('T_tra',expr='P*W*sqrt(1-e**2)/(1+esinw)')
+            params.add('T_occ',expr='P*W*sqrt(1-e**2)/(1-esinw)')
+
         if 'h_1' in params:
             params.add('q_1',min=0,max=1,expr='(1-h_2)**2')
             params.add('q_2',min=0,max=1,expr='(h_1-h_2)/(1-h_2)')
@@ -673,7 +692,8 @@ class MultiVisit(object):
                     bg = _make_interp(t,d.lc['bg'], scale='max'),
                     contam = _make_interp(t,d.lc['contam'], scale='max'),
                     smear = _make_interp(t,smear, scale='max'),
-                    deltaT = _make_interp(t,deltaT) )
+                    deltaT = _make_interp(t,deltaT),
+                    extra_basis_funcs=d.__extra_basis_funcs__)
             else:
                 factor_model = FactorModel(
                     dx = _make_interp(t,d.lc['xoff']),
@@ -681,7 +701,9 @@ class MultiVisit(object):
                     bg = _make_interp(t,d.lc['bg']),
                     contam = _make_interp(t,d.lc['contam']),
                     smear = _make_interp(t,smear),
-                    deltaT = _make_interp(t,deltaT) )
+                    deltaT = _make_interp(t,deltaT),
+                    extra_basis_funcs=d.__extra_basis_funcs__)
+
             if fittype == 'transit':
                 model = TransitModel()*factor_model
             elif fittype == 'eclipse':
@@ -729,11 +751,13 @@ class MultiVisit(object):
                 vs.append(edv_prior)
                 priors[t] = params[t].user_data
                 
-            for dfdp in ['c', 'dfdbg', 'dfdcontam', 'dfdsmear', 'dfdx',
-                    'd2fdx2', 'dfdy', 'd2fdy2', 'dfdt', 'd2fdt2',
-                    'glint_scale', 'ramp']:
+            # Now the decorrelation parameters, incliding arbitary
+            # basis functions, if present
+            for dfdp in [k for k in p if (k[:3]=='dfd' or k[:4]=='d2fd' or
+                         k=='c' or k=='ramp' or k=='glint_scale') and
+                         k[:6]!='dfdsin' and k[:6]!='dfdcos']:
 
-                if dfdp in p and p[dfdp].vary:
+                if  p[dfdp].vary:
                     pj = f'{dfdp}_{i+1:02d}'
                     params.add(pj, p[dfdp].value,
                             min=p[dfdp].min, max=p[dfdp].max)
@@ -825,7 +849,7 @@ class MultiVisit(object):
         # best-fit light curves, detrended fluxes, etc.
         flatchain = sampler.get_chain(flat=True)
         pos = flatchain[np.argmax(sampler.get_log_prob()),:]
-        f_fit, f_sys, f_det, f_sho, f_phi = self._lnpost_(pos, return_fit=True)
+        f_fit,f_sys,f_det,f_sho,f_phi = self._lnpost_(pos,return_fit=True)
         self.__fluxes_fit__ = f_fit
         self.__fluxes_sys__ = f_sys
         self.__fluxes_det__ = f_det
@@ -858,7 +882,7 @@ class MultiVisit(object):
         z = zip(self.datasets, self.__fluxes_unwrap__,  f_fit)
         result.residual = [(d.lc['flux']-fu-ft) for d,fu,ft in z]
         z = zip(self.datasets, result.residual)
-        result.chisqr = np.sum(((r/d.lc['flux_err'])**2).sum() for d,r in z)
+        result.chisqr = np.sum([((r/d.lc['flux_err'])**2).sum() for d,r in z])
         result.redchi = result.chisqr/result.nfree
         lnlike = np.max(sampler.get_blobs())
         result.lnlike = lnlike
@@ -948,9 +972,8 @@ class MultiVisit(object):
                     if (v < modpar[p].min) or (v > modpar[p].max):
                         return -np.inf, -np.inf
     
-            df = ('c', 'dfdbg', 'dfdcontam', 'dfdsmear', 'glint_scale', 'ramp',
-                    'dfdx', 'd2fdx2', 'dfdy', 'd2fdy2', 'dfdt', 'd2fdt2')
-            for d in df:
+            for d in [k for k in modpar if k[:3]=='dfd' or k[:4]=='d2fd' or
+                      k=='c' or k=='ramp' or k=='glint_scale']:
                 p = f'{d}_{i+1:02d}' 
                 if p in vn:
                     v = pos[vn.index(p)]
@@ -986,7 +1009,8 @@ class MultiVisit(object):
                 gp.compute(lc['time'], diag=yvar, quiet=True)
                 if return_fit:
                     k = f'_{self.__fittype__}_func'
-                    f_sys = model.eval_components(params=modpar,t=lc['time'])[k]
+                    f_sys = model.eval_components(params=modpar,
+                                                  t=lc['time'])[k]
                     fluxes_sys.append(f_sys)
                     f_celerite = gp.predict(resid, include_mean=False)
                     f_fit = f_model + f_celerite  + f_unwrap
@@ -1012,7 +1036,8 @@ class MultiVisit(object):
             else:
                 if return_fit:
                     k = f'_{self.__fittype__}_func'
-                    f_sys = model.eval_components(params=modpar,t=lc['time'])[k]
+                    f_sys = model.eval_components(params=modpar,
+                                                  t=lc['time'])[k]
                     fluxes_sys.append(f_sys)
                     f_fit = f_model + f_unwrap
                     fluxes_fit.append(f_fit)
@@ -1020,7 +1045,7 @@ class MultiVisit(object):
                     fluxes_det.append(f_det)
                     fluxes_sho.append(np.zeros_like(f_sys))
                 else:
-                    lnlike += -0.5*(np.sum(resid**2/yvar+np.log(2*np.pi*yvar)))
+                    lnlike += -0.5*np.sum(resid**2/yvar+np.log(2*np.pi*yvar))
     
         if return_fit:
             return fluxes_fit, fluxes_sys, fluxes_det, fluxes_sho, fluxes_phi
@@ -1159,7 +1184,7 @@ class MultiVisit(object):
             if s is not None:
                 report += f'\n    Dataset {i+1}: '
                 if s:
-                    report += 'decorrelation parameters were scaled to (-1,1)'
+                    report += 'decorrelation parameters were scaled)'
                 else:
                     report +='decorrelation parameters were not scaled'
 
@@ -1239,10 +1264,21 @@ class MultiVisit(object):
         n = len(plotkeys)
         fig,ax = plt.subplots(nrows=n, figsize=(width,n*height), sharex=True)
         if n == 1: ax = [ax,]
+
         d0 = 0 
         if 'T_0' in plotkeys:
             d0 = np.floor(np.nanmedian(samples[:,:,var_names.index('T_0')]))
-        labels = _make_labels(plotkeys, d0)
+        extra_labels = {}
+        for i,d in enumerate(self.datasets):
+            for k in d.extra_decorr_vectors:
+                if k == 't':
+                    continue
+                if 'label' in d.extra_decorr_vectors[k].keys():
+                    label = d.extra_decorr_vectors[k]['label']
+                    label += f'$_{{{i+1:02d}}}$'
+                    extra_labels[f'dfd{k}_{i+1:02d}'] = label
+        labels = _make_labels(plotkeys, d0, extra_labels)
+
         for i,key in enumerate(plotkeys):
             if key == 'T_0':
                 ax[i].plot(samples[:,:,var_names.index(key)]-d0, **plot_kws)
@@ -1332,7 +1368,18 @@ class MultiVisit(object):
         kws = {} if kwargs is None else kwargs
 
         xs = np.array(xs).T
-        labels = _make_labels(plotkeys, d0)
+        extra_labels = {}
+        for i,d in enumerate(self.datasets):
+            if d.extra_decorr_vectors != None:
+                for k in d.extra_decorr_vectors:
+                    if k == 't':
+                        continue
+                    if 'label' in d.extra_decorr_vectors[k].keys():
+                        label = d.extra_decorr_vectors[k]['label']
+                        label += f'$_{{{i+1:02d}}}$'
+                        extra_labels[f'dfd{k}_{i+1:02d}'] = label
+        labels = _make_labels(plotkeys, d0, extra_labels)
+
         figure = corner.corner(xs, labels=labels, **kws)
 
         nax = len(labels)

@@ -31,10 +31,9 @@ from lmfit.model import Model
 from lmfit.models import COMMON_INIT_DOC, COMMON_GUESS_DOC
 from numba import jit
 from .funcs import t2z, xyz_planet, vrad, tzero2tperi, esolve
-from warnings import warn
 from scipy.optimize import brent, brentq
 from collections import OrderedDict
-from asteval import Interpreter, get_ast_names, valid_symbol_name
+from asteval import Interpreter
 from pycheops.constants import c 
 
 c_light = c/1000 # km/s
@@ -219,7 +218,6 @@ def minerr_transit_fit(flux, sigma, model):
     fa = _negloglike(s_min, flux, sigma, model)
     s_mid = 1
     fb = _negloglike(s_mid, flux, sigma, model)
-    #print('s_min, fa, s_mid, fb',s_min, fa, s_mid, fb)
     if fb < fa:
         s_max = 2
         fc = _negloglike(s_max, flux, sigma, model)
@@ -237,7 +235,6 @@ def minerr_transit_fit(flux, sigma, model):
             s_mid = 0.5*s_mid
             fb = _negloglike(s_mid, flux, sigma, model)
 
-    #print('s_min, fa, s_mid, fb, s_max, fc',s_min, fa, s_mid, fb, s_max, fc)
     s_opt, _f, _, _ = brent(_negloglike, args=(flux, sigma, model),
                        brack=(s_min,s_mid,s_max), full_output=True)
     loglike_0 = -_f -0.5
@@ -249,7 +246,6 @@ def minerr_transit_fit(flux, sigma, model):
     s_hi = brentq(_loglikediff, s_opt, s_hi,
                  args = (loglike_0, flux, sigma, model))
     s_err = s_hi - s_opt
-    #print('s_opt,  s_err',s_opt, s_err)
     return s_opt, s_err
 
 @jit(nopython=True)
@@ -497,10 +493,10 @@ class FactorModel(Model):
                dfdcontam*contam(t) + dfdsmear*smear(t) +
                ramp*deltaT(t)/1e6 +
                dfdx*dx(t) + dfdy*dy(t) +
-               d2fdx2*dx(t)**2 + d2f2y2*dy(t)**2 + d2fdxdy*x(t)*dy(t) +
+               d2fdx2*dx(t)**2 + d2f2y2*dy(t)**2 + d2fdxdy*dx(t)*dy(t) +
                dfdsinphi*sin(phi(t)) + dfdcosphi*cos(phi(t)) +
                dfdsin2phi*sin(2.phi(t)) + dfdcos2phi*cos(2.phi(t)) + 
-               dfdsin3phi*sin(3.phi(t)) + dfdcos3phi*cos(3.phi(t)) ) 
+               dfdsin3phi*sin(3.phi(t)) + dfdcos3phi*cos(3.phi(t)) + ..) 
 
     The detrending coefficients dfdx, etc. are 0 and fixed by default. If any
     of the coefficients dfdx, d2fdxdy or d2f2x2 is not 0, a function to
@@ -515,11 +511,16 @@ class FactorModel(Model):
     in the aperture, smear(t). The time trend decribed by dfdt and d2fdt2 is
     calculated using the variable dt = t - median(t).
 
+    See Dataset.lmfit() for details of the extra_decorr_vectors option that is
+    used to define extra_basis_funcs.
+
     """
 
     def __init__(self, independent_vars=['t'], prefix='', nan_policy='raise',
                  dx=None, dy=None, sinphi=None, cosphi=None, bg=None,
-                 contam=None, smear=None, deltaT=None,  **kwargs):
+                 contam=None, smear=None, deltaT=None,
+                 extra_basis_funcs=None, **kwargs):
+
         kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
                        'independent_vars': independent_vars})
 
@@ -527,7 +528,7 @@ class FactorModel(Model):
                 dfdcontam=0, dfdsmear=0, ramp=0, 
                 dfdx=0, dfdy=0, d2fdxdy=0, d2fdx2=0, d2fdy2=0,
                 dfdcosphi=0, dfdsinphi=0, dfdcos2phi=0, dfdsin2phi=0,
-                dfdcos3phi=0, dfdsin3phi=0):
+                dfdcos3phi=0, dfdsin3phi=0, **kwargs):
 
             dt = t - np.median(t)
             trend = 1 + dfdt*dt + d2fdt2*dt**2 
@@ -559,6 +560,9 @@ class FactorModel(Model):
                 if dfdcos3phi != 0:
                     trend += dfdcos3phi*(4*cosphit**3 - 3*cosphit)
 
+            for p in self.extra_basis_funcs:
+                trend += kwargs['dfd'+p]*self.extra_basis_funcs[p](t)
+
             return c*trend
 
         super(FactorModel, self).__init__(factor, **kwargs)
@@ -576,6 +580,15 @@ class FactorModel(Model):
                   'dfdsinphi', 'dfdcosphi', 'dfdcos2phi', 'dfdsin2phi',
                   'dfdcos3phi', 'dfdsin3phi']:
             self.set_param_hint(p, value=0, vary=False)
+        
+        # Extra basis functions
+        if extra_basis_funcs == None:
+            self.extra_basis_funcs = {}
+        else:
+            self.extra_basis_funcs = extra_basis_funcs
+        for p in self.extra_basis_funcs:
+            self.set_param_hint('dfd'+p, value=0, vary=False)
+
 
     def guess(self, data, **kwargs):
         r"""Estimate initial model parameter values from data."""
@@ -588,9 +601,6 @@ class FactorModel(Model):
                 'dfdcos3phi', 'dfdsin3phi']:
             pars['{}{}'.format(self.prefix, p)].set(value = 0.0, vary=False)
         return update_param_vals(pars, self.prefix, **kwargs)
-
-    #__init__.__doc__ = COMMON_INIT_DOC
-    #guess.__doc__ = COMMON_GUESS_DOC
 
 #----------------------
 

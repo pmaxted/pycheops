@@ -89,7 +89,7 @@ setup(
             'matplotlib>3.2',
             'celerite2',
             'cdspyreadme',
-            'dace-query',
+            'dace-query>=1.1.0',
             'IPython',
             'tqdm'],
 

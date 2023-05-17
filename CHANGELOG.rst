@@ -1,6 +1,20 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.0 (2023-99-99)
+~~~~~~~~~~~~~~~~~~~~
+* New extra_basis_funcs option in Dataset and Multivisit fitting routines.
+* Added "copy=False" in call to interp1d in Dataset._make_interp().
+* Changed zero-point of scaling for xoff, yoff, bg, etc. to median instead of
+  mid-point of the values - should reduce correlation with 'c'. 
+* Updated description of parameter scaling in  Dataset.lmfit_transit().
+* Added 'tag' option to Dataset.load(), and Multivisit()
+* Added Dataset.from_pipe_file()
+* In Dataset, set source automatically from file_key if not specified by user.
+* Added xlim option to Dataset.plot_lmfit() and Dataset.plot_emcee().
+* Added esinw, ecosw, T_tot, etc. to parameters for eccentric orbits in 
+  the fitting routines in Dataset and MultiVisit.
+
 1.0.19 (2023-05-12)
 ~~~~~~~~~~~~~~~~~~~~
 * Added "aperture" attribute to Dataset to store aperture name.

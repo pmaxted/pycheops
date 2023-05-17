@@ -44,10 +44,11 @@ Functions are defined in terms of the following parameters. [1]_
 * rstar      - host star radius/semi-major axis, rstar = R_*/a
 * k          - planet/star radius ratio, k = R_planet/R_star
 * tzero      - time of mid-transit (minimum on-sky star-planet separation). 
-* b          - impact parameter, b = a.cos(i)/R_star
+* b          - impact parameter, b=a.cos(i)/R_star (assuming circular orbit)
   
 .. rubric References
 .. [1] Hilditch, R.W., An Introduction to Close Binary Stars, CUP 2001.
+
 
 Functions 
 ---------

@@ -85,6 +85,8 @@ _file_key_reT = re.compile(r'TIC_(\d{10})_SEC(\d{4})_V(\d{4})')
 _file_key_reP = re.compile(r'PIPE_CH_PR(\d{2})(\d{4})_TG(\d{4})(\d{2})_V(\d{4})')
 _file_key_reK = re.compile(r'KIC_(\d{10})_SEC_(\d{4})')
 
+#---
+
 # Utility function for model fitting
 def _kw_to_Parameter(name, kwarg):
     if isinstance(kwarg, float):
@@ -107,18 +109,21 @@ def _kw_to_Parameter(name, kwarg):
 #----
 
 def _make_interp(t,x,scale=None):
-    if scale is None:
+    if scale == None:
         z = x
     elif np.ptp(x) == 0:
         z = np.zeros_like(x)
     elif scale == 'max':
         z = (x-min(x))/np.ptp(x) 
     elif scale == 'range':
-        z = (2*x-(x.min()+x.max()))/np.ptp(x)
+        # z = (2*x-(x.min()+x.max()))/np.ptp(x)
+        z = (x-np.median(x))/np.ptp(x)
     else:
         raise ValueError('scale must be None, max or range')
-    return interp1d(t,z,bounds_error=False, fill_value=(z[0],z[-1]))
-
+    # Use copy=False to store time and value arrays by reference rather than
+    # as copies. 
+    return interp1d(t, z, bounds_error=False, fill_value=(z[0],z[-1]),
+                    copy=False)
 #---
 
 def _glint_func(t, glint_scale, f_theta=None, f_glint=None ):
@@ -185,7 +190,7 @@ def _log_posterior_jitter(pos, model, time, flux, flux_err,  params, vn,
         return_fit):
 
     parcopy, lnprior = _make_trial_params(pos, params, vn)
-    if parcopy is None: return -np.inf, -np.inf
+    if parcopy == None: return -np.inf, -np.inf
 
     fit = model.eval(parcopy, t=time)
     if return_fit:
@@ -205,7 +210,7 @@ def _log_posterior_SHOTerm(pos, model, time, flux, flux_err,  params, vn,
         return_fit):
 
     parcopy, lnprior = _make_trial_params(pos, params, vn)
-    if parcopy is None: return -np.inf, -np.inf
+    if parcopy == None: return -np.inf, -np.inf
 
     fit = model.eval(parcopy, t=time)
     if return_fit:
@@ -227,8 +232,9 @@ def _log_posterior_SHOTerm(pos, model, time, flux, flux_err,  params, vn,
     
 #---------------
 
-def _make_labels(plotkeys, bjd_ref):
+def _make_labels(plotkeys, bjd_ref, extra_decorr_vectors=None):
     labels = []
+    xbf = {} if extra_decorr_vectors==None else extra_decorr_vectors
     for key in plotkeys:
         if key == 'T_0':
             labels.append(r'T$_0-{}$'.format(bjd_ref))
@@ -290,10 +296,17 @@ def _make_labels(plotkeys, bjd_ref):
             labels.append(r'${\rm a}\,/\,{\rm R}_{\star}$')
         elif key == 'sini':
             labels.append(r'\sin i')
+        # for an extra basis function 'extra', key will be 'dfdextra'
+        elif key[3:] in xbf:
+            k = key[3:]
+            if 'label' in xbf[k]:
+                labels.append(xbf[k]['label'])
+            else:
+                labels.append(key)
         else:
             labels.append(key)
     return labels
-    
+
 #---------------
 
 class Dataset(object):
@@ -311,23 +324,39 @@ class Dataset(object):
 
     """
 
-    def __init__(self, file_key, source='CHEOPS', force_download=False, download_all=True,
-            configFile=None, target=None, verbose=True, metadata=True, 
-            view_report_on_download=True):
+    def __init__(self, file_key, source=None, force_download=False,
+                 download_all=True, configFile=None, target=None,
+                 verbose=True, metadata=True, view_report_on_download=True):
+
+        if source == None:
+            if _file_key_re.search(file_key):
+                if file_key[21:] == 'V9193':
+                    source = 'PIPE'
+                else:
+                    source = 'CHEOPS'
+            elif _file_key_reP.search(file_key):
+                source = 'PIPE'
+            elif _file_key_reK.search(file_key):
+                source = 'Kepler'
+            elif _file_key_reT.search(file_key):
+                source = 'TESS'
 
         if source == 'TESS':
             m = _file_key_reT.search(file_key)
         elif source == 'PIPE':
             m = _file_key_reP.search(file_key)
+            if m == None:  # file_key for files from_pipe_file same as CHEOPS
+                m = _file_key_re.search(file_key)
         elif source == 'Kepler' or source == 'K2':
             m = _file_key_reK.search(file_key)
         else:
             m = _file_key_re.search(file_key)
-        self.source = source
-        
-        if m is None:
+        if m == None:
             raise ValueError('Invalid file_key {}'.format(file_key))
-        self.file_key = m[0]
+
+        self.source = source
+        self.file_key = file_key
+        
         l = [int(i) for i in m.groups()]
         try:
             self.progtype,self.prog_id,self.req_id,self.visitctr,self.ver = l
@@ -362,7 +391,7 @@ class Dataset(object):
                         output_filename=str(tgzPath.name) )
 
         lisPath = Path(_cache_path,file_key).with_suffix('.lis')
-        # The file list can be out-of-date is force_download is used
+        # The file list can be out-of-date if force_download is used
         if lisPath.is_file() and not force_download:
             self.list = [line.rstrip('\n') for line in open(lisPath)]
         else:
@@ -373,9 +402,14 @@ class Dataset(object):
             with open(str(lisPath), 'w') as fh:  
                 fh.writelines("%s\n" % l for l in self.list)
 
-        # Extract DEFAULT light curve data file from .tgz file so we can
-        # access the FITS file header information
-        aperture='DEFAULT'
+        # Extract light curve data file from .tgz file so we can access the
+        # FITS file header information. 
+        # V9193 files are generated from PIPE output files and have only one
+        # aperture called 'PSF'
+        if self.file_key[-5:] == 'V9193':
+            aperture = 'PSF'
+        else:
+            aperture='DEFAULT'
         lcFile = "{}-{}.fits".format(self.file_key,aperture)
         lcPath = Path(self.tgzfile).parent/lcFile
         if lcPath.is_file():
@@ -387,7 +421,7 @@ class Dataset(object):
             r=re.compile(s.format(aperture))
             datafile = list(filter(r.match, self.list))
             if len(datafile) == 0:
-                raise Exception('Dataset does not contain light curve requested.')
+                raise Exception('Requested light curve not in this Dataset.')
             if len(datafile) > 1:
                 raise Exception('Multiple light curve files in datset')
             with tar.extractfile(datafile[0]) as fd:
@@ -400,7 +434,7 @@ class Dataset(object):
             tar.close()
         self.pi_name = hdr['PI_NAME']
         self.obsid = hdr['OBSID']
-        if target is None:
+        if target == None:
             self.target = hdr['TARGNAME']
         else:
             self.target = target
@@ -460,7 +494,6 @@ class Dataset(object):
                             warnings.simplefilter("ignore", UnitsWarning)
                             hdul = fits.open(fd)
                             table = Table.read(hdul,hdu='SCI_RAW_ImageMetadata')
-                            hdr = hdul['SCI_RAW_ImageMetadata'].header
                             table.write(metaPath)
                     tar.close()
                     with warnings.catch_warnings():
@@ -469,7 +502,91 @@ class Dataset(object):
 
         if view_report:
             self.view_report(configFile=configFile)
-        
+#----
+
+    @classmethod
+    def from_pipe_file(self, pipe_file, file_key=None, configFile=None,
+                       metadata=True, verbose=True):
+        """
+        Create a Dataset object from a PIPE output file.
+
+        PIPE is a PSF photomety extraction package for CHEOPS.
+
+        https://pipe-cheops.readthedocs.io/
+
+        If file_key=None (default) then the DACE archive is queried to find
+        the file_key value for the observation identification number OBSID
+        obtained from the header of the PIPE output file. The version number
+        in the file_key is set to "V9193", e.g. CH_PR100001_TG000101_V9193.
+
+        The output is saved in the directory data_cache_path specified in the
+        pycheops configuration file. It can subsequently be loaded as a normal
+        Dataset object. The aperture name for dataset_get_lightcurve is 'PSF'.
+        This is detected automatically by get_lighcurvet(), e.g. 
+
+        >>> dataset = Dataset('CH_PR100001_TG000101_V9193').
+        >>> time, flux, flux_err = dataset.get_lightcurve()
+
+        :param pipe_file: PIPE output FITS file
+        :param file_key: (optional) file_key to use for saving data
+        :param configFile: pycheops configuration file
+        :param metadata: download metadata
+        :param verbose: (optional, default=True) verbose output, none if False
+
+        """
+
+        config = load_config(configFile)
+        _cache_path = config['DEFAULT']['data_cache_path']
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UnitsWarning)
+            pipedata = Table.read(pipe_file)
+        target = pipedata.meta['TARGNAME']
+
+        if file_key == None:
+            obs_id =  pipedata.meta['OBSID']
+            db = Cheops.query_database(filters={'obs_id':{'equal':[obs_id]}})
+            file_key = db['file_key'][0][:-5]+'V9193'
+
+        tgzPath = Path(_cache_path,file_key).with_suffix('.tgz')
+        tgzfile = str(tgzPath)
+        file_stats = os.stat(pipe_file)
+        if metadata:
+            dblist = list(Cheops.list_data_product(
+                visit_filepath=str(db.get('file_rootpath', [])[0]))['file'])
+            _re_meta = re.compile('(.*CH_.*SCI_RAW_SubArray.*.fits)')
+            dbmetapath = list(filter(_re_meta.match, dblist))
+            Cheops.download_files(files=dbmetapath, file_type='files',
+                                  output_filename=tgzfile)
+            metaFile = "{}-meta.fits".format(file_key)
+            metaPath = Path(_cache_path, metaFile)
+            tar = tarfile.open(tgzfile)
+            tarmetafile = tar.getnames()[0]
+            with tar.extractfile(tarmetafile) as fd:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", UnitsWarning)
+                    hdul = fits.open(fd)
+                    table = Table.read(hdul,hdu='SCI_RAW_ImageMetadata')
+                    table.write(metaPath, overwrite=True)
+            tar.close()
+
+        lcFile = (file_key[3:20] + '/' + file_key[:-5] +
+                  'TU'+pipedata.meta['DATE'].replace(':','-') +
+                  '_SCI_COR_Lightcurve-PSF_V9193.fits')
+        with tarfile.open(tgzfile, mode='w:gz') as tgz:
+            tarinfo = tarfile.TarInfo(name=lcFile)
+            tarinfo.size = file_stats.st_size
+            with open(pipe_file,'rb') as fp:
+                tgz.addfile(tarinfo=tarinfo, fileobj=fp)
+            if metadata:
+                tarinfo = tarfile.TarInfo(name=tarmetafile)
+                tarinfo.size = os.stat(metaPath).st_size
+                with open(metaPath,'rb') as fp:
+                    tgz.addfile(tarinfo=tarinfo, fileobj=fp)
+
+        return self(file_key=file_key, target=target, metadata=metadata,
+                    configFile=configFile, source='PIPE', verbose=verbose)
+
 #----
 
     @classmethod
@@ -663,69 +780,17 @@ class Dataset(object):
         zpf.close()
 
         return self(file_key=file_key, target=target, verbose=verbose)
-
-#---------------------------------
-
-# Pickling
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-
-        # Replace lmfit model with its string representation
-        if 'model' in state.keys():
-            model_repr = state['model'].__repr__()
-            state['model'] = model_repr
-        else:
-            state['model'] = ''
-
-        # There may also be an instance of an lmfit model buried in 
-        # sampler.log_prob_fn.args - replace with its string representation
-        if 'sampler' in state.keys():
-            args = state['sampler'].log_prob_fn.args
-            model_repr = args[0].__repr__()
-            state['sampler'].log_prob_fn.args = (model_repr, *args[1:])
-
-        return state
-
     #------
 
-    def __setstate__(self, state):
-
-        # Fix for old saved datasets with no __scale__ attribute
-        if not hasattr(self, '__scale__'):
-            self.__scale__ = True
-
-        def reconstruct_model(model_repr,state):
-            if '_transit_func' in model_repr:
-                model = TransitModel()*self.__factor_model__(self.__scale__)
-            elif '_eclipse_func' in model_repr:
-                model = EclipseModel()*self.__factor_model__(self.__scale__)
-            else:
-                model = None
-            if 'glint_func' in model_repr:
-                model += Model(_glint_func, independent_vars=['t'],
-                    f_theta=state['f_theta'], f_glint=state['f_glint'])
-            return model
-
-        self.__dict__.update(state)
-
-        if 'model' in state.keys():
-            self.model = reconstruct_model(state['model'],state)
-
-        if 'sampler' in state.keys():
-            args = state['sampler'].log_prob_fn.args
-            model = reconstruct_model(args[0],state)
-            state['sampler'].log_prob_fn.args = (model, *args[1:])
-
-    #------
-
-    def save(self):
+    def save(self, tag=""):
         """
         Save the current file as a pickle file
 
+        :param tag: string to tag different version of the same dataset
+
         :returns: pickle file name
         """
-        fl = self.target.replace(" ","_")+'__'+self.file_key+'.dataset'
+        fl = self.target.replace(" ","_")+'_'+tag+'_'+self.file_key+'.dataset'
         with open(fl, 'wb') as fp:
             pickle.dump(self, fp, pickle.HIGHEST_PROTOCOL)
         return fl
@@ -886,7 +951,7 @@ class Dataset(object):
         Use reject_highpoints=True to remove points to remove positive
         outliers automatically. 
 
-        :param aperture: use Dataset.list_apertures() to list options
+        :param aperture: use dataset.list_apertures() to list options
         :param decontaminate: if True, subtract flux from background stars 
         :param returnTable: 
         :param reject_highpoints: 
@@ -897,18 +962,26 @@ class Dataset(object):
         The offset of the telescope tube temperature from its nominal value 
         (thermFront_2 + 12) is stored in dataset.lc['deltaT']
 
+        N.B. for PIPE data (aperture='PSF'), only data with FLAG=0 are used.
+
         """
+
+        if self.source == 'PIPE':
+            aperture = 'PSF'
 
         if aperture not in self.list_apertures():
             raise ValueError('Invalid/missing aperture name')
 
-        if decontaminate not in (True, False):
+        if decontaminate not in (True, False) and aperture not in ('PSF'):
             raise ValueError('Set decontaminate =True or =False')
 
         table, hdr = self._get_table_(aperture, verbose)
 
-        ok = (((table['EVENT'] == 0) | (table['EVENT'] == 100))
-                & (table['FLUX']>0))
+        if aperture == 'PSF':
+            ok = table['FLAG'] == 0
+        else:
+            ok = (table['EVENT'] == 0) | (table['EVENT'] == 100)
+        ok &= table['FLUX'] > 0
         m = np.isnan(table['FLUX'])
         if sum(m) > 0:
             msg = "Light curve contains {} NaN values".format(sum(m))
@@ -920,11 +993,24 @@ class Dataset(object):
         time = bjd-bjd_ref
         flux = np.array(table['FLUX'][ok])
         flux_err = np.array(table['FLUXERR'][ok])
-        xoff = np.array(table['CENTROID_X'][ok]- table['LOCATION_X'][ok])
-        yoff = np.array(table['CENTROID_Y'][ok]- table['LOCATION_Y'][ok])
-        roll_angle = np.array(table['ROLL_ANGLE'][ok])
-        bg = np.array(table['BACKGROUND'][ok])
-        contam = np.array(table['CONTA_LC'][ok])
+        if aperture == 'PSF':
+            xc = table['XC'][ok]
+            xoff = np.array(xc - np.mean(xc))
+            yc = table['YC'][ok]
+            yoff = np.array(yc - np.mean(yc))
+            roll_angle = np.array(table['ROLL'][ok])
+            bg = np.array(table['BG'][ok])
+            contam = np.zeros_like(bjd)
+            ap_rad = np.nan
+        else:
+            xc = table['CENTROID_X'][ok]
+            yc = table['CENTROID_X'][ok]
+            xoff = np.array(xc - table['LOCATION_X'][ok])
+            yoff = np.array(yc - table['LOCATION_Y'][ok])
+            roll_angle = np.array(table['ROLL_ANGLE'][ok])
+            bg = np.array(table['BACKGROUND'][ok])
+            contam = np.array(table['CONTA_LC'][ok])
+            ap_rad = hdr['AP_RADI']
         try:
             smear = np.array(table['SMEARING_LC'][ok])
         except:
@@ -933,15 +1019,17 @@ class Dataset(object):
             deltaT = np.array(self.metadata['thermFront_2'][ok]) + 12
         except:
             deltaT = np.zeros_like(bjd)
-        ap_rad = hdr['AP_RADI']
         self.bjd_ref = bjd_ref
         self.ap_rad = ap_rad
         self.aperture = aperture
         if verbose:
             print('Time stored relative to BJD = {:0.0f}'.format(bjd_ref))
-            print('Aperture radius used = {:0.1f} arcsec'.format(ap_rad))
-            print('UTC start: ',table['UTC_TIME'][0][0:19])
-            print('UTC end:   ',table['UTC_TIME'][-1][0:19])
+            if self.aperture == 'PSF':
+                print('Photometry from PSF fitting')
+            else:
+                print('Aperture radius used = {:0.1f} arcsec'.format(ap_rad))
+            print('UTC start: ',table.meta['V_STRT_U'][0:19])
+            print('UTC end:   ',table.meta['V_STOP_U'][0:19])
             duration = (table['MJD_TIME'][-1] - table['MJD_TIME'][0])*86400
             print('Visit duration: {:0.0f} s'.format(duration))
             print('Exposure time: {} x {:0.1f} s'.format(self.nexp,
@@ -950,14 +1038,19 @@ class Dataset(object):
             print('Number of non-flagged data points: {}'.format(len(ok)))
             print('Efficiency (non-flagged data): {:0.1f} %'.format(eff))
 
-        if decontaminate:
+        if aperture == 'PSF':
+            self.decontaminated = False
+            if verbose:
+                print('Ignored decontaminate=True for PSF photometry.')
+        elif decontaminate:
             flux = flux/(1 + contam) 
             if verbose:
                 print('Light curve corrected for flux from background stars')
+            self.decontaminated = True
         else:
             if verbose:
                 print('Correction for flux from background stars not applied')
-        self.decontaminated = decontaminate
+            self.decontaminated = False
 
         if reject_highpoints:
             C_cut = (2*np.nanmedian(flux)-np.nanmin(flux))
@@ -1008,8 +1101,7 @@ class Dataset(object):
                 'bjd_ref':bjd_ref, 'table':table, 'header':hdr,
                 'xoff':xoff, 'yoff':yoff, 'bg':bg,
                 'contam':contam, 'smear':smear, 'deltaT':deltaT,
-                'centroid_x':np.array(table['CENTROID_X'][ok]),
-                'centroid_y':np.array(table['CENTROID_Y'][ok]),
+                'centroid_x':xc, 'centroid_y':yc,
                 'roll_angle':roll_angle, 'aperture':aperture}
 
         if returnTable:
@@ -1024,7 +1116,7 @@ class Dataset(object):
         :param pdf_cmd: command to launch PDF viewer with {} as placeholder for
                         file name.
         '''
-        if pdf_cmd is None:
+        if pdf_cmd == None:
             config = load_config(configFile)
             try:
                 pdf_cmd = config['DEFAULT']['pdf_cmd']
@@ -1057,7 +1149,7 @@ class Dataset(object):
              imagette=False, grid=False, aperture=None, writer='pillow',
              figsize=(10,10), fontsize=12, linewidth=3):
 
-        if aperture is None:
+        if aperture == None:
             aperture = self.ap_rad
 
         sub_anim, imag_anim = [], []
@@ -1184,7 +1276,53 @@ class Dataset(object):
  
  # Eclipse and transit fitting
 
-    def __factor_model__(self, scale):
+    def __make_extra_basis_funcs__(self, extra_decorr_vectors, time, params):
+        # Also adds parameters 'dfd'+(vector key) to params
+
+        if extra_decorr_vectors == None:
+            return {}
+        
+        print('Adding extra decorrelation basis vector functions.')
+        extra_basis_funcs = {}
+        vectors = extra_decorr_vectors.copy()
+
+        if 't' in vectors:
+            # pop 't' so it gets skipped when we loop over parameters
+            t = vectors.pop('t') 
+            if (min(t) > max(time)) or (max(t) < min(time)):
+                raise ValueError('time array for extra basis vectors does'
+                                 ' not overlap times in light curve')
+        else:
+            t = time
+
+        for v in vectors:
+            if not 'init' in vectors[v]:
+                p_init = (-1, 1)
+            else:
+                p_init = vectors[v]['init']
+            params['dfd'+v] = _kw_to_Parameter('dfd'+v, p_init)
+
+            x = vectors[v]['x']
+
+            if 'fill_value' in vectors[v]:
+                fill_value = vectors[v]['fill_value']
+            else:
+                fill_value = (x[0], x[-1])
+
+            extra_basis_funcs[v] = interp1d(t, x, bounds_error=False,
+                            fill_value=fill_value, copy=False)
+
+            print(f'{v:12s}: mean = {x.mean():8.3f}'
+                  f', std. dev. = {x.std():8.3f}'
+                  f', min = {x.min():8.3f}'
+                  f', max = {x.max():8.3f}')
+
+        return extra_basis_funcs
+
+ #----
+
+    def __factor_model__(self, scale, extra_basis_funcs=None):
+
         time = np.array(self.lc['time'])
         phi = self.lc['roll_angle']*np.pi/180
         # For backwards compatibility
@@ -1196,6 +1334,7 @@ class Dataset(object):
             deltaT = self.lc['deltaT']
         except KeyError:
             deltaT = np.zeros_like(time)
+
         if scale:
             F = FactorModel(
             dx = _make_interp(time, self.lc['xoff'], scale='range'),
@@ -1205,7 +1344,8 @@ class Dataset(object):
             bg = _make_interp(time,self.lc['bg'], scale='range'),
             contam = _make_interp(time,self.lc['contam'], scale='range'),
             smear = _make_interp(time,smear, scale='range'),
-            deltaT = _make_interp(time,deltaT) )
+            deltaT = _make_interp(time,deltaT),
+            extra_basis_funcs=extra_basis_funcs)
         else:
             F = FactorModel(
             dx = _make_interp(time, self.lc['xoff']),
@@ -1215,7 +1355,8 @@ class Dataset(object):
             bg = _make_interp(time,self.lc['bg']),
             contam = _make_interp(time,self.lc['contam']),
             smear = _make_interp(time,smear),
-            deltaT = _make_interp(time,deltaT) )
+            deltaT = _make_interp(time,deltaT),
+            extra_basis_funcs=extra_basis_funcs)
         return F
 
     #---
@@ -1227,7 +1368,8 @@ class Dataset(object):
             dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
             dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None, 
-            glint_scale=None, logrhoprior=None, log_sigma=None):
+            glint_scale=None, logrhoprior=None, extra_decorr_vectors=None,
+            log_sigma=None):
         """
         Fit a transit to the light curve in the current dataset.
 
@@ -1244,18 +1386,16 @@ class Dataset(object):
         * as an lmfit Parameter object.
 
         To enable decorrelation against a parameter, specifiy it as a free
-        parameter, e.g., dfdbg=(0,1).
+        parameter, e.g., dfdbg=(-1,1).
 
-        If scale=True (default), decorrelation is done against is a scaled
-        version of the quantity specified with a range of either (-1,1) or,
-        for strictly positive quantities, (0,1). This means the coefficients
-        dfdx, dfdy, etc. correspond to the amplitude of the flux variation due
-        to the correlation with the relevant parameter. This only applies to
-        dfdbg, dfdcontam, dfdsmear, dfdx and dfdy No scaling is applied to time
-        axis for dfdt, d2fdt2, or to sin(phi), cos(phi), etc.
+        If scale=True (default), decorrelation is done against a scaled
+        version of the quantities  xoff, yoff, bg, contam and smear with a
+        peak-to-peak range of 1. This means the coefficients dfdx, dfdy,
+        dfdbg, etc. correspond to the amplitude of the flux variation due to
+        the correlation with the relevant parameter.
 
         Decorrelation against the telescope tube temperature can be included
-        using the parameter ramp which has units of ppm/degree_C. If
+        using the parameter "ramp" which has units of ppm/degree_C. If
         correct_ramp has been applied then this parameter should have a value
         close to zero (within a few ppm/degree_C). 
 
@@ -1270,6 +1410,59 @@ class Dataset(object):
 
         A fixed value for the logarithm of the additional Gaussian white noise
         in can be added to the flux measurements using the keyword log_sigma.
+
+        Arbitrary basis vectors for decorrelation specified by the user, each
+        with its own linear coefficient, can be included in the model using
+        the extra_decorr_vectors keyword. Use the keyword extra_decorr_vectors
+        to specify these detending basis vectors in the following format ...
+     
+          extra_decorr_vectors = {'t':t, 'a':{'x':a}, 'b',{'x':b}}
+
+        The times at which the basis vectors are sampled can be specified
+        using the key 't'. Times are specfied using the same time scale as 
+        dataset.lc['time'], i.e. BJD_TDB-dataset.bjd_ref. Each basis vector
+        is then provided by the user using a dict with the value of the basis
+        function at these times specified as an array-like object provided
+        using the key 'x'. If 't' is not provided then the basis functions are
+        assumed to be sampled at the same times as dataset.lc['time']. An
+        exception is raised if the times specified do not overlap the same
+        time range as dataset.lc['time'].
+
+        The array of values provided for each basis vector are used to create
+        an linear interpolating function that can be used to evaluate the
+        basis function at arbitrary times. By default, the first/last value in
+        the array is used to extrapolate to times before/after the input array
+        of times. To specify different extrapolated values, use the
+        'fill_value' key to specify a value of the fill_value keyword to be
+        used in scipy.interpolate.interp1d, e.g. 
+
+          extra_decorr_vectors = { 'a':{'x':a, 'fill_value':0},
+                                'b':{'x':b, 'fill_value':np.mean(b)},
+                                'c':{'x':c, 'fill_value':'extrapolate'} }
+
+        Summary statistics for each basis vector are printed on initialisation
+        of FactorModel. It is advisable to use basis vectors with a mean
+        value of 0 and with a range or standard deviation of about 1. It is
+        also advisable to avoid basis vectors that are strongly correlated
+        with one another or other parameters being using for decorrelation.
+
+        By default, the coefficients for each basis vector are labeled in
+        plots using the key prefixed by 'dfd'. Alternative labels can be
+        specified using the 'label' key, e.g. 
+
+          extra_decorr_vectors={'x2':{'x':dx**2,
+                                'label':'$d^2f/d(\Delta x)^2$'}}
+
+        Initial values and priors for each linear coefficient can be specified
+        in the same way as other parameters used in dataset.lmfit_transit() or
+        dataset.lmfit_eclipse() using the 'init' key,  e.g. 
+
+          extra_decorr_vectors = { 'a':{'x':a, 'init':(-2,2)},
+                                   'b':{'x':b, 'init':ufloat(0,1),
+                                   'c':{'x':c, 'init':0}}
+
+        If not specified, the parameter is initialised using (-1, 1), i.e. 
+        initial value = 0, min=-1, max=1.
 
         """
 
@@ -1296,51 +1489,51 @@ class Dataset(object):
             raise AttributeError("Use get_lightcurve() to load data first.")
 
         params = Parameters()
-        if T_0 is None:
+        if T_0 == None:
             params.add(name='T_0', value=np.nanmedian(time),
                     min=min(time),max=max(time))
         else:
             params['T_0'] = _kw_to_Parameter('T_0', T_0)
-        if P is None:
+        if P == None:
             params.add(name='P', value=1, vary=False)
         else:
             params['P'] = _kw_to_Parameter('P', P)
         _P = params['P'].value
-        if D is None:
+        if D == None:
             params.add(name='D', value=1-min(flux), min=0,max=0.5)
         else:
             params['D'] = _kw_to_Parameter('D', D)
         k = np.sqrt(params['D'].value)
-        if W is None:
+        if W == None:
             params.add(name='W', value=np.ptp(time)/2/_P,
                     min=np.ptp(time)/len(time)/_P, max=np.ptp(time)/_P) 
         else:
             params['W'] = _kw_to_Parameter('W', W)
-        if b is None:
+        if b == None:
             params.add(name='b', value=0.5, min=0, max=1)
         else:
             params['b'] = _kw_to_Parameter('b', b)
-        if f_c is None:
+        if f_c == None:
             params.add(name='f_c', value=0, vary=False)
         else:
             params['f_c'] = _kw_to_Parameter('f_c', f_c)
-        if f_s is None:
+        if f_s == None:
             params.add(name='f_s', value=0, vary=False)
         else:
             params['f_s'] = _kw_to_Parameter('f_s', f_s)
-        if l_3 is None:
+        if l_3 == None:
             params.add(name='l_3', value=0, vary=False)
         else:
             params['l_3'] = _kw_to_Parameter('l_3', l_3)
-        if h_1 is None:
+        if h_1 == None:
             params.add(name='h_1', value=0.7224, vary=False)
         else:
             params['h_1'] = _kw_to_Parameter('h_1', h_1)
-        if h_2 is None:
+        if h_2 == None:
             params.add(name='h_2', value=0.6713, vary=False)
         else:
             params['h_2'] = _kw_to_Parameter('h_2', h_2)
-        if c is None:
+        if c == None:
             params.add(name='c', value=1, min=min(flux)/2,max=2*max(flux))
         else:
             params['c'] = _kw_to_Parameter('c', c)
@@ -1398,8 +1591,9 @@ class Dataset(object):
         if dfdcos3phi is not None:
             params['dfdcos3phi'] = _kw_to_Parameter('dfdcos3phi', dfdcos3phi)
         if glint_scale is not None:
-            params['glint_scale'] = _kw_to_Parameter('glint_scale', glint_scale)
+            params['glint_scale']=_kw_to_Parameter('glint_scale', glint_scale)
 
+        # Derived parameters
         params.add('k',expr='sqrt(D)',min=0,max=1)
         params.add('aR',expr='sqrt((1+k)**2-b**2)/W/pi',min=1)
         params.add('sini',expr='sqrt(1 - (b/aR)**2)')
@@ -1410,13 +1604,26 @@ class Dataset(object):
         params.add('e',min=0,max=1,expr='f_c**2 + f_s**2')
         params.add('q_1',min=0,max=1,expr='(1-h_2)**2')
         params.add('q_2',min=0,max=1,expr='(h_1-h_2)/(1-h_2)')
+        # For eccentric orbits only from Winn, arXiv:1001.2010
+        if (params['e'].value>0) or params['f_c'].vary or params['f_s'].vary:
+            params.add('esinw',expr='sqrt(e)*f_s')
+            params.add('ecosw',expr='sqrt(e)*f_c')
+            params.add('b_tra',expr='b*(1-e**2)/(1+esinw)')
+            params.add('b_occ',expr='b*(1-e**2)/(1-esinw)')
+            params.add('T_tot',expr='P*W*sqrt(1-e**2)/(1+esinw)')
 
-        l = ['dfdbg','dfdcontam','dfdsmear','dfdx','dfdy']
+        l = ['dfdbg','dfdcontam','dfdsmear','dfdx','dfdy','d2fdx2','d2fdy2']
         if True in [p in l for p in params]:
             self.__scale__ = scale
         else:
             self.__scale__ = None
-        model = TransitModel()*self.__factor_model__(scale)
+
+        self.extra_decorr_vectors = extra_decorr_vectors
+        extra_basis_funcs = self.__make_extra_basis_funcs__(
+                    extra_decorr_vectors, time, params)
+        self.__extra_basis_funcs__ = extra_basis_funcs
+
+        model = TransitModel()*self.__factor_model__(scale, extra_basis_funcs)
 
         if 'glint_scale' in params.valuesdict().keys():
             try:
@@ -1432,7 +1639,7 @@ class Dataset(object):
             flux_err = np.hypot(flux_err, np.exp(log_sigma))
             params.add(name='log_sigma', value=log_sigma, vary=False)
 
-        result = minimize(_chisq_prior, params,nan_policy='propagate',
+        result = minimize(_chisq_prior, params, nan_policy='propagate',
                 args=(model, time, flux, flux_err))
         self.model = model
         fit = model.eval(result.params,t=time)
@@ -1509,7 +1716,7 @@ class Dataset(object):
                 raise Exception('Ramp correction already applied')
         T = self.lc['deltaT']
         flux = self.lc['flux']
-        if beta is None:
+        if beta == None:
             f = interp1d([22.5, 25, 30, 40], [0.00014,0.00020,0.00033,0.00040],
                         bounds_error=False, fill_value='extrapolate')
             beta = f(self.ap_rad)
@@ -1542,7 +1749,7 @@ class Dataset(object):
         to account for artefacts in the data caused by internal reflections.
 
         If moon=True the roll angle is measured relative to the apparent
-        direction of the Moon, i.e., assume that the glint is due to
+        direction of the Moon, i.e. assume that the glint is due to
         moonlight.
 
         To use this model, include the the parameter glint_scale in the
@@ -1592,7 +1799,7 @@ class Dataset(object):
             fit = self.emcee.bestfit if l == 'emcee' else self.lmfit.bestfit
             y = flux - fit
 
-        if angle0 is None:
+        if angle0 == None:
             x = np.sort(angle)
             gap = np.hstack((x[0], x[1:]-x[:-1]))
             if max(gap) > gapmax:
@@ -1665,7 +1872,7 @@ class Dataset(object):
             c=None, dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
             dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None,
-            glint_scale=None, log_sigma=None):
+            glint_scale=None, extra_decorr_vectors=None, log_sigma=None):
         """
         See lmfit_transit for options
         """
@@ -1693,51 +1900,51 @@ class Dataset(object):
             raise AttributeError("Use get_lightcurve() to load data first.")
 
         params = Parameters()
-        if T_0 is None:
+        if T_0 == None:
             params.add(name='T_0', value=np.nanmedian(time),
                     min=min(time),max=max(time))
         else:
             params['T_0'] = _kw_to_Parameter('T_0', T_0)
-        if P is None:
+        if P == None:
             params.add(name='P', value=1, vary=False)
         else:
             params['P'] = _kw_to_Parameter('P', P)
         _P = params['P'].value
-        if D is None:
+        if D == None:
             params.add(name='D', value=1-min(flux), min=0,max=0.5)
         else:
             params['D'] = _kw_to_Parameter('D', D)
         k = np.sqrt(params['D'].value)
-        if W is None:
+        if W == None:
             params.add(name='W', value=np.ptp(time)/2/_P,
                     min=np.ptp(time)/len(time)/_P, max=np.ptp(time)/_P) 
         else:
             params['W'] = _kw_to_Parameter('W', W)
-        if b is None:
+        if b == None:
             params.add(name='b', value=0.5, min=0, max=1)
         else:
             params['b'] = _kw_to_Parameter('b', b)
-        if L is None:
+        if L == None:
             params.add(name='L', value=0.001, min=0, max=1)
         else:
             params['L'] = _kw_to_Parameter('L', L)
-        if f_c is None:
+        if f_c == None:
             params.add(name='f_c', value=0, vary=False)
         else:
             params['f_c'] = _kw_to_Parameter('f_c', f_c)
-        if f_s is None:
+        if f_s == None:
             params.add(name='f_s', value=0, vary=False)
         else:
             params['f_s'] = _kw_to_Parameter('f_s', f_s)
-        if l_3 is None:
+        if l_3 == None:
             params.add(name='l_3', value=0, vary=False)
         else:
             params['l_3'] = _kw_to_Parameter('l_3', l_3)
-        if c is None:
+        if c == None:
             params.add(name='c', value=1, min=min(flux)/2,max=2*max(flux))
         else:
             params['c'] = _kw_to_Parameter('c', c)
-        if a_c is None:
+        if a_c == None:
             params.add(name='a_c', value=0, vary=False)
         else:
             params['a_c'] = _kw_to_Parameter('a_c', a_c)
@@ -1795,19 +2002,33 @@ class Dataset(object):
         if dfdcos3phi is not None:
             params['dfdcos3phi'] = _kw_to_Parameter('dfdcos3phi', dfdcos3phi)
         if glint_scale is not None:
-            params['glint_scale'] = _kw_to_Parameter('glint_scale', glint_scale)
+            params['glint_scale']=_kw_to_Parameter('glint_scale', glint_scale)
 
+        # Derived parameters
         params.add('k',expr='sqrt(D)',min=0,max=1)
         params.add('aR',expr='sqrt((1+k)**2-b**2)/W/pi',min=1)
         params.add('sini',expr='sqrt(1 - (b/aR)**2)')
         params.add('e',min=0,max=1,expr='f_c**2 + f_s**2')
+        # For eccentric orbits only from Winn, arXiv:1001.2010
+        if (params['e'].value>0) or params['f_c'].vary or params['f_s'].vary:
+            params.add('esinw',expr='sqrt(e)*f_s')
+            params.add('ecosw',expr='sqrt(e)*f_c')
+            params.add('b_tra',expr='b*(1-e**2)/(1+esinw)')
+            params.add('b_occ',expr='b*(1-e**2)/(1-esinw)')
+            params.add('T_tot',expr='P*W*sqrt(1-e**2)/(1-esinw)')
 
         l = ['dfdbg','dfdcontam','dfdsmear','dfdx','dfdy']
         if True in [p in l for p in params]:
             self.__scale__ = scale
         else:
             self.__scale__ = None
-        model = EclipseModel()*self.__factor_model__(scale)
+
+        self.extra_decorr_vectors = extra_decorr_vectors
+        extra_basis_funcs = self.__make_extra_basis_funcs__(
+                    extra_decorr_vectors, time, params)
+        self.__extra_basis_funcs__ = extra_basis_funcs
+
+        model = EclipseModel()*self.__factor_model__(scale, extra_basis_funcs)
 
         if 'glint_scale' in params.valuesdict().keys():
             try:
@@ -1823,7 +2044,7 @@ class Dataset(object):
             flux_err = np.hypot(flux_err, np.exp(log_sigma))
             params.add(name='log_sigma', value=log_sigma, vary=False)
 
-        result = minimize(_chisq_prior, params,nan_policy='propagate',
+        result = minimize(_chisq_prior, params, nan_policy='propagate',
                 args=(model, time, flux, flux_err))
         self.model = model
         fit = model.eval(result.params,t=time)
@@ -1889,12 +2110,19 @@ class Dataset(object):
                     report += ' %12.3f' % (B)
 
         # Decorrelation parameter scaling
+        has_notes = False
         if self.__scale__ is not None:
+            has_notes = True
             report += '\n[[Notes]]'
             if self.__scale__:
-                report +='\n    Decorrelation parameters were scaled to (-1,1) or (0,1)'
+                report +='\n    Decorrelation parameters were scaled'
             else:
                 report +='\n    Decorrelation parameters were not scaled'
+        if params['e'].value > 0:
+            if not has_notes:
+                report += '\n[[Notes]]'
+                has_notes = True
+            report +='\n    T_tot from Winn, arXiv:1001.2010 is approximate'
 
         report += '\n[[Software versions]]'
         report += '\n    CHEOPS DRP : %s' % self.pipe_ver
@@ -1903,8 +2131,9 @@ class Dataset(object):
         return(report)
 
     # ----------------------------------------------------------------
-    def select_detrend(self, exclude=None, dprior=None, tprior=None,
-                       t2prior=None):
+    def select_detrend(self, max_bayes_factor=1, exclude=None,
+                       keep_original=False, dprior=None, tprior=None,
+                       t2prior=None, verbose=True):
         """
         Select choice of detrending model coefficients using Bayes factors
 
@@ -1916,12 +2145,12 @@ class Dataset(object):
         avoid overfitting, if any parameters then have a Bayes factor < 1,
         they are removed one-by-one. 
 
-        A least-squares fit to the light curve using Dataset.lmfit_transit()
-        or Dataset.lmfit_eclipse() must be run succesfully prior to calling
-        Dataset.select_detrend(). Any detrending parameters included in this
-        prior least-squares fit will be included in the dictionary of
-        detrending parameters returned by this method, irrespective of their
-        Bayes factor.
+        A least-squares fit to the light curve using lmfit_transit() or
+        lmfit_eclipse() must be run succesfully prior to calling
+        select_detrend(). Any detrending parameters included in this prior
+        least-squares fit will be included in the dictionary of detrending
+        parameters returned by this method, irrespective of their Bayes
+        factor.
 
         Use exclude=[] to specify a list of decorrelation parameters that
         should never be included in the decorrelation model, irrespective of
@@ -1935,32 +2164,184 @@ class Dataset(object):
         specified by the user using this keyword.
 
         If tprior=None (default) then the prior on dfdt is a Gaussian with
-        mean of 0 and standard deviation rms/ptp(time), where ptp(time) is the
-        length of time (in days) covered by the light curve.  Otherwise, the
-        prior on this decorrelation parameter is a Gaussian with mean of 0 and
-        standard deviation specified by the user using this keyword.
+        mean of 0 and standard deviation dprior/ptp(time), where ptp(time) is
+        the length of time (in days) covered by the light curve.  Otherwise,
+        the prior on this decorrelation parameter is a Gaussian with mean of 0
+        and standard deviation specified by the user using this keyword.
 
         If t2prior=None (default) then the prior on d2fdt2 is a Gaussian with
-        mean of 0 and standard deviation rms/ptp(time)**2.  Otherwise, the
+        mean of 0 and standard deviation dprior/ptp(time)**2. Otherwise, the
         prior on this decorrelation parameter is a Gaussian with mean of 0 and
         standard deviation specified by the user using this keyword.
 
+        If keep_original=False (default), detrending parameters from the last
+        least-squares fit will be removed based on the Bayes factor calculated
+        with the Gaussian prior specified in that fit for each parameter, if
+        present. If no Gaussian prior was specified, dprior, tprior or t2prior
+        is used to calculate the Bayes factor, as appropriate.
+
         N.B. the prior least-squares fit is not affected by running
-        Dataset.select_detrend(). To overwrite the prior least-squares fit,
-        call Dataset.lmfit_transit() or Dataset.lmfit_eclipse() including the
+        dataset.select_detrend(). To overwrite the prior least-squares fit,
+        call lmfit_transit() or lmfit_eclipse() including the
         argument "**detrend" in the argument list, where "detrend" in the
-        python dict returned by Dataset.select_detrend().
+        python dict returned by dataset.select_detrend().
+
+        :param max_bayes_factor: Bayes factor limit for selection
+        :param exclude: list of coefficients to exclude
+        :param dprior: default Gaussian prior (ufloat)
+        :param tprior: Gaussian prior for dfdt (ufloat)
+        :param t2prior: Gaussian prior for d2fdt2 (ufloat)
+        :param keep_original: Do not reject parameters from original lmfit
+        :param verbose: set False to suppress printed output
+
+        :returns: python dict of selected detrending coefficients
+
+        Example
+        -------
+
+        >>> lmfit0 = dataset.lmfit_transit()
+        >>> exclude = ['d2fdt2','d2fdx2','d2fdy2']
+        >>> detrend = dataset.select_detrend(exclude=exclude)
+        >>> lmfit = dataset.lmfit_transit(**detrend)
 
         """
 
-        raise NotImplemented("")
+        def _chisq_prior(params, *args):
+            r =  (flux - model.eval(params, t=time))/flux_err
+            for p in params:
+                u = params[p].user_data
+                if isinstance(u, UFloat):
+                    r = np.append(r, (u.n - params[p].value)/u.s)
+            return r
 
+        try:
+            time = self.lc['time']
+            flux = self.lc['flux']
+            flux_err = self.lc['flux_err']
+        except AttributeError:
+            raise AttributeError("Use get_lightcurve() to load data first.")
+
+        try:
+            params = self.lmfit.params.copy()
+        except AttributeError:
+            raise AttributeError('no valid lmfit result in dataset.')
+
+        if verbose:
+            print('Parameter     BF     Delta_BIC RMS(ppm)')
+
+        allpar = ['dfdsinphi', 'dfdsin2phi', 'dfdsin3phi',
+                  'dfdcos3phi', 'dfdcosphi', 'dfdcos2phi',
+                  'dfdx', 'd2fdx2', 'dfdy', 'd2fdy2',
+                  'dfdsmear', 'dfdbg', 'dfdcontam',
+                  'dfdt', 'd2fdt2']
+        
+        if keep_original:
+            keep = [p for p in params]
+        else:
+            keep = []
+
+        if dprior == None:
+            dprior = ufloat(0, self.lmfit.rms)
+        if tprior == None:
+            tprior = dprior/np.ptp(time)
+        if t2prior == None:
+            t2prior = dprior/np.ptp(time)**2
+
+        user_priors = {}
+        for p in params:
+            if (p in allpar):
+                u = params[p].user_data
+                if isinstance(u, UFloat):
+                    user_priors[p] = u
+
+        def pprior(p):
+            if p in user_priors:
+                return user_priors[p]
+            elif p == 'dfdt':
+                return tprior
+            elif p == 'd2fdt2':
+                return t2prior
+            else:
+                return dprior
+
+        detrend = {}
+        for p in params:
+            if (p in allpar):
+                allpar.remove(p)
+                detrend[p] = pprior(p)
+
+        if exclude != None:
+            for p in exclude:
+                if (p in allpar):
+                    allpar.remove(p)
+
+        model = self.model
+        result0 = minimize(_chisq_prior, params, nan_policy='propagate',
+                           args=(model, time, flux, flux_err))
+
+        bestbf = 0
+        lastbic = result0.bic
+        while bestbf < max_bayes_factor:
+            bestbf = np.inf
+            for p in allpar:
+                partmp = params.copy()
+                partmp[p] = Parameter(p,value=0,user_data=pprior(p))
+                result = minimize(_chisq_prior, partmp, nan_policy='propagate',
+                                  args=(model, time, flux, flux_err))
+                v = result.params[p].value
+                s = result.params[p].stderr
+                if s != None:
+                    bf = np.exp(-0.5*((v-pprior(p).n)/s)**2) * pprior(p).s/s
+                    if bf < bestbf:
+                        bestbf = bf
+                        newpar = p
+
+            if bestbf < max_bayes_factor:
+                p = newpar
+                detrend[p] = pprior(p)
+                params[p] = Parameter(p,value=0,user_data=pprior(p))
+                result = minimize(_chisq_prior, params, nan_policy='propagate',
+                                  args=(model, time, flux, flux_err))
+                if verbose:
+                    dbic = result.bic - lastbic
+                    lastbic = result.bic
+                    rms = (flux-model.eval(result.params,t=time)).std()
+                    print(f'+{newpar:<12s} {bestbf:6.2f}  {dbic:8.1f}'
+                          f' {rms*1e6:8.1f}')
+                allpar.remove(newpar)
+
+        worstbf = max_bayes_factor + 1
+        while worstbf > max_bayes_factor:
+            worstbf = 0
+            for p in [p for p in detrend if p not in keep]:
+                v = result.params[p].value
+                s = result.params[p].stderr
+                if s != None:
+                    bf = np.exp(-0.5*((v-pprior(p).n)/s)**2) * pprior(p).s/s
+                    if bf > worstbf:
+                        worstbf = bf
+                        delpar = p
+
+            if worstbf > max_bayes_factor:
+                del params[delpar]
+                del detrend[delpar]
+                result = minimize(_chisq_prior, params, nan_policy='propagate',
+                                  args=(model, time, flux, flux_err))
+                if verbose:
+                    dbic = result.bic - lastbic
+                    lastbic = result.bic
+                    rms = (flux-model.eval(result.params,t=time)).std()
+                    print(f'-{delpar:<12s} {bestbf:6.2f}  {dbic:8.1f}'
+                          f' {rms*1e6:8.1f}')
+
+
+        return detrend
 
     # ----------------------------------------------------------------
 
     def aperture_scan(self, xy_detrend_fixed=True, data_match=True,
                         verbose=True, return_full=False, ramp=None,
-                        copy_initial=False):
+                        extra_decorr_vectors=None, copy_initial=False):
         """
         Repeat lmfit fit to light curve for all available apertures 
 
@@ -1980,10 +2361,10 @@ class Dataset(object):
         terminal.
 
         If copy_initial=False (default) then the initial parameter values are
-        taken from the last best-fit values using lmfit_transit,
-        lmfit_eclipse, etc. If copy_initial=True, the initial parameter values
+        taken from the last best-fit values using lmfit_transit() or
+        lmfit_eclipse(). If copy_initial=True, the initial parameter values
         will be the same as the initial values from the last call to
-        lmfit_transit, lmfit_eclipse, etc. 
+        lmfit_transi() or lmfit_eclipse().
 
         If return_full=True, return a dict that includes the MinimizerResult
         objects for each aperture. Default is False, in which case an astropy
@@ -2001,9 +2382,9 @@ class Dataset(object):
         the light curve used scale=False. 
 
         N.B. the existing light curve in the current dataset is not affected
-        by running Dataset.aperture_scan(). Use Dataset.get_lightcurve() to
-        change the choice aperture for the light curve in the current dataset
-        based on the results from Dataset.aperture_scan().
+        by running aperture_scan(). Use get_lightcurve() to change the choice
+        aperture for the light curve in the current dataset based on the
+        results from aperture_scan().
 
         """
 
@@ -2128,7 +2509,8 @@ class Dataset(object):
                     bg=_make_interp(time,self.lc['bg'], scale='range'),
                     contam=_make_interp(time,self.lc['contam'], scale='range'),
                     smear=_make_interp(time,smear, scale='range'),
-                    deltaT=_make_interp(time,deltaT) )
+                    deltaT=_make_interp(time,deltaT),
+                    extra_decorr_vectors=extra_decorr_vectors)
 
             if hasattr(self,'f_theta'):
                 model += Model(_glint_func, independent_vars=['t'],
@@ -2218,13 +2600,13 @@ class Dataset(object):
         result.ier = None
         result.lmdif_message = None
 
-        if params is None:
+        if params == None:
             params = self.lmfit.params.copy()
         k = params.valuesdict().keys()
         if add_shoterm:
             if 'log_S0' in k:
                 pass
-            elif log_S0 is None:
+            elif log_S0 == None:
                 params.add('log_S0', value=-12,  min=-30, max=0)
             else:
                 params['log_S0'] = _kw_to_Parameter('log_S0', log_S0)
@@ -2233,14 +2615,14 @@ class Dataset(object):
             # -2.3 is about 10 days.
             if 'log_omega0' in k:
                 pass
-            elif log_omega0 is None:
+            elif log_omega0 == None:
                 params.add('log_omega0', value=3, min=-2.3, max=8)
             else:
                 lw0 =  _kw_to_Parameter('log_omega0', log_omega0)
                 params['log_omega0'] = lw0
             if 'log_Q' in params:
                 pass
-            elif log_Q is None:
+            elif log_Q == None:
                 params.add('log_Q', value=np.log(1/np.sqrt(2)), vary=False)
             else:
                 params['log_Q'] = _kw_to_Parameter('log_Q', log_Q)
@@ -2250,7 +2632,7 @@ class Dataset(object):
 
         if 'log_sigma' in k:
             pass
-        elif log_sigma is None:
+        elif log_sigma == None:
             if not 'log_sigma' in params:
                 params.add('log_sigma', value=-10, min=-16,max=-1)
                 params['log_sigma'].stderr = 1
@@ -2263,8 +2645,8 @@ class Dataset(object):
             if params[p].vary:
                 vn.append(p)
                 vv.append(params[p].value)
-                if params[p].stderr is None:
-                    if params[p].user_data is None:
+                if params[p].stderr == None:
+                    if params[p].user_data == None:
                         vs.append(0.01*(params[p].max-params[p].min))
                     else:
                         vs.append(params[p].user_data.s)
@@ -2297,7 +2679,7 @@ class Dataset(object):
         # Initialize sampler positions ensuring all walkers produce valid
         # function values (or pos=None if restarting from a backend)
         n_varys = len(vv)
-        if backend is None:
+        if backend == None:
             iteration = 0
         else:
             try:
@@ -2403,12 +2785,19 @@ class Dataset(object):
                 report += '%s +/-%s' % (gformat(u.n), gformat(u.s))
         
         # Decorrelation parameter scaling
+        has_notes = False
         if self.__scale__ is not None:
+            has_notes = True
             report += '\n[[Notes]]'
             if self.__scale__:
-                report +='\n    Decorrelation parameters were scaled to (-1,1) or (0,1)'
+                report +='\n    Decorrelation parameters were scaled'
             else:
                 report +='\n    Decorrelation parameters were not scaled'
+        if params['e'].value > 0:
+            if not has_notes:
+                report += '\n[[Notes]]'
+                has_notes = True
+            report +='\n    T_tot from Winn, arXiv:1001.2010 is approximate'
 
         report += '\n[[Software versions]]'
         report += '\n    CHEOPS DRP : %s' % self.pipe_ver
@@ -2447,7 +2836,7 @@ class Dataset(object):
         n = len(plotkeys)
         fig,ax = plt.subplots(nrows=n, figsize=(width,n*height), sharex=True)
         if n == 1: ax = [ax,]
-        labels = _make_labels(plotkeys, self.bjd_ref)
+        labels = _make_labels(plotkeys, self.bjd_ref, self.extra_decorr_vectors)
         for i,key in enumerate(plotkeys):
             ax[i].plot(samples[:,:,varkeys.index(key)],'k',alpha=0.1)
             ax[i].set_ylabel(labels[i])
@@ -2455,6 +2844,7 @@ class Dataset(object):
         ax[-1].set_xlim(0, len(samples))
         ax[-1].set_xlabel("step number");
 
+        fig.tight_layout()
         return fig
 
     # ----------------------------------------------------------------
@@ -2516,10 +2906,10 @@ class Dataset(object):
                 logrho = np.log10(4.3275e-4*((1+k)**2-b**2)**1.5/W**3/P**2)
                 xs.append(logrho)
 
-        kws = {} if kwargs is None else kwargs
+        kws = {} if kwargs == None else kwargs
 
         xs = np.array(xs).T
-        labels = _make_labels(plotkeys, self.bjd_ref)
+        labels = _make_labels(plotkeys, self.bjd_ref, self.extra_decorr_vectors)
         figure = corner.corner(xs, labels=labels, **kws)
 
         nax = len(labels)
@@ -2554,7 +2944,7 @@ class Dataset(object):
         Lomb-Scargle power-spectrum of the residuals. 
 
         If the previous fit included a GP then this is _not_ included in the
-        calculation of the residuals, i.e., the power spectrum includes the
+        calculation of the residuals, i.e. the power spectrum includes the
         power "fitted-out" using the GP. The assumption here is that the GP
         has been used to model stellar variability that we wish to
         characterize using the power spectrum. 
@@ -2621,7 +3011,12 @@ class Dataset(object):
     # ------------------------------------------------------------
     
     def plot_lmfit(self, figsize=(6,4), fontsize=11, title=None, 
-             show_model=True, binwidth=0.01, detrend=False):
+                   show_model=True, binwidth=0.01, detrend=False,
+                   xlim=None):
+        """
+        Plot the best fit from lmfit_transit / lmfit_eclipse
+
+        """
         try:
             time = np.array(self.lc['time'])
             flux = np.array(self.lc['flux'])
@@ -2639,8 +3034,11 @@ class Dataset(object):
                     "Use lmfit_transit() to get best-fit parameters first.")
 
         res = flux - self.model.eval(params, t=time)
-        tmin = np.round(np.min(time)-0.05*np.ptp(time),2)
-        tmax = np.round(np.max(time)+0.05*np.ptp(time),2)
+        if xlim is None:
+            tmin = np.round(np.min(time)-0.05*np.ptp(time),2)
+            tmax = np.round(np.max(time)+0.05*np.ptp(time),2)
+        else:
+            tmin, tmax = xlim
         tp = np.linspace(tmin, tmax, 10*len(time))
         fp = self.model.eval(params,t=tp)
         glint = model.right.name == 'Model(_glint_func)'
@@ -2701,7 +3099,7 @@ class Dataset(object):
     # ------------------------------------------------------------
     
     def plot_emcee(self, title=None, nsamples=32, detrend=False, 
-            binwidth=0.01, show_model=True,  
+            binwidth=0.01, show_model=True,  xlim=None, 
             figsize=(6,4), fontsize=11):
 
         try:
@@ -2721,8 +3119,11 @@ class Dataset(object):
                     "Use emcee_transit() or emcee_eclipse() first.")
 
         res = flux - model.eval(parbest, t=time)
-        tmin = np.round(np.min(time)-0.05*np.ptp(time),2)
-        tmax = np.round(np.max(time)+0.05*np.ptp(time),2)
+        if xlim is None:
+            tmin = np.round(np.min(time)-0.05*np.ptp(time),2)
+            tmax = np.round(np.max(time)+0.05*np.ptp(time),2)
+        else:
+            tmin, tmax = xlim
         tp = np.linspace(tmin, tmax, 10*len(time))
         fp = model.eval(parbest,t=tp)
         glint = model.right.name == 'Model(_glint_func)'
@@ -2933,10 +3334,10 @@ class Dataset(object):
             _q = _s(q, len(self.emcee.chain))
             rho_star = rhostar(1/aR,P,_q)
             # N.B. use of np.abs to cope with values with large errors
-            if r_star is None and m_star is not None:
+            if r_star == None and m_star is not None:
                 _m = np.abs(_s(m_star, len(self.emcee.chain)))
                 r_star = (_m/rho_star)**(1/3)
-            if m_star is None and r_star is not None:
+            if m_star == None and r_star is not None:
                 _r = np.abs(_s(r_star, len(self.emcee.chain)))
                 m_star = rho_star*_r**3
     
@@ -2952,14 +3353,14 @@ class Dataset(object):
             ecc = _u('e')
             _q = ufloat(q[0], q[1]) if isinstance(q, tuple) else q
             rho_star = rhostar(1/aR, P, _q)
-            if r_star is None and m_star is not None:
+            if r_star == None and m_star is not None:
                 if isinstance(m_star, tuple):
                     _m = ufloat(m_star[0], m_star[1])
                 else:
                     _m = m_star
                 r_star = (_m/rho_star)**(1/3)
 
-        if m_star is None and r_star is not None:
+        if m_star == None and r_star is not None:
             if isinstance(r_star, tuple):
                 _r = ufloat(r_star[0], r_star[1])
             else:
@@ -2968,7 +3369,7 @@ class Dataset(object):
         if verbose:
             print('[[Mass/radius]]')
        
-        if plot_kws is None:
+        if plot_kws == None:
             plot_kws = {}
        
         return massradius(P=P, k=k, sini=sini, ecc=ecc,
@@ -3256,7 +3657,7 @@ class Dataset(object):
 
         plt.rc('font', size=fontsize)
         if notrend:
-            figsize = (9,4) if figsize is None else figsize
+            figsize = (9,4) if figsize == None else figsize
             fig,ax=plt.subplots(nrows=1, figsize=figsize, sharex=True)
             ax.plot(angle, res, 'o',c='skyblue',ms=2)
             if binwidth:
@@ -3272,7 +3673,7 @@ class Dataset(object):
             ax.set_title(title)
 
         elif 'glint_scale' in vk and self.glint_moon:
-            figsize = (9,8) if figsize is None else figsize
+            figsize = (9,8) if figsize == None else figsize
             fig,ax=plt.subplots(nrows=3, figsize=figsize)
             y = res + rolltrend 
             ax[0].plot(angle, y, 'o',c='skyblue',ms=2)
@@ -3315,7 +3716,7 @@ class Dataset(object):
 
         else:
 
-            figsize = (8,6) if figsize is None else figsize
+            figsize = (8,6) if figsize == None else figsize
             fig,ax=plt.subplots(nrows=2, figsize=figsize, sharex=True)
             y = res + rolltrend + glint 
             ax[0].plot(angle, y, 'o',c='skyblue',ms=2)
@@ -3432,7 +3833,7 @@ class Dataset(object):
         if requirement is not None:
             ax[1].axhline(requirement, color='darkcyan',ls=':')
         fig.tight_layout()
-        if fname is None:
+        if fname == None:
             plt.show()
         else:
             plt.savefig(fname)
@@ -3461,7 +3862,7 @@ class Dataset(object):
         target counts per exposure relative to 10**(-0.4*Gmag), i.e. assuming
         that a star with G-band magnitude Gmag has a count_rate value of 1.
         Must have the same number of elements as the observed lightcurve
-        currently stored in Dataset.lc. Set elements of count_rate to np.nan
+        currently stored in dataset.lc. Set elements of count_rate to np.nan
         to exclude observations from the calculation of the zero point
         calculation.
 
@@ -3501,10 +3902,10 @@ class Dataset(object):
         target_flux = photTable0['aperture_sum'][0]
         flx_frac = target_flux/np.sum(psf)
 
-        if Gmag is None:
+        if Gmag == None:
             Gmag = self.lc['table'].meta['MAG_G']
 
-        if count_rate is None:
+        if count_rate == None:
             count_rate = np.ones_like(time)
 
         k = np.isfinite(count_rate)
@@ -3750,7 +4151,7 @@ class Dataset(object):
         ax[4,1].set_ylabel('Y centroid offset')
 
         fig.tight_layout()
-        if fname is None:
+        if fname == None:
             plt.show()
         else:
             plt.savefig(fname)
@@ -3954,3 +4355,63 @@ class Dataset(object):
         else:
             print("Decorrelate in", *decorr_params, "using decorr, lmfit_transt, or lmfit_eclipse functions.")
         return(min_BIC, decorr_params)  
+
+#---------------------------------
+
+# Pickling
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+
+        # Replace lmfit model with its string representation
+        if 'model' in state.keys():
+            model_repr = state['model'].__repr__()
+            state['model'] = model_repr
+        else:
+            state['model'] = ''
+
+        # There may also be an instance of an lmfit model buried in 
+        # sampler.log_prob_fn.args - replace with its string representation
+        if 'sampler' in state.keys():
+            args = state['sampler'].log_prob_fn.args
+            model_repr = args[0].__repr__()
+            state['sampler'].log_prob_fn.args = (model_repr, *args[1:])
+
+        return state
+
+    #------
+
+    def __setstate__(self, state):
+
+        # Fix for old saved datasets with no __scale__ attribute
+        if not hasattr(self, '__scale__'):
+            self.__scale__ = True
+
+        def reconstruct_model(model_repr,state):
+            F = self.__factor_model__(self.__scale__,
+                                      self.__extra_basis_funcs__)
+            if '_transit_func' in model_repr:
+                model = TransitModel()
+                model *= self.__factor_model__(self.__scale__,
+                                               self.__extra_basis_funcs__)
+            elif '_eclipse_func' in model_repr:
+                model = EclipseModel()
+                model *= self.__factor_model__(self.__scale__,
+                                               self.__extra_basis_funcs__)
+            else:
+                model = None
+            if 'glint_func' in model_repr:
+                model += Model(_glint_func, independent_vars=['t'],
+                    f_theta=state['f_theta'], f_glint=state['f_glint'])
+            return model
+
+        self.__dict__.update(state)
+
+        if 'model' in state.keys():
+            self.model = reconstruct_model(state['model'],state)
+
+        if 'sampler' in state.keys():
+            args = state['sampler'].log_prob_fn.args
+            model = reconstruct_model(args[0],state)
+            state['sampler'].log_prob_fn.args = (model, *args[1:])
+
