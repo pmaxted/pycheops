@@ -1270,13 +1270,14 @@ class MultiVisit(object):
             d0 = np.floor(np.nanmedian(samples[:,:,var_names.index('T_0')]))
         extra_labels = {}
         for i,d in enumerate(self.datasets):
-            for k in d.extra_decorr_vectors:
-                if k == 't':
-                    continue
-                if 'label' in d.extra_decorr_vectors[k].keys():
-                    label = d.extra_decorr_vectors[k]['label']
-                    label += f'$_{{{i+1:02d}}}$'
-                    extra_labels[f'dfd{k}_{i+1:02d}'] = label
+            if d.extra_decorr_vectors != None:
+                for k in d.extra_decorr_vectors:
+                    if k == 't':
+                        continue
+                    if 'label' in d.extra_decorr_vectors[k].keys():
+                        label = d.extra_decorr_vectors[k]['label']
+                        label += f'$_{{{i+1:02d}}}$'
+                        extra_labels[f'dfd{k}_{i+1:02d}'] = label
         labels = _make_labels(plotkeys, d0, extra_labels)
 
         for i,key in enumerate(plotkeys):

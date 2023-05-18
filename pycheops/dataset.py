@@ -1391,8 +1391,8 @@ class Dataset(object):
         If scale=True (default), decorrelation is done against a scaled
         version of the quantities  xoff, yoff, bg, contam and smear with a
         peak-to-peak range of 1. This means the coefficients dfdx, dfdy,
-        dfdbg, etc. correspond to the amplitude of the flux variation due to
-        the correlation with the relevant parameter.
+        dfdbg, etc. correspond to the semi-amplitude of the flux variation due
+        to the correlation with the relevant parameter.
 
         Decorrelation against the telescope tube temperature can be included
         using the parameter "ramp" which has units of ppm/degree_C. If
