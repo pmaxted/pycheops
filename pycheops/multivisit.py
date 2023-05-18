@@ -1067,6 +1067,9 @@ class MultiVisit(object):
             if z is not None:
                 lnprior += -0.5*(z**2 + np.log(2*np.pi*ps**2))
     
+        if np.isnan(lnprior) or np.isnan(lnlike):
+            return -np.inf, -np.inf
+
         return lnlike + lnprior, lnlike
 
 #--------------------------------------------------------------------------

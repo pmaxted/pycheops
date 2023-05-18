@@ -1,8 +1,8 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1.1.0 (2023-99-99)
-~~~~~~~~~~~~~~~~~~~~
+1.1.0 (2023-07-14)
+~~~~~~~~~~~~~~~~~~
 * New extra_basis_funcs option in Dataset and Multivisit fitting routines.
 * Added "copy=False" in call to interp1d in Dataset._make_interp().
 * Changed zero-point of scaling for xoff, yoff, bg, etc. to median instead of
@@ -15,8 +15,9 @@ Changes since 1.0.0 onwards.
 * Added xlim option to Dataset.plot_lmfit() and Dataset.plot_emcee().
 * Added esinw, ecosw, T_tot, etc. to parameters for eccentric orbits in 
   the fitting routines in Dataset and MultiVisit.
+
 1.0.19 (2023-05-12)
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 * Added "aperture" attribute to Dataset to store aperture name.
 * Added scaling of detrending functions to Dataset.aperture_scan() 
 * Added N_data to output of Dataset.aperture_scan()
