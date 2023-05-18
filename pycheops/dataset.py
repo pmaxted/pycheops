@@ -2141,9 +2141,9 @@ class Dataset(object):
         of how the Bayes factor is calculated for models with/without a given
         decorrelation parameter. As suggested, decorrelation parameters are
         added one-by-one, selecting  the parameter that has the highest Bayes
-        factor at each step until no parameters have a Bayes factor > 1. To 
-        avoid overfitting, if any parameters then have a Bayes factor < 1,
-        they are removed one-by-one. 
+        factor at each step until no parameters have a Bayes factor >
+        max_bayes_factor. To avoid overfitting, if any parameters then have a
+        Bayes factor < max_bayes_factor, they are removed one-by-one. 
 
         A least-squares fit to the light curve using lmfit_transit() or
         lmfit_eclipse() must be run succesfully prior to calling
@@ -2199,10 +2199,10 @@ class Dataset(object):
         Example
         -------
 
-        >>> lmfit0 = dataset.lmfit_transit()
-        >>> exclude = ['d2fdt2','d2fdx2','d2fdy2']
-        >>> detrend = dataset.select_detrend(exclude=exclude)
-        >>> lmfit = dataset.lmfit_transit(**detrend)
+        >>> lmfit0 = dataset.lmfit_transit(P=0.123, T_0=0.654)
+        >>> x = ['d2fdt2','d2fdx2','d2fdy2']
+        >>> detrend = dataset.select_detrend(exclude=x, max_bayes_factor=0.5)
+        >>> lmfit = dataset.lmfit_transit(iP=0.123, T_0=0.654, **detrend)
 
         """
 
