@@ -1060,6 +1060,8 @@ class Dataset(object):
             flux_err = flux_err[ok]
             xoff = xoff[ok]
             yoff = yoff[ok]
+            xc = xc[ok]
+            yc = yc[ok]
             roll_angle = roll_angle[ok]
             bg = bg[ok]
             contam = contam[ok]
