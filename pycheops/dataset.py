@@ -97,8 +97,19 @@ def _kw_to_Parameter(name, kwarg):
         return Parameter(name=name, value=np.median(kwarg), 
                 min=min(kwarg), max=max(kwarg))
     if isinstance(kwarg, tuple):
-        return Parameter(name=name, value=np.median(kwarg), 
-                min=min(kwarg), max=max(kwarg))
+        if len(kwarg) == 2:
+            if (min(kwarg) != kwarg[0]) or (max(kwarg) != kwarg[1]):
+                raise ValueError('Invalid initial tuple values (max < min')
+            return Parameter(name=name, value=np.median(kwarg), 
+                             min=kwarg[0], max=kwarg[1])
+        elif len(kwarg) == 3:
+            if (min(kwarg) != kwarg[0]) or (max(kwarg) != kwarg[2]):
+                raise ValueError('Invalid initial tuple values')
+            return Parameter(name=name, value=kwarg[1],
+                             min=kwarg[0], max=kwarg[2])
+        else:
+            raise ValueError('Invalid initial tuple length')
+
     if isinstance(kwarg, UFloat):
         return Parameter(name=name, value=kwarg.n, user_data=kwarg)
     if isinstance(kwarg, Parameter):
@@ -116,7 +127,6 @@ def _make_interp(t,x,scale=None):
     elif scale == 'max':
         z = (x-min(x))/np.ptp(x) 
     elif scale == 'range':
-        # z = (2*x-(x.min()+x.max()))/np.ptp(x)
         z = (x-np.median(x))/np.ptp(x)
     else:
         raise ValueError('scale must be None, max or range')
@@ -522,7 +532,7 @@ class Dataset(object):
         The output is saved in the directory data_cache_path specified in the
         pycheops configuration file. It can subsequently be loaded as a normal
         Dataset object. The aperture name for dataset_get_lightcurve is 'PSF'.
-        This is detected automatically by get_lighcurvet(), e.g. 
+        This is detected automatically by get_lightcurve(), e.g. 
 
         >>> dataset = Dataset('CH_PR100001_TG000101_V9193').
         >>> time, flux, flux_err = dataset.get_lightcurve()
@@ -784,9 +794,9 @@ class Dataset(object):
 
     def save(self, tag=""):
         """
-        Save the current file as a pickle file
+        Save the current Dataset instance as a pickle file
 
-        :param tag: string to tag different version of the same dataset
+        :param tag: string to tag different versions of the same Dataset
 
         :returns: pickle file name
         """
@@ -1004,7 +1014,7 @@ class Dataset(object):
             ap_rad = np.nan
         else:
             xc = table['CENTROID_X'][ok]
-            yc = table['CENTROID_X'][ok]
+            yc = table['CENTROID_Y'][ok]
             xoff = np.array(xc - table['LOCATION_X'][ok])
             yoff = np.array(yc - table['LOCATION_Y'][ok])
             roll_angle = np.array(table['ROLL_ANGLE'][ok])
@@ -1034,6 +1044,9 @@ class Dataset(object):
             print('Visit duration: {:0.0f} s'.format(duration))
             print('Exposure time: {} x {:0.1f} s'.format(self.nexp,
                 self.exptime))
+            xloc = np.median(xc)
+            yloc = np.median(yc)
+            print(f'Target location on CCD: ({xloc:0.1f}, {yloc:0.1f})')
             eff = 100*len(ok)/(1+duration/self.texptime)
             print('Number of non-flagged data points: {}'.format(len(ok)))
             print('Efficiency (non-flagged data): {:0.1f} %'.format(eff))
@@ -1393,8 +1406,8 @@ class Dataset(object):
         If scale=True (default), decorrelation is done against a scaled
         version of the quantities  xoff, yoff, bg, contam and smear with a
         peak-to-peak range of 1. This means the coefficients dfdx, dfdy,
-        dfdbg, etc. correspond to the semi-amplitude of the flux variation due
-        to the correlation with the relevant parameter.
+        dfdbg, etc. correspond to the amplitude of the flux variation due to
+        the correlation with the relevant parameter.
 
         Decorrelation against the telescope tube temperature can be included
         using the parameter "ramp" which has units of ppm/degree_C. If
@@ -1431,7 +1444,7 @@ class Dataset(object):
         time range as dataset.lc['time'].
 
         The array of values provided for each basis vector are used to create
-        an linear interpolating function that can be used to evaluate the
+        a linear interpolating function that can be used to evaluate the
         basis function at arbitrary times. By default, the first/last value in
         the array is used to extrapolate to times before/after the input array
         of times. To specify different extrapolated values, use the
@@ -2843,7 +2856,7 @@ class Dataset(object):
             ax[i].plot(samples[:,:,varkeys.index(key)],'k',alpha=0.1)
             ax[i].set_ylabel(labels[i])
             ax[i].yaxis.set_label_coords(-0.1, 0.5)
-        ax[-1].set_xlim(0, len(samples))
+        ax[-1].set_xlim(0, len(samples)-1)
         ax[-1].set_xlabel("step number");
 
         fig.tight_layout()
@@ -4388,6 +4401,10 @@ class Dataset(object):
         # Fix for old saved datasets with no __scale__ attribute
         if not hasattr(self, '__scale__'):
             self.__scale__ = True
+        
+        # Fix for old saved datasets with no __extra_basis_funcs__ attribute
+        if not hasattr(self, '__extra_basis_funcs__'):
+            self.__extra_basis_funcs__ = {}
 
         def reconstruct_model(model_repr,state):
             F = self.__factor_model__(self.__scale__,

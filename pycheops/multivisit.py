@@ -31,6 +31,7 @@ from glob import glob
 from .dataset import Dataset
 from .starproperties import StarProperties
 import re
+import pickle
 from warnings import warn
 from .dataset import _kw_to_Parameter,  _log_prior
 from .dataset import _make_interp
@@ -439,7 +440,7 @@ class MultiVisit(object):
                 pv = d.pipe_ver
                 nx = len(d.__extra_basis_funcs__)
                 print(f' {n+1:2} {d.file_key} {ap:8} {lf:5} {gp:3}'
-                      f'{gl:5} {sc:5}   {pv}     {nx}')
+                      f' {gl:5} {sc:5}  {pv}     {nx}')
 
 #--------------------------------------------------------------------------
 #
@@ -658,6 +659,7 @@ class MultiVisit(object):
 
         # Lists of model parameters and data for individual datasets
         fluxes_unwrap = []
+        n_unwrap = []
         rolls = []
         models = []
         modpars = []
@@ -667,13 +669,19 @@ class MultiVisit(object):
         for i,(d,p) in enumerate(zip(self.datasets, plist)):
 
             f_unwrap = np.zeros_like(d.lc['time'])
+            n = 0
             if kwargs['unwrap']:
                 phi = d.lc['roll_angle']*np.pi/180
                 for j in range(1,4):
                     k = 'dfdsinphi' if j < 2 else f'dfdsin{j}phi'
-                    if k in p: f_unwrap += p[k]*np.sin(j*phi)
+                    if k in p:
+                        f_unwrap += p[k]*np.sin(j*phi)
+                        n = j
                     k = 'dfdcosphi' if j < 2 else f'dfdcos{j}phi'
-                    if k in p: f_unwrap += p[k]*np.cos(j*phi)
+                    if k in p:
+                        f_unwrap += p[k]*np.cos(j*phi)
+                        n = j
+            n_unwrap.append(n)
             fluxes_unwrap.append(f_unwrap)
 
             t = d.lc['time']
@@ -689,9 +697,9 @@ class MultiVisit(object):
                 factor_model = FactorModel(
                     dx = _make_interp(t,d.lc['xoff'], scale='range'),
                     dy = _make_interp(t,d.lc['yoff'], scale='range'),
-                    bg = _make_interp(t,d.lc['bg'], scale='max'),
-                    contam = _make_interp(t,d.lc['contam'], scale='max'),
-                    smear = _make_interp(t,smear, scale='max'),
+                    bg = _make_interp(t,d.lc['bg'], scale='range'),
+                    contam = _make_interp(t,d.lc['contam'], scale='range'),
+                    smear = _make_interp(t,smear, scale='range'),
                     deltaT = _make_interp(t,deltaT),
                     extra_basis_funcs=d.__extra_basis_funcs__)
             else:
@@ -789,6 +797,9 @@ class MultiVisit(object):
         # END of for dataset in self.datasets:
 
         # Copy parameters, models, priors, etc. to self.
+        self.__unwrap__ = kwargs["unwrap"]
+        self.__unroll__ = kwargs["unroll"]
+        self.__nroll__ = kwargs["nroll"]
         self.__rolls__ = rolls
         self.__models__ = models
         self.__modpars__ = modpars
@@ -796,6 +807,7 @@ class MultiVisit(object):
         self.__priors__ = priors
         self.__var_names__ = vn # Change of name for consistency with result
         self.__fluxes_unwrap__ = fluxes_unwrap
+        self.__n_unwrap__ = n_unwrap
         self.__scales__ = scales
 
         backend = kwargs['backend']
@@ -1181,8 +1193,19 @@ class MultiVisit(object):
             report += "\n    %s:%s" % (p, ' '*(namelen-len(p)))
             report += '%s +/-%s' % (gformat(q.n), gformat(q.s))
 
-        if True in self.__scales__ or False in self.__scales__:
-            report += '\n[[Notes]]'
+        report += '\n[[Notes]]'
+        if self.__unroll__:
+            report += '\n    Implicit roll-angle decorrelation used'
+            report += f' nroll={self.__nroll__} terms'
+        else:
+            report += f'\n    Implicit roll-angle decorrelation not used.'
+        if self.__unwrap__:
+            report += '\n    Best-fit roll-angle decorrelation was subtracted'
+            report += ' from light curves (unwrap=True)'
+        else:
+            report += '\n    Best-fit roll-angle decorrelation was not used'
+            report += ' (unwrap=False)'
+
         for i,s in enumerate(self.__scales__):
             if s is not None:
                 report += f'\n    Dataset {i+1}: '
@@ -1290,7 +1313,7 @@ class MultiVisit(object):
                 ax[i].plot(samples[:,:,var_names.index(key)], **plot_kws)
             ax[i].set_ylabel(labels[i])
             ax[i].yaxis.set_label_coords(-0.1, 0.5)
-        ax[-1].set_xlim(0, len(samples))
+        ax[-1].set_xlim(0, len(samples)-1)
         ax[-1].set_xlabel("step number");
 
         fig.tight_layout()
@@ -1996,6 +2019,92 @@ class MultiVisit(object):
                 jovian=jovian, return_samples=return_samples,
                 verbose=verbose, **plot_kws)
     
+    #------
+
+    def save(self, tag=""):
+        """
+        Save the current MultiVisit instance as a pickle file
+
+        :param tag: string to tag different versions of the same MultiVisit
+
+        :returns: pickle file name
+        """
+        fl = self.target.replace(" ","_")+'_'+tag+'.multivisit'
+        with open(fl, 'wb') as fp:
+            pickle.dump(self, fp, pickle.HIGHEST_PROTOCOL)
+        return fl
+
+    #------
+
+    @classmethod
+    def load(self, filename):
+        """
+        Load a MultiVisit from a pickle file
+
+        :param filename: pickle file name
+
+        :returns: MultiVisit object
         
-    # ------------------------------------------------------------
+        """
+        with open(filename, 'rb') as fp:
+            self = pickle.load(fp)
+        return self
+
+    #------
+
+    def __getstate__(self):
+
+        state = self.__dict__.copy()
+
+        # Replace lmfit models with their string representation
+        if '__models__' in state.keys():
+            state['__models__'] = [m.__repr__() for m in state['__models__']]
+        else:
+            state['__models__'] = []
+
+        return state
+
+    #------
+
+    def __setstate__(self, state):
+
+        self.__dict__.update(state)
+
+        models = []
+        for model_repr,d in zip(self.__models__, self.datasets):
+            t = d.lc['time']
+            if d.__scale__:
+                factor_model = FactorModel(
+                    dx = _make_interp(t,d.lc['xoff'], scale='range'),
+                    dy = _make_interp(t,d.lc['yoff'], scale='range'),
+                    bg = _make_interp(t,d.lc['bg'], scale='range'),
+                    contam = _make_interp(t,d.lc['contam'], scale='range'),
+                    smear = _make_interp(t,d.lc['smear'], scale='range'),
+                    deltaT = _make_interp(t,d.lc['deltaT']),
+                    extra_basis_funcs=d.__extra_basis_funcs__)
+            else:
+                factor_model = FactorModel(
+                    dx = _make_interp(t,d.lc['xoff']),
+                    dy = _make_interp(t,d.lc['yoff']),
+                    bg = _make_interp(t,d.lc['bg']),
+                    contam = _make_interp(t,d.lc['contam']),
+                    smear = _make_interp(t,smear),
+                    deltaT = _make_interp(t,deltaT),
+                    extra_basis_funcs=d.__extra_basis_funcs__)
+
+            if self.__fittype__ == 'transit':
+                model = TransitModel()*factor_model
+            elif self.__fittype__ == 'eclipse':
+                model = EclipseModel()*factor_model
+            elif self.__fittype__ == 'eblm':
+                model = EBLMModel()*factor_model
+
+            if 'glint_func' in model_repr:
+                delta_t = d._old_bjd_ref - d.bjd_ref
+                model += Model(_glint_func, independent_vars=['t'],
+                    f_theta=d.f_theta, f_glint=d.f_glint, delta_t=delta_t)
+
+            models.append(model)
+
+        self.__models__ = models
 
