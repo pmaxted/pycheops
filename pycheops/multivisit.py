@@ -63,7 +63,6 @@ from astropy.coordinates import SkyCoord
 import cdspyreadme
 import os
 
-
 # Iteration limit for initialisation of walkers
 _ITMAX_ = 999
 
@@ -1908,7 +1907,7 @@ class MultiVisit(object):
             axes[1,1].set_xlabel('Phase')
             axes[1,0].set_ylabel('Residual')
 
-        else: # Not EBLM
+        else: # Not EBLM or Planet
 
             if figsize is None:
                 figsize = (8, 2+1.5*n)
@@ -2104,15 +2103,21 @@ class MultiVisit(object):
     
     #------
 
-    def save(self, tag=""):
+    def save(self, tag="", overwrite=False):
         """
         Save the current MultiVisit instance as a pickle file
 
         :param tag: string to tag different versions of the same MultiVisit
 
+        :param overwrite: set True to overwrite existing version of file
+
         :returns: pickle file name
         """
         fl = self.target.replace(" ","_")+'_'+tag+'.multivisit'
+        if os.path.isfile(fl) and not overwrite:
+            msg = f'File {fl} exists. If you mean to replace it then '
+            msg += 'use the argument "overwrite=True".'
+            raise OSError(msg)
         with open(fl, 'wb') as fp:
             pickle.dump(self, fp, pickle.HIGHEST_PROTOCOL)
         return fl
@@ -2156,14 +2161,22 @@ class MultiVisit(object):
         models = []
         for model_repr,d in zip(self.__models__, self.datasets):
             t = d.lc['time']
+            try:
+                smear = d.lc['smear']
+            except KeyError:
+                smear = np.zeros_like(t)
+            try:
+                deltaT = d.lc['deltaT']
+            except KeyError:
+                deltaT = np.zeros_like(t)
             if d.__scale__:
                 factor_model = FactorModel(
                     dx = _make_interp(t,d.lc['xoff'], scale='range'),
                     dy = _make_interp(t,d.lc['yoff'], scale='range'),
                     bg = _make_interp(t,d.lc['bg'], scale='range'),
                     contam = _make_interp(t,d.lc['contam'], scale='range'),
-                    smear = _make_interp(t,d.lc['smear'], scale='range'),
-                    deltaT = _make_interp(t,d.lc['deltaT']),
+                    smear = _make_interp(t,smear, scale='range'),
+                    deltaT = _make_interp(t,deltaT),
                     extra_basis_funcs=d.__extra_basis_funcs__)
             else:
                 factor_model = FactorModel(

@@ -792,15 +792,21 @@ class Dataset(object):
         return self(file_key=file_key, target=target, verbose=verbose)
     #------
 
-    def save(self, tag=""):
+    def save(self, tag="", overwrite=False):
         """
         Save the current Dataset instance as a pickle file
 
         :param tag: string to tag different versions of the same Dataset
 
+        :param overwrite: set True to overwrite existing version of file
+
         :returns: pickle file name
         """
         fl = self.target.replace(" ","_")+'_'+tag+'_'+self.file_key+'.dataset'
+        if os.path.isfile(fl) and not overwrite:
+            msg = f'File {fl} exists. If you mean to replace it then '
+            msg += 'use the argument "overwrite=True".'
+            raise OSError(msg)
         with open(fl, 'wb') as fp:
             pickle.dump(self, fp, pickle.HIGHEST_PROTOCOL)
         return fl
