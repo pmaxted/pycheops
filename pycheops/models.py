@@ -875,7 +875,7 @@ class PlanetModel(Model):
     :param h_1:    - I(0.5) = 1 - c*(1-0.5**alpha)
     :param h_2:    - I(0.5) - I(0) = c*0.5**alpha
     :param a_c:    - correction for light travel time across the orbit
-    :param l_3:  - Third light 
+    :param l_3:    - Third light 
 
     The flux level from the star is 1 and is assumed to be constant.  
 

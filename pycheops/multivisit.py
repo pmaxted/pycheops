@@ -42,6 +42,7 @@ from . import __version__
 from lmfit.models import ExpressionModel, Model
 from lmfit.minimizer import MinimizerResult
 from .models import TransitModel, FactorModel, EclipseModel, EBLMModel
+from .models import PlanetModel
 from celerite2.terms import Term, SHOTerm
 from celerite2 import GaussianProcess
 from .funcs import rhostar, massradius, eclipse_phase
@@ -481,24 +482,47 @@ class MultiVisit(object):
         # Dict of initial parameter values for creation of models
         # Calculation of mean needs P and W so T_0 is not first in the list
         vals = OrderedDict()
-        for k in ['D', 'W', 'b', 'P', 'T_0', 'f_c', 'f_s', 'l_3']:
-            vals[k] = kwargs[k]
         fittype = self.__fittype__
-        if fittype == 'transit' or fittype == 'eblm':
-            vals['h_1'] = kwargs['h_1']
-            vals['h_2'] = kwargs['h_2']
-        if fittype == 'eclipse' or fittype == 'eblm':
-            vals['L'] = kwargs['L']
-            vals['a_c'] = kwargs['a_c']
+        klist = ['D', 'W', 'b', 'P', 'T_0', 'f_c', 'f_s', 'l_3']
+        if fittype in ['transit', 'eblm', 'planet']:
+            klist.append('h_1')
+            klist.append('h_2')
+        if fittype in ['eclipse', 'eblm']:
+            klist.append('L')
+            klist.append('a_c')
+        if fittype in ['planet']:
+            for k in ['F_max', 'F_min', 'ph_off', 'a_c']:
+                klist.append(k)
+        for k in klist:
+            vals[k] = kwargs[k]
 
         # dicts of parameter limits and step sizes for initialisation
         pmin = {'P':0, 'D':0, 'W':0, 'b':0, 'f_c':-1, 'f_s':-1,
-                'h_1':0, 'h_2':0, 'L':0, 'l_3':-0.99}
+                'h_1':0, 'h_2':0, 'L':0, 'F_max':0, 'l_3':-0.99}
         pmax = {'D':0.3, 'W':0.3, 'b':2.0, 'f_c':1, 'f_s':1,
-                'h_1':1, 'h_2':1, 'L':1.0, 'l_3':1e6}
+                'h_1':1, 'h_2':1, 'L':1.0, 'F_max':1.0, 'l_3':1e6}
         step = {'D':1e-4, 'W':1e-4, 'b':1e-2, 'P':1e-6, 'T_0':1e-4,
                 'f_c':1e-4, 'f_s':1e-3, 'h_1':1e-3, 'h_2':1e-2,
-                'L':1e-5, 'l_3':1e-3}
+                'L':1e-5, 'F_max':1e-5, 'l_3':1e-3}
+        # Initial stderr value for list of values that may be np.nan or None
+        def robust_stderr(vals, stds, default):
+            varr = np.array([v if v is not None else np.nan for v in vals])
+            sarr = np.array([s if s is not None else np.nan for s in stds])
+            vok = np.isfinite(varr)
+            nv = sum(vok)
+            sok = vok & np.isfinite(sarr)
+            ns = sum(sok)
+            if nv == 0: return default
+            if nv == 1:
+                if ns == 1: return sarr[sok][0]
+                return default
+            if ns == nv:
+                t = np.nanmean(sarr)/np.sqrt(nv)
+                if t > 0: return t
+                return default
+            t = np.nanstd(varr)
+            if t > 0: return t
+            return default
 
         # Create a Parameters() object with initial values and priors on model
         # parameters (including fixed parameters)
@@ -508,62 +532,79 @@ class MultiVisit(object):
         plist = [d.emcee.params if d.__lastfit__ == 'emcee' else 
                  d.lmfit.params for d in self.datasets]
         vv,vs,vn  = [],[],[]     # Free params for emcee, name value, err
+
         for k in vals:
+
+            # For fit_planet, 'L'='F_max', so ...
+            if (fittype == 'planet') and (k == 'F_max'):
+                kp,kv = 'L','F_max'
+            else:
+                kp,kv = k,k
+
             if vals[k] is None:    # No user-defined value 
+                vary = True in [p[kp].vary if kp in p else False for p in plist]
 
                 # Use mean of best-fit values from datasets
-                if k == 'T_0':  
-                    t = np.array([p[k].value for p in plist])
+                if kp == 'T_0':  
+                    t = np.array([p[kp].value for p in plist])
                     c = np.round((t-t[0])/params['P'])
                     c -= c.max()//2
                     t -= c*params['P']
                     val = t.mean()
                     vmin = val - params['W']*params['P']/2
                     vmax = val + params['W']*params['P']/2
+                    if vary:
+                        stds = [p[kp].stderr for p in plist]
+                        stderr = robust_stderr(t, stds, step['T_0'])
                 else:
+
                     # Not all datasets have all parameters so ...
-                    v = [p[k].value if k in p else np.nan for p in plist]
+                    v = [p[kp].value if kp in p else np.nan for p in plist]
                     val = np.nanmean(v)
-                    v = [p[k].min if k in p else np.nan for p in plist]
+                    if vary:
+                        stds=[p[kp].stderr if kp in p else None for p in plist]
+                        stderr = robust_stderr(v, stds, step[kv])
+                    v = [p[kp].min if kp in p else np.nan for p in plist]
                     vmin = np.nanmin(v)
-                    if (k in pmin) and not np.isfinite(vmin):
-                        vmin = pmin[k]
-                    v = [p[k].max if k in p else np.nan for p in plist]
+                    if (kv in pmin) and not np.isfinite(vmin):
+                        vmin = pmin[kv]
+                    v = [p[kp].max if kp in p else np.nan for p in plist]
                     vmax = np.nanmax(v)
-                    if (k in pmax) and not np.isfinite(vmax):
-                        vmax = pmax[k]
-                vary = True in [p[k].vary if k in p else False for p in plist]
-                params.add(k, val, vary=vary, min=vmin, max=vmax)
-                vals[k] = val
+                    if (kv in pmax) and not np.isfinite(vmax):
+                        vmax = pmax[kv]
+                params.add(kv, val, vary=vary, min=vmin, max=vmax)
+                vals[kv] = val
+                if vary:
+                    params.stderr = stderr
 
-            else:    # User-defined value for parameter from kwargs
+            else:    # Value for parameter from kwargs
 
-                params[k] = _kw_to_Parameter(k, vals[k])
-                vals[k] = params[k].value
-                if (k in pmin) and not np.isfinite(params[k].min):
-                    params[k].min = pmin[k]
-                if (k in pmax) and not np.isfinite(params[k].max):
-                    params[k].max = pmax[k]
+                params[kv] = _kw_to_Parameter(kv, vals[kv])
+                vals[kv] = params[kv].value
+                if (kv in pmin) and not np.isfinite(params[kv].min):
+                    params[kv].min = pmin[kv]
+                if (kv in pmax) and not np.isfinite(params[kv].max):
+                    params[kv].max = pmax[kv]
 
-            if params[k].vary:
-                vn.append(k)
-                vv.append(params[k].value)
-                if isinstance(params[k].user_data, UFloat):
-                    priors[k] = params[k].user_data
+            if params[kv].vary:
+                vn.append(kv)
+                vv.append(params[kv].value)
+                if isinstance(params[kv].user_data, UFloat):
+                    priors[kv] = params[kv].user_data
                 # Step size for setting up initial walker positions
-                if params[k].stderr is None:
-                    if params[k].user_data is None:
-                        vs.append(step[k])
+                if params[kv].stderr is None:
+                    if params[kv].user_data is None:
+                        vs.append(step[kv])
                     else:
-                        vs.append(params[k].user_data.s)
+                        vs.append(params[kv].user_data.s)
                 else:
-                    if np.isfinite(params[k].stderr):
-                        vs.append(params[k].stderr)
+                    if np.isfinite(params[kv].stderr):
+                        vs.append(params[kv].stderr)
                     else:
-                        vs.append(step[k])
+                        vs.append(step[kv])
             else:
                 # Needed to avoid errors when printing parameters
-                params[k].stderr = None
+                params[kv].stderr = None
 
         # Derived parameters
         params.add('k',expr='sqrt(D)',min=0,max=1)
@@ -581,6 +622,9 @@ class MultiVisit(object):
             params.add('b_occ',expr='b*(1-e**2)/(1-esinw)')
             params.add('T_tra',expr='P*W*sqrt(1-e**2)/(1+esinw)')
             params.add('T_occ',expr='P*W*sqrt(1-e**2)/(1-esinw)')
+
+        if 'F_min' in params:
+            params.add('A',min=0,max=1,expr='F_max-F_min')
 
         if 'h_1' in params:
             params.add('q_1',min=0,max=1,expr='(1-h_2)**2')
@@ -605,7 +649,7 @@ class MultiVisit(object):
                 raise ValueError('L must be a fixed parameter of edv=True.')
             ttv, ttv_prior = False, None
 
-        if fittype == 'eblm':
+        if fittype in ['eblm', 'planet']:
             ttv = kwargs['ttv']
             ttv_prior = kwargs['ttv_prior']
             if ttv and (params['T_0'].vary or params['P'].vary):
@@ -718,6 +762,8 @@ class MultiVisit(object):
                 model = EclipseModel()*factor_model
             elif fittype == 'eblm':
                 model = EBLMModel()*factor_model
+            elif fittype == 'planet':
+                model = PlanetModel()*factor_model
             l = ['dfdbg','dfdcontam','dfdsmear','dfdx','dfdy']
             if True in [p_ in l for p_ in p]:
                 scales.append(d.__scale__)
@@ -1168,6 +1214,43 @@ class MultiVisit(object):
         kwargs = dict(locals())
         del kwargs['self']
         self.__fittype__ = 'eblm'
+
+        return self.__run_emcee__(**kwargs)
+
+#--------------------------------------------------------------------------
+
+    def fit_planet(self, steps=128, nwalkers=64, burn=256, 
+            T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None, 
+            h_1=None, h_2=None, l_3=None, ttv=False, ttv_prior=3600, 
+            F_max=None, F_min=0, ph_off=0,
+            a_c=0, edv=False, edv_prior=1e-3, extra_priors=None, 
+            log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
+            unroll=True, nroll=3, unwrap=False, thin=1, 
+            init_scale=0.5, progress=True, backend=None):
+        """
+        Use emcee to fit the transits and eclipses in the current datasets
+        using the PlanetModel model.
+
+        If T_0 and P are both fixed parameters then ttv=True can be used to
+        include the free parameters ttv_i, the offset in seconds from the
+        predicted time of mid-transit for each dataset i = 1, ..., N. The
+        prior on the values of ttv_i is a Gaussian with a width ttv_prior in
+        seconds.
+
+        Eclipse depths variations can be included in the fit using the keyword
+        edv=True. In this case F_max must be a fixed parameter and the value of
+        F_max for dataset i is F_max_i, i=1, ..., N. The prior on the values of
+        F_max_i is a Gaussian with mean value F_max and width edv_prior.
+
+        By default, this method assumes ph_off=0 and F_min=0. The initial
+        value of F_max is calculated from the best-fit values of L in the
+        input eclipse datasets, if possible.
+
+        """
+        # Get a dictionary of all keyword arguments excluding 'self'
+        kwargs = dict(locals())
+        del kwargs['self']
+        self.__fittype__ = 'planet'
 
         return self.__run_emcee__(**kwargs)
 
@@ -1670,7 +1753,7 @@ class MultiVisit(object):
             lc_grid.append(model.eval_components(params=modpar,t=tp)[k])
 
         plt.rc('font', size=fontsize)    
-        if self.__fittype__ == 'eblm':
+        if self.__fittype__ in ['eblm', 'planet']:
 
             f_c = par['f_c'].value
             f_s = par['f_s'].value
@@ -2098,6 +2181,8 @@ class MultiVisit(object):
                 model = EclipseModel()*factor_model
             elif self.__fittype__ == 'eblm':
                 model = EBLMModel()*factor_model
+            elif self.__fittype__ == 'planet':
+                model = PlanetModel()*factor_model
 
             if 'glint_func' in model_repr:
                 delta_t = d._old_bjd_ref - d.bjd_ref

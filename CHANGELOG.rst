@@ -5,6 +5,7 @@ Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~
 * New extra_basis_funcs option in Dataset and Multivisit fitting routines.
 * New Dataset.select_detrend() feature, parameter selection from Bayes factors
+* New MultiVisit.fit_planet() method for transit+eclipse fitting.
 * Added 'tag' option to Dataset.save() and Multivisit()
 * Added Dataset.from_pipe_file()
 * Added MultiVisit.save() and MultiVisit.load() (#176)
@@ -21,7 +22,9 @@ Changes since 1.0.0 onwards.
 * Scaling of contam, smear and bg in MultiVisit, now consistent with Dataset
 * Added target location on CCD to verbose output for Dataset.get_lightcurve()
 * In Dataset, yoff was measured relative to the wrong value - fixed.
-  
+* Improved initialisation of walkers in MultiVisit fit routines - use standard
+  deviation based on previous fits rather than arbitrary values.
+
 1.0.19 (2023-05-12)
 ~~~~~~~~~~~~~~~~~~~
 * Added "aperture" attribute to Dataset to store aperture name.
