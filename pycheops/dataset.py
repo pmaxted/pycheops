@@ -3032,7 +3032,7 @@ class Dataset(object):
     # ------------------------------------------------------------
     
     def plot_lmfit(self, figsize=(6,4), fontsize=11, title=None, 
-                   show_model=True, binwidth=0.01, detrend=False,
+                   show_model=True, binwidth=0.005, detrend=False,
                    xlim=None):
         """
         Plot the best fit from lmfit_transit / lmfit_eclipse
@@ -3120,7 +3120,7 @@ class Dataset(object):
     # ------------------------------------------------------------
     
     def plot_emcee(self, title=None, nsamples=32, detrend=False, 
-            binwidth=0.01, show_model=True,  xlim=None, 
+            binwidth=0.005, show_model=True,  xlim=None, 
             figsize=(6,4), fontsize=11):
 
         try:

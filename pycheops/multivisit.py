@@ -936,8 +936,8 @@ class MultiVisit(object):
         result.errorbars = True
         result.bestfit = f_fit
         result.fluxes_det = f_det
-        z = zip(self.datasets, self.__fluxes_unwrap__,  f_fit)
-        result.residual = [(d.lc['flux']-fu-ft) for d,fu,ft in z]
+        z = zip(self.datasets, f_fit)
+        result.residual = [(d.lc['flux']-ft) for d,ft in z]
         z = zip(self.datasets, result.residual)
         result.chisqr = np.sum([((r/d.lc['flux_err'])**2).sum() for d,r in z])
         result.redchi = result.chisqr/result.nfree
@@ -945,7 +945,7 @@ class MultiVisit(object):
         result.lnlike = lnlike
         result.aic = 2*result.nvarys - 2*lnlike
         result.bic = result.nvarys*np.log(result.ndata) - 2*lnlike
-        result.rms = [r.std() for r in result.residual]
+        result.rms = np.array([r.std() for r in result.residual])
         result.npriors = len(self.__priors__)
         result.priors = self.__priors__
         
@@ -1013,7 +1013,7 @@ class MultiVisit(object):
             f_unwrap = self.__fluxes_unwrap__[i]
     
             for p in ('T_0', 'P', 'D', 'W', 'b', 'f_c', 'f_s', 'l_3', 
-                    'h_1', 'h_2', 'L'):
+                    'h_1', 'h_2', 'L', 'F_max', 'F_min', 'ph_off'):
                 if p in vn:
                     v = pos[vn.index(p)]
                     if not np.isfinite(v): return -np.inf, -np.inf
@@ -1261,7 +1261,8 @@ class MultiVisit(object):
         """
         result = self.__result__
         report = lmfit_report(result, **kwargs)
-        rms = np.array(result.rms).mean()*1e6
+        n = [len(d.lc['time']) for d in self.datasets]
+        rms = np.sqrt(np.average(result.rms**2,weights=n))*1e6
         s = "    RMS residual       = {:0.1f} ppm\n".format(rms)
         j = report.index('[[Variables]]')
         report = report[:j] + s + report[j:]
@@ -1361,13 +1362,16 @@ class MultiVisit(object):
         elif plotkeys is None:
             if self.__fittype__ == 'transit':
                 l = ['D', 'W', 'b', 'T_0', 'P', 'h_1', 'h_2']
+            elif self.__fittype__ == 'planet':
+                l = ['D', 'W', 'b', 'T_0', 'P', 'F_max']
+            elif self.__fittype__ == 'eblm':
+                l = ['D', 'W', 'b', 'T_0', 'P', 'L']
             elif 'L_01' in var_names:
                 l = ['D','W','b']+[f'L_{j+1:02d}' for j in range(n)]
             else:
                 l = ['L']+[f'c_{j+1:02d}' for j in range(n)]
             plotkeys = list(set(var_names).intersection(l))
             plotkeys.sort()
-
 
         n = len(plotkeys)
         fig,ax = plt.subplots(nrows=n, figsize=(width,n*height), sharex=True)
@@ -1416,6 +1420,10 @@ class MultiVisit(object):
         if plotkeys == None:
             if self.__fittype__ == 'transit':
                 l = ['D', 'W', 'b', 'T_0', 'P', 'h_1', 'h_2']
+            elif self.__fittype__ == 'planet':
+                l = ['D', 'W', 'b', 'T_0', 'P', 'F_max']
+            elif self.__fittype__ == 'eblm':
+                l = ['D', 'W', 'b', 'T_0', 'P', 'L']
             elif 'L_01' in var_names:
                 l = ['D','W','b']+[f'L_{j+1:02d}' for j in range(n)]
             else:
@@ -1645,7 +1653,7 @@ class MultiVisit(object):
     # ------------------------------------------------------------
     
     def plot_fit(self, title=None, detrend=False, 
-            binwidth=0.001, add_gaps=True, gap_tol=0.005, 
+            binwidth=0.005, add_gaps=True, gap_tol=0.005, 
             data_offset=None, res_offset=None, phase0=None,
             xlim=None, data_ylim=None, res_ylim=None, renorm=True, 
             show_gp=True, figsize=None, fontsize=12):
@@ -1703,8 +1711,8 @@ class MultiVisit(object):
         for j,dataset in enumerate(self.datasets):
             modpar = copy(self.__modpars__[j])
             ph = phaser(dataset.lc['time'], P, T_0, phase0)
-            phmax = max(ph)
-            phmin = min(ph)
+            phmin = min([min(ph), phmin])
+            phmax = max([max(ph), phmax])
             ph_fluxes.append(ph)
 
             if detrend:
@@ -1775,20 +1783,22 @@ class MultiVisit(object):
                 else:
                     doff_tr,doff_ecl = data_offset
 
-            phmin_tr, phmax_tr = phase0, 1-phase0
-            phmin_ecl, phmax_ecl = phase0, 1-phase0
+            phmin_tr, phmax_tr = np.inf, -np.inf
+            phmin_ecl, phmax_ecl = np.inf, -np.inf
             j_ecl, j_tr = 0, 0
             for (ph,flx,i) in zip(ph_fluxes, fluxes, is_ecl):
                 if i:
                     off = j_ecl*doff_ecl
                     j_ecl += 1
                     ax = axes[0,1]
-                    phmin_ecl,phmax_ecl = min(ph), max(ph)
+                    phmin_ecl = min([min(ph), phmin_ecl])
+                    phmax_ecl = max([max(ph), phmax_ecl])
                 else:
                     off = j_tr*doff_tr
                     j_tr += 1
                     ax = axes[0,0]
-                    phmin_tr,phmax_tr = min(ph), max(ph)
+                    phmin_tr = min([min(ph), phmin_tr])
+                    phmax_tr = max([max(ph), phmax_tr])
                 ax.plot(ph, flx+off,'o',c='skyblue',ms=2, zorder=1)
                 if binwidth:
                     r_, f_, e_, n_ = lcbin(ph, flx, binwidth=binwidth)
@@ -1871,7 +1881,6 @@ class MultiVisit(object):
                 axes[0,0].set_xlim(-pht-pad,pht+pad)
                 axes[1,0].set_xlim(-pht-pad,pht+pad)
                 pad = (phmax_ecl-phmin_ecl)/10
-                pht = max([abs(phmin_ecl), abs(phmax_ecl)])
                 axes[0,1].set_xlim(phmin_ecl-pad,phmax_ecl+pad)
                 axes[1,1].set_xlim(phmin_ecl-pad,phmax_ecl+pad)
             else:

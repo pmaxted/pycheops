@@ -25,6 +25,9 @@ Changes since 1.0.0 onwards.
 * Improved initialisation of walkers in MultiVisit fit routines - use standard
   deviation based on previous fits rather than arbitrary values.
 * Added overwrite=False keyword option to MultiVisit.save() and Dataset.save() 
+* Fix problem with automatic selection of x limits in MultiVisit.plot_fit()
+* Fix problem on 'c' missing from parameters if fixed for MultiVisit
+* Fix bug in calculation of rms for MultiVisit
 
 1.0.19 (2023-05-12)
 ~~~~~~~~~~~~~~~~~~~
