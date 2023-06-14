@@ -31,6 +31,7 @@ from glob import glob
 from .dataset import Dataset
 from .starproperties import StarProperties
 import re
+import pickle
 from warnings import warn
 from .dataset import _kw_to_Parameter,  _log_prior
 from .dataset import _make_interp
@@ -41,6 +42,7 @@ from . import __version__
 from lmfit.models import ExpressionModel, Model
 from lmfit.minimizer import MinimizerResult
 from .models import TransitModel, FactorModel, EclipseModel, EBLMModel
+from .models import PlanetModel
 from celerite2.terms import Term, SHOTerm
 from celerite2 import GaussianProcess
 from .funcs import rhostar, massradius, eclipse_phase
@@ -60,7 +62,6 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord
 import cdspyreadme
 import os
-
 
 # Iteration limit for initialisation of walkers
 _ITMAX_ = 999
@@ -94,7 +95,7 @@ def _glint_func(t, glint_scale, f_theta=None, f_glint=None, delta_t=None):
 
 #--------
 
-def _make_labels(plotkeys, d0):
+def _make_labels(plotkeys, d0, extra_labels):
     labels = []
     r = re.compile('dfd(.*)_([0-9][0-9])')
     r2 = re.compile('d2fd(.*)2_([0-9][0-9])')
@@ -103,7 +104,9 @@ def _make_labels(plotkeys, d0):
     rl = re.compile('L_([0-9][0-9])')
     rc = re.compile('c_([0-9][0-9])')
     for key in plotkeys:
-        if key == 'T_0':
+        if key in extra_labels.keys():
+            labels.append(extra_labels[key])
+        elif key == 'T_0':
             labels.append(r'T$_0-{:.0f}$'.format(d0))
         elif key == 'h_1':
             labels.append(r'$h_1$')
@@ -117,9 +120,11 @@ def _make_labels(plotkeys, d0):
             labels.append(r'$\ell_3$')
         elif r.match(key):
             p,n = r.match(key).group(1,2)
+            p = p.replace('_','\_')
             labels.append(r'$df\,/\,d{}_{{{}}}$'.format(p,n))
         elif r2.match(key):
             p,n = r2.match(key).group(1,2)
+            p = p.replace('_','\_')
             labels.append(r'$d^2f\,/\,d{}^2_{{{}}}$'.format(p,n))
         elif rt.match(key):
             n = rt.match(key).group(1)
@@ -173,6 +178,8 @@ class MultiVisit(object):
     :param target: target name to identify pickled datasets
 
     :param datadir: directory containing pickled datasets
+
+    :param tag: tag used when desired datasets were saved 
 
     :param ident: identifier in star properties table. If None use target. If
     'none' 
@@ -341,7 +348,7 @@ class MultiVisit(object):
 
     """
 
-    def __init__(self, target=None, datadir=None,
+    def __init__(self, target=None, datadir=None, tag="", 
             ident=None, id_kws={'dace':True},
             verbose=True):
 
@@ -351,7 +358,7 @@ class MultiVisit(object):
 
         if target is None: return
 
-        ptn = target.replace(" ","_")+'__*.dataset'
+        ptn = target.replace(" ","_")+'_'+tag+'_*.dataset'
         if datadir is not None:
             ptn = os.path.join(datadir,ptn)
 
@@ -368,8 +375,8 @@ class MultiVisit(object):
         if verbose:
             print(self.star)
             print('''
- N  file_key                   Aperture last_ GP  Glint Scale pipe_ver
- ---------------------------------------------------------------------------------''')
+ N  file_key                   Aperture last_ GP Glint Scale pipe_ver extra
+ --------------------------------------------------------------------------''')
 
         for n,fl in enumerate(g):
             d = Dataset.load(fl)
@@ -380,6 +387,8 @@ class MultiVisit(object):
             d.bjd_ref = 2457000
             d.lc['time'] += dBJD
             d.lc['bjd_ref'] = dBJD
+            for xbf in d.__extra_basis_funcs__:
+                d.__extra_basis_funcs__[xbf].x += dBJD
             if 'lmfit' in d.__dict__:
                 p = deepcopy(d.lmfit.params['T_0'])
                 p._val += dBJD
@@ -429,7 +438,9 @@ class MultiVisit(object):
                 else:
                     sc = 'False'
                 pv = d.pipe_ver
-                print(f' {n+1:2} {d.file_key} {ap:8} {lf:5} {gp:3} {gl:5} {sc:5} {pv}')
+                nx = len(d.__extra_basis_funcs__)
+                print(f' {n+1:2} {d.file_key} {ap:8} {lf:5} {gp:3}'
+                      f' {gl:5} {sc:5}  {pv}     {nx}')
 
 #--------------------------------------------------------------------------
 #
@@ -468,26 +479,49 @@ class MultiVisit(object):
     def __run_emcee__(self, **kwargs):
 
         # Dict of initial parameter values for creation of models
-        # Calculation of mean T_0 needs P and W so T_0 is not first in the list
+        # Calculation of mean needs P and W so T_0 is not first in the list
         vals = OrderedDict()
-        for k in ['D', 'W', 'b', 'P', 'T_0', 'f_c', 'f_s', 'l_3']:
-            vals[k] = kwargs[k]
         fittype = self.__fittype__
-        if fittype == 'transit' or fittype == 'eblm':
-            vals['h_1'] = kwargs['h_1']
-            vals['h_2'] = kwargs['h_2']
-        if fittype == 'eclipse' or fittype == 'eblm':
-            vals['L'] = kwargs['L']
-            vals['a_c'] = kwargs['a_c']
+        klist = ['D', 'W', 'b', 'P', 'T_0', 'f_c', 'f_s', 'l_3']
+        if fittype in ['transit', 'eblm', 'planet']:
+            klist.append('h_1')
+            klist.append('h_2')
+        if fittype in ['eclipse', 'eblm']:
+            klist.append('L')
+            klist.append('a_c')
+        if fittype in ['planet']:
+            for k in ['F_max', 'F_min', 'ph_off', 'a_c']:
+                klist.append(k)
+        for k in klist:
+            vals[k] = kwargs[k]
 
         # dicts of parameter limits and step sizes for initialisation
         pmin = {'P':0, 'D':0, 'W':0, 'b':0, 'f_c':-1, 'f_s':-1,
-                'h_1':0, 'h_2':0, 'L':0, 'l_3':-0.99}
+                'h_1':0, 'h_2':0, 'L':0, 'F_max':0, 'l_3':-0.99}
         pmax = {'D':0.3, 'W':0.3, 'b':2.0, 'f_c':1, 'f_s':1,
-                'h_1':1, 'h_2':1, 'L':1.0, 'l_3':1e6}
+                'h_1':1, 'h_2':1, 'L':1.0, 'F_max':1.0, 'l_3':1e6}
         step = {'D':1e-4, 'W':1e-4, 'b':1e-2, 'P':1e-6, 'T_0':1e-4,
                 'f_c':1e-4, 'f_s':1e-3, 'h_1':1e-3, 'h_2':1e-2,
-                'L':1e-5, 'l_3':1e-3}
+                'L':1e-5, 'F_max':1e-5, 'l_3':1e-3}
+        # Initial stderr value for list of values that may be np.nan or None
+        def robust_stderr(vals, stds, default):
+            varr = np.array([v if v is not None else np.nan for v in vals])
+            sarr = np.array([s if s is not None else np.nan for s in stds])
+            vok = np.isfinite(varr)
+            nv = sum(vok)
+            sok = vok & np.isfinite(sarr)
+            ns = sum(sok)
+            if nv == 0: return default
+            if nv == 1:
+                if ns == 1: return sarr[sok][0]
+                return default
+            if ns == nv:
+                t = np.nanmean(sarr)/np.sqrt(nv)
+                if t > 0: return t
+                return default
+            t = np.nanstd(varr)
+            if t > 0: return t
+            return default
 
         # Create a Parameters() object with initial values and priors on model
         # parameters (including fixed parameters)
@@ -497,62 +531,79 @@ class MultiVisit(object):
         plist = [d.emcee.params if d.__lastfit__ == 'emcee' else 
                  d.lmfit.params for d in self.datasets]
         vv,vs,vn  = [],[],[]     # Free params for emcee, name value, err
+
         for k in vals:
+
+            # For fit_planet, 'L'='F_max', so ...
+            if (fittype == 'planet') and (k == 'F_max'):
+                kp,kv = 'L','F_max'
+            else:
+                kp,kv = k,k
+
             if vals[k] is None:    # No user-defined value 
+                vary = True in [p[kp].vary if kp in p else False for p in plist]
 
                 # Use mean of best-fit values from datasets
-                if k == 'T_0':  
-                    t = np.array([p[k].value for p in plist])
+                if kp == 'T_0':  
+                    t = np.array([p[kp].value for p in plist])
                     c = np.round((t-t[0])/params['P'])
                     c -= c.max()//2
                     t -= c*params['P']
                     val = t.mean()
                     vmin = val - params['W']*params['P']/2
                     vmax = val + params['W']*params['P']/2
+                    if vary:
+                        stds = [p[kp].stderr for p in plist]
+                        stderr = robust_stderr(t, stds, step['T_0'])
                 else:
+
                     # Not all datasets have all parameters so ...
-                    v = [p[k].value if k in p else np.nan for p in plist]
+                    v = [p[kp].value if kp in p else np.nan for p in plist]
                     val = np.nanmean(v)
-                    v = [p[k].min if k in p else np.nan for p in plist]
+                    if vary:
+                        stds=[p[kp].stderr if kp in p else None for p in plist]
+                        stderr = robust_stderr(v, stds, step[kv])
+                    v = [p[kp].min if kp in p else np.nan for p in plist]
                     vmin = np.nanmin(v)
-                    if (k in pmin) and not np.isfinite(vmin):
-                        vmin = pmin[k]
-                    v = [p[k].max if k in p else np.nan for p in plist]
+                    if (kv in pmin) and not np.isfinite(vmin):
+                        vmin = pmin[kv]
+                    v = [p[kp].max if kp in p else np.nan for p in plist]
                     vmax = np.nanmax(v)
-                    if (k in pmax) and not np.isfinite(vmax):
-                        vmax = pmax[k]
-                vary = True in [p[k].vary if k in p else False for p in plist]
-                params.add(k, val, vary=vary, min=vmin, max=vmax)
-                vals[k] = val
+                    if (kv in pmax) and not np.isfinite(vmax):
+                        vmax = pmax[kv]
+                params.add(kv, val, vary=vary, min=vmin, max=vmax)
+                vals[kv] = val
+                if vary:
+                    params.stderr = stderr
 
-            else:    # User-defined value for parameter from kwargs
+            else:    # Value for parameter from kwargs
 
-                params[k] = _kw_to_Parameter(k, vals[k])
-                vals[k] = params[k].value
-                if (k in pmin) and not np.isfinite(params[k].min):
-                    params[k].min = pmin[k]
-                if (k in pmax) and not np.isfinite(params[k].max):
-                    params[k].max = pmax[k]
+                params[kv] = _kw_to_Parameter(kv, vals[kv])
+                vals[kv] = params[kv].value
+                if (kv in pmin) and not np.isfinite(params[kv].min):
+                    params[kv].min = pmin[kv]
+                if (kv in pmax) and not np.isfinite(params[kv].max):
+                    params[kv].max = pmax[kv]
 
-            if params[k].vary:
-                vn.append(k)
-                vv.append(params[k].value)
-                if isinstance(params[k].user_data, UFloat):
-                    priors[k] = params[k].user_data
+            if params[kv].vary:
+                vn.append(kv)
+                vv.append(params[kv].value)
+                if isinstance(params[kv].user_data, UFloat):
+                    priors[kv] = params[kv].user_data
                 # Step size for setting up initial walker positions
-                if params[k].stderr is None:
-                    if params[k].user_data is None:
-                        vs.append(step[k])
+                if params[kv].stderr is None:
+                    if params[kv].user_data is None:
+                        vs.append(step[kv])
                     else:
-                        vs.append(params[k].user_data.s)
+                        vs.append(params[kv].user_data.s)
                 else:
-                    if np.isfinite(params[k].stderr):
-                        vs.append(params[k].stderr)
+                    if np.isfinite(params[kv].stderr):
+                        vs.append(params[kv].stderr)
                     else:
-                        vs.append(step[k])
+                        vs.append(step[kv])
             else:
                 # Needed to avoid errors when printing parameters
-                params[k].stderr = None
+                params[kv].stderr = None
 
         # Derived parameters
         params.add('k',expr='sqrt(D)',min=0,max=1)
@@ -562,6 +613,18 @@ class MultiVisit(object):
         expr = 'log10(4.3275e-4*((1+k)**2-b**2)**1.5/W**3/P**2)'
         params.add('logrho',expr=expr,min=-9,max=6)
         params.add('e',min=0,max=1,expr='f_c**2 + f_s**2')
+        # For eccentric orbits only from Winn, arXiv:1001.2010
+        if (params['e'].value>0) or params['f_c'].vary or params['f_s'].vary:
+            params.add('esinw',expr='sqrt(e)*f_s')
+            params.add('ecosw',expr='sqrt(e)*f_c')
+            params.add('b_tra',expr='b*(1-e**2)/(1+esinw)')
+            params.add('b_occ',expr='b*(1-e**2)/(1-esinw)')
+            params.add('T_tra',expr='P*W*sqrt(1-e**2)/(1+esinw)')
+            params.add('T_occ',expr='P*W*sqrt(1-e**2)/(1-esinw)')
+
+        if 'F_min' in params:
+            params.add('A',min=0,max=1,expr='F_max-F_min')
+
         if 'h_1' in params:
             params.add('q_1',min=0,max=1,expr='(1-h_2)**2')
             params.add('q_2',min=0,max=1,expr='(h_1-h_2)/(1-h_2)')
@@ -585,7 +648,7 @@ class MultiVisit(object):
                 raise ValueError('L must be a fixed parameter of edv=True.')
             ttv, ttv_prior = False, None
 
-        if fittype == 'eblm':
+        if fittype in ['eblm', 'planet']:
             ttv = kwargs['ttv']
             ttv_prior = kwargs['ttv_prior']
             if ttv and (params['T_0'].vary or params['P'].vary):
@@ -639,6 +702,7 @@ class MultiVisit(object):
 
         # Lists of model parameters and data for individual datasets
         fluxes_unwrap = []
+        n_unwrap = []
         rolls = []
         models = []
         modpars = []
@@ -648,13 +712,19 @@ class MultiVisit(object):
         for i,(d,p) in enumerate(zip(self.datasets, plist)):
 
             f_unwrap = np.zeros_like(d.lc['time'])
+            n = 0
             if kwargs['unwrap']:
                 phi = d.lc['roll_angle']*np.pi/180
                 for j in range(1,4):
                     k = 'dfdsinphi' if j < 2 else f'dfdsin{j}phi'
-                    if k in p: f_unwrap += p[k]*np.sin(j*phi)
+                    if k in p:
+                        f_unwrap += p[k]*np.sin(j*phi)
+                        n = j
                     k = 'dfdcosphi' if j < 2 else f'dfdcos{j}phi'
-                    if k in p: f_unwrap += p[k]*np.cos(j*phi)
+                    if k in p:
+                        f_unwrap += p[k]*np.cos(j*phi)
+                        n = j
+            n_unwrap.append(n)
             fluxes_unwrap.append(f_unwrap)
 
             t = d.lc['time']
@@ -670,10 +740,11 @@ class MultiVisit(object):
                 factor_model = FactorModel(
                     dx = _make_interp(t,d.lc['xoff'], scale='range'),
                     dy = _make_interp(t,d.lc['yoff'], scale='range'),
-                    bg = _make_interp(t,d.lc['bg'], scale='max'),
-                    contam = _make_interp(t,d.lc['contam'], scale='max'),
-                    smear = _make_interp(t,smear, scale='max'),
-                    deltaT = _make_interp(t,deltaT) )
+                    bg = _make_interp(t,d.lc['bg'], scale='range'),
+                    contam = _make_interp(t,d.lc['contam'], scale='range'),
+                    smear = _make_interp(t,smear, scale='range'),
+                    deltaT = _make_interp(t,deltaT),
+                    extra_basis_funcs=d.__extra_basis_funcs__)
             else:
                 factor_model = FactorModel(
                     dx = _make_interp(t,d.lc['xoff']),
@@ -681,13 +752,17 @@ class MultiVisit(object):
                     bg = _make_interp(t,d.lc['bg']),
                     contam = _make_interp(t,d.lc['contam']),
                     smear = _make_interp(t,smear),
-                    deltaT = _make_interp(t,deltaT) )
+                    deltaT = _make_interp(t,deltaT),
+                    extra_basis_funcs=d.__extra_basis_funcs__)
+
             if fittype == 'transit':
                 model = TransitModel()*factor_model
             elif fittype == 'eclipse':
                 model = EclipseModel()*factor_model
             elif fittype == 'eblm':
                 model = EBLMModel()*factor_model
+            elif fittype == 'planet':
+                model = PlanetModel()*factor_model
             l = ['dfdbg','dfdcontam','dfdsmear','dfdx','dfdy']
             if True in [p_ in l for p_ in p]:
                 scales.append(d.__scale__)
@@ -729,11 +804,13 @@ class MultiVisit(object):
                 vs.append(edv_prior)
                 priors[t] = params[t].user_data
                 
-            for dfdp in ['c', 'dfdbg', 'dfdcontam', 'dfdsmear', 'dfdx',
-                    'd2fdx2', 'dfdy', 'd2fdy2', 'dfdt', 'd2fdt2',
-                    'glint_scale', 'ramp']:
+            # Now the decorrelation parameters, incliding arbitary
+            # basis functions, if present
+            for dfdp in [k for k in p if (k[:3]=='dfd' or k[:4]=='d2fd' or
+                         k=='c' or k=='ramp' or k=='glint_scale') and
+                         k[:6]!='dfdsin' and k[:6]!='dfdcos']:
 
-                if dfdp in p and p[dfdp].vary:
+                if  p[dfdp].vary:
                     pj = f'{dfdp}_{i+1:02d}'
                     params.add(pj, p[dfdp].value,
                             min=p[dfdp].min, max=p[dfdp].max)
@@ -765,6 +842,9 @@ class MultiVisit(object):
         # END of for dataset in self.datasets:
 
         # Copy parameters, models, priors, etc. to self.
+        self.__unwrap__ = kwargs["unwrap"]
+        self.__unroll__ = kwargs["unroll"]
+        self.__nroll__ = kwargs["nroll"]
         self.__rolls__ = rolls
         self.__models__ = models
         self.__modpars__ = modpars
@@ -772,6 +852,7 @@ class MultiVisit(object):
         self.__priors__ = priors
         self.__var_names__ = vn # Change of name for consistency with result
         self.__fluxes_unwrap__ = fluxes_unwrap
+        self.__n_unwrap__ = n_unwrap
         self.__scales__ = scales
 
         backend = kwargs['backend']
@@ -825,7 +906,7 @@ class MultiVisit(object):
         # best-fit light curves, detrended fluxes, etc.
         flatchain = sampler.get_chain(flat=True)
         pos = flatchain[np.argmax(sampler.get_log_prob()),:]
-        f_fit, f_sys, f_det, f_sho, f_phi = self._lnpost_(pos, return_fit=True)
+        f_fit,f_sys,f_det,f_sho,f_phi = self._lnpost_(pos,return_fit=True)
         self.__fluxes_fit__ = f_fit
         self.__fluxes_sys__ = f_sys
         self.__fluxes_det__ = f_det
@@ -855,16 +936,16 @@ class MultiVisit(object):
         result.errorbars = True
         result.bestfit = f_fit
         result.fluxes_det = f_det
-        z = zip(self.datasets, self.__fluxes_unwrap__,  f_fit)
-        result.residual = [(d.lc['flux']-fu-ft) for d,fu,ft in z]
+        z = zip(self.datasets, f_fit)
+        result.residual = [(d.lc['flux']-ft) for d,ft in z]
         z = zip(self.datasets, result.residual)
-        result.chisqr = np.sum(((r/d.lc['flux_err'])**2).sum() for d,r in z)
+        result.chisqr = np.sum([((r/d.lc['flux_err'])**2).sum() for d,r in z])
         result.redchi = result.chisqr/result.nfree
         lnlike = np.max(sampler.get_blobs())
         result.lnlike = lnlike
         result.aic = 2*result.nvarys - 2*lnlike
         result.bic = result.nvarys*np.log(result.ndata) - 2*lnlike
-        result.rms = [r.std() for r in result.residual]
+        result.rms = np.array([r.std() for r in result.residual])
         result.npriors = len(self.__priors__)
         result.priors = self.__priors__
         
@@ -932,7 +1013,7 @@ class MultiVisit(object):
             f_unwrap = self.__fluxes_unwrap__[i]
     
             for p in ('T_0', 'P', 'D', 'W', 'b', 'f_c', 'f_s', 'l_3', 
-                    'h_1', 'h_2', 'L'):
+                    'h_1', 'h_2', 'L', 'F_max', 'F_min', 'ph_off'):
                 if p in vn:
                     v = pos[vn.index(p)]
                     if not np.isfinite(v): return -np.inf, -np.inf
@@ -948,9 +1029,8 @@ class MultiVisit(object):
                     if (v < modpar[p].min) or (v > modpar[p].max):
                         return -np.inf, -np.inf
     
-            df = ('c', 'dfdbg', 'dfdcontam', 'dfdsmear', 'glint_scale', 'ramp',
-                    'dfdx', 'd2fdx2', 'dfdy', 'd2fdy2', 'dfdt', 'd2fdt2')
-            for d in df:
+            for d in [k for k in modpar if k[:3]=='dfd' or k[:4]=='d2fd' or
+                      k=='c' or k=='ramp' or k=='glint_scale']:
                 p = f'{d}_{i+1:02d}' 
                 if p in vn:
                     v = pos[vn.index(p)]
@@ -986,7 +1066,8 @@ class MultiVisit(object):
                 gp.compute(lc['time'], diag=yvar, quiet=True)
                 if return_fit:
                     k = f'_{self.__fittype__}_func'
-                    f_sys = model.eval_components(params=modpar,t=lc['time'])[k]
+                    f_sys = model.eval_components(params=modpar,
+                                                  t=lc['time'])[k]
                     fluxes_sys.append(f_sys)
                     f_celerite = gp.predict(resid, include_mean=False)
                     f_fit = f_model + f_celerite  + f_unwrap
@@ -1012,7 +1093,8 @@ class MultiVisit(object):
             else:
                 if return_fit:
                     k = f'_{self.__fittype__}_func'
-                    f_sys = model.eval_components(params=modpar,t=lc['time'])[k]
+                    f_sys = model.eval_components(params=modpar,
+                                                  t=lc['time'])[k]
                     fluxes_sys.append(f_sys)
                     f_fit = f_model + f_unwrap
                     fluxes_fit.append(f_fit)
@@ -1020,7 +1102,7 @@ class MultiVisit(object):
                     fluxes_det.append(f_det)
                     fluxes_sho.append(np.zeros_like(f_sys))
                 else:
-                    lnlike += -0.5*(np.sum(resid**2/yvar+np.log(2*np.pi*yvar)))
+                    lnlike += -0.5*np.sum(resid**2/yvar+np.log(2*np.pi*yvar))
     
         if return_fit:
             return fluxes_fit, fluxes_sys, fluxes_det, fluxes_sho, fluxes_phi
@@ -1042,6 +1124,9 @@ class MultiVisit(object):
             if z is not None:
                 lnprior += -0.5*(z**2 + np.log(2*np.pi*ps**2))
     
+        if np.isnan(lnprior) or np.isnan(lnlike):
+            return -np.inf, -np.inf
+
         return lnlike + lnprior, lnlike
 
 #--------------------------------------------------------------------------
@@ -1133,13 +1218,51 @@ class MultiVisit(object):
 
 #--------------------------------------------------------------------------
 
+    def fit_planet(self, steps=128, nwalkers=64, burn=256, 
+            T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None, 
+            h_1=None, h_2=None, l_3=None, ttv=False, ttv_prior=3600, 
+            F_max=None, F_min=0, ph_off=0,
+            a_c=0, edv=False, edv_prior=1e-3, extra_priors=None, 
+            log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
+            unroll=True, nroll=3, unwrap=False, thin=1, 
+            init_scale=0.5, progress=True, backend=None):
+        """
+        Use emcee to fit the transits and eclipses in the current datasets
+        using the PlanetModel model.
+
+        If T_0 and P are both fixed parameters then ttv=True can be used to
+        include the free parameters ttv_i, the offset in seconds from the
+        predicted time of mid-transit for each dataset i = 1, ..., N. The
+        prior on the values of ttv_i is a Gaussian with a width ttv_prior in
+        seconds.
+
+        Eclipse depths variations can be included in the fit using the keyword
+        edv=True. In this case F_max must be a fixed parameter and the value of
+        F_max for dataset i is F_max_i, i=1, ..., N. The prior on the values of
+        F_max_i is a Gaussian with mean value F_max and width edv_prior.
+
+        By default, this method assumes ph_off=0 and F_min=0. The initial
+        value of F_max is calculated from the best-fit values of L in the
+        input eclipse datasets, if possible.
+
+        """
+        # Get a dictionary of all keyword arguments excluding 'self'
+        kwargs = dict(locals())
+        del kwargs['self']
+        self.__fittype__ = 'planet'
+
+        return self.__run_emcee__(**kwargs)
+
+#--------------------------------------------------------------------------
+
     def fit_report(self, **kwargs):
         """
         Return a string summarizing the results of the last emcee fit
         """
         result = self.__result__
         report = lmfit_report(result, **kwargs)
-        rms = np.array(result.rms).mean()*1e6
+        n = [len(d.lc['time']) for d in self.datasets]
+        rms = np.sqrt(np.average(result.rms**2,weights=n))*1e6
         s = "    RMS residual       = {:0.1f} ppm\n".format(rms)
         j = report.index('[[Variables]]')
         report = report[:j] + s + report[j:]
@@ -1153,13 +1276,24 @@ class MultiVisit(object):
             report += "\n    %s:%s" % (p, ' '*(namelen-len(p)))
             report += '%s +/-%s' % (gformat(q.n), gformat(q.s))
 
-        if True in self.__scales__ or False in self.__scales__:
-            report += '\n[[Notes]]'
+        report += '\n[[Notes]]'
+        if self.__unroll__:
+            report += '\n    Implicit roll-angle decorrelation used'
+            report += f' nroll={self.__nroll__} terms'
+        else:
+            report += f'\n    Implicit roll-angle decorrelation not used.'
+        if self.__unwrap__:
+            report += '\n    Best-fit roll-angle decorrelation was subtracted'
+            report += ' from light curves (unwrap=True)'
+        else:
+            report += '\n    Best-fit roll-angle decorrelation was not used'
+            report += ' (unwrap=False)'
+
         for i,s in enumerate(self.__scales__):
             if s is not None:
                 report += f'\n    Dataset {i+1}: '
                 if s:
-                    report += 'decorrelation parameters were scaled to (-1,1)'
+                    report += 'decorrelation parameters were scaled)'
                 else:
                     report +='decorrelation parameters were not scaled'
 
@@ -1228,6 +1362,10 @@ class MultiVisit(object):
         elif plotkeys is None:
             if self.__fittype__ == 'transit':
                 l = ['D', 'W', 'b', 'T_0', 'P', 'h_1', 'h_2']
+            elif self.__fittype__ == 'planet':
+                l = ['D', 'W', 'b', 'T_0', 'P', 'F_max']
+            elif self.__fittype__ == 'eblm':
+                l = ['D', 'W', 'b', 'T_0', 'P', 'L']
             elif 'L_01' in var_names:
                 l = ['D','W','b']+[f'L_{j+1:02d}' for j in range(n)]
             else:
@@ -1235,14 +1373,25 @@ class MultiVisit(object):
             plotkeys = list(set(var_names).intersection(l))
             plotkeys.sort()
 
-
         n = len(plotkeys)
         fig,ax = plt.subplots(nrows=n, figsize=(width,n*height), sharex=True)
         if n == 1: ax = [ax,]
+
         d0 = 0 
         if 'T_0' in plotkeys:
             d0 = np.floor(np.nanmedian(samples[:,:,var_names.index('T_0')]))
-        labels = _make_labels(plotkeys, d0)
+        extra_labels = {}
+        for i,d in enumerate(self.datasets):
+            if d.extra_decorr_vectors != None:
+                for k in d.extra_decorr_vectors:
+                    if k == 't':
+                        continue
+                    if 'label' in d.extra_decorr_vectors[k].keys():
+                        label = d.extra_decorr_vectors[k]['label']
+                        label += f'$_{{{i+1:02d}}}$'
+                        extra_labels[f'dfd{k}_{i+1:02d}'] = label
+        labels = _make_labels(plotkeys, d0, extra_labels)
+
         for i,key in enumerate(plotkeys):
             if key == 'T_0':
                 ax[i].plot(samples[:,:,var_names.index(key)]-d0, **plot_kws)
@@ -1250,7 +1399,7 @@ class MultiVisit(object):
                 ax[i].plot(samples[:,:,var_names.index(key)], **plot_kws)
             ax[i].set_ylabel(labels[i])
             ax[i].yaxis.set_label_coords(-0.1, 0.5)
-        ax[-1].set_xlim(0, len(samples))
+        ax[-1].set_xlim(0, len(samples)-1)
         ax[-1].set_xlabel("step number");
 
         fig.tight_layout()
@@ -1258,8 +1407,26 @@ class MultiVisit(object):
 
     # ----------------------------------------------------------------
 
-    def corner_plot(self, plotkeys=None, 
+    def corner_plot(self, plotkeys=None, custom_labels=None, 
             show_priors=True, show_ticklabels=False,  kwargs=None):
+        """
+        Parameter correlation plot 
+
+        Use custom_labels to change the string used for the axis labels, e.g.
+        custom_labels={'F_max':r'$F_{\rm pl}/F_{\star}$'}
+
+
+        plotkeys
+        :param plotkeys: list of variables to include in the corner plot
+        :param custom_labels: dict of custom labels 
+        :param show_priors: show +-1-sigma limits for Gaussian priors
+        :param show_ticklabels: Show sumerical labels for tick marks
+        :param kwargs: dict of keywords to pass through to corner.corner
+
+        See also  https://corner.readthedocs.io/en/latest/ 
+
+        """
+
 
         result = self.__result__
         params = result.params
@@ -1271,6 +1438,10 @@ class MultiVisit(object):
         if plotkeys == None:
             if self.__fittype__ == 'transit':
                 l = ['D', 'W', 'b', 'T_0', 'P', 'h_1', 'h_2']
+            elif self.__fittype__ == 'planet':
+                l = ['D', 'W', 'b', 'T_0', 'P', 'F_max']
+            elif self.__fittype__ == 'eblm':
+                l = ['D', 'W', 'b', 'T_0', 'P', 'L']
             elif 'L_01' in var_names:
                 l = ['D','W','b']+[f'L_{j+1:02d}' for j in range(n)]
             else:
@@ -1332,7 +1503,21 @@ class MultiVisit(object):
         kws = {} if kwargs is None else kwargs
 
         xs = np.array(xs).T
-        labels = _make_labels(plotkeys, d0)
+        if custom_labels is None:
+            extra_labels = {}
+        else:
+            extra_labels = custom_labels
+        for i,d in enumerate(self.datasets):
+            if d.extra_decorr_vectors != None:
+                for k in d.extra_decorr_vectors:
+                    if k == 't':
+                        continue
+                    if 'label' in d.extra_decorr_vectors[k].keys():
+                        label = d.extra_decorr_vectors[k]['label']
+                        label += f'$_{{{i+1:02d}}}$'
+                        extra_labels[f'dfd{k}_{i+1:02d}'] = label
+        labels = _make_labels(plotkeys, d0, extra_labels)
+
         figure = corner.corner(xs, labels=labels, **kws)
 
         nax = len(labels)
@@ -1353,6 +1538,7 @@ class MultiVisit(object):
             for i, key in enumerate(plotkeys):
                 q = params[key].user_data
                 if isinstance(q, UFloat):
+                    if key == 'T_0': q -= d0
                     ax = axes[i, i]
                     ax.axvline(q.n - q.s, color="g", linestyle='--')
                     ax.axvline(q.n + q.s, color="g", linestyle='--')
@@ -1489,7 +1675,7 @@ class MultiVisit(object):
     # ------------------------------------------------------------
     
     def plot_fit(self, title=None, detrend=False, 
-            binwidth=0.001, add_gaps=True, gap_tol=0.005, 
+            binwidth=0.005, add_gaps=True, gap_tol=0.005, 
             data_offset=None, res_offset=None, phase0=None,
             xlim=None, data_ylim=None, res_ylim=None, renorm=True, 
             show_gp=True, figsize=None, fontsize=12):
@@ -1547,8 +1733,8 @@ class MultiVisit(object):
         for j,dataset in enumerate(self.datasets):
             modpar = copy(self.__modpars__[j])
             ph = phaser(dataset.lc['time'], P, T_0, phase0)
-            phmax = max(ph)
-            phmin = min(ph)
+            phmin = min([min(ph), phmin])
+            phmax = max([max(ph), phmax])
             ph_fluxes.append(ph)
 
             if detrend:
@@ -1596,7 +1782,7 @@ class MultiVisit(object):
             lc_grid.append(model.eval_components(params=modpar,t=tp)[k])
 
         plt.rc('font', size=fontsize)    
-        if self.__fittype__ == 'eblm':
+        if self.__fittype__ in ['eblm', 'planet']:
 
             f_c = par['f_c'].value
             f_s = par['f_s'].value
@@ -1619,20 +1805,22 @@ class MultiVisit(object):
                 else:
                     doff_tr,doff_ecl = data_offset
 
-            phmin_tr, phmax_tr = phase0, 1-phase0
-            phmin_ecl, phmax_ecl = phase0, 1-phase0
+            phmin_tr, phmax_tr = np.inf, -np.inf
+            phmin_ecl, phmax_ecl = np.inf, -np.inf
             j_ecl, j_tr = 0, 0
             for (ph,flx,i) in zip(ph_fluxes, fluxes, is_ecl):
                 if i:
                     off = j_ecl*doff_ecl
                     j_ecl += 1
                     ax = axes[0,1]
-                    phmin_ecl,phmax_ecl = min(ph), max(ph)
+                    phmin_ecl = min([min(ph), phmin_ecl])
+                    phmax_ecl = max([max(ph), phmax_ecl])
                 else:
                     off = j_tr*doff_tr
                     j_tr += 1
                     ax = axes[0,0]
-                    phmin_tr,phmax_tr = min(ph), max(ph)
+                    phmin_tr = min([min(ph), phmin_tr])
+                    phmax_tr = max([max(ph), phmax_tr])
                 ax.plot(ph, flx+off,'o',c='skyblue',ms=2, zorder=1)
                 if binwidth:
                     r_, f_, e_, n_ = lcbin(ph, flx, binwidth=binwidth)
@@ -1715,7 +1903,6 @@ class MultiVisit(object):
                 axes[0,0].set_xlim(-pht-pad,pht+pad)
                 axes[1,0].set_xlim(-pht-pad,pht+pad)
                 pad = (phmax_ecl-phmin_ecl)/10
-                pht = max([abs(phmin_ecl), abs(phmax_ecl)])
                 axes[0,1].set_xlim(phmin_ecl-pad,phmax_ecl+pad)
                 axes[1,1].set_xlim(phmin_ecl-pad,phmax_ecl+pad)
             else:
@@ -1751,7 +1938,7 @@ class MultiVisit(object):
             axes[1,1].set_xlabel('Phase')
             axes[1,0].set_ylabel('Residual')
 
-        else: # Not EBLM
+        else: # Not EBLM or Planet
 
             if figsize is None:
                 figsize = (8, 2+1.5*n)
@@ -1945,6 +2132,108 @@ class MultiVisit(object):
                 jovian=jovian, return_samples=return_samples,
                 verbose=verbose, **plot_kws)
     
+    #------
+
+    def save(self, tag="", overwrite=False):
+        """
+        Save the current MultiVisit instance as a pickle file
+
+        :param tag: string to tag different versions of the same MultiVisit
+
+        :param overwrite: set True to overwrite existing version of file
+
+        :returns: pickle file name
+        """
+        fl = self.target.replace(" ","_")+'_'+tag+'.multivisit'
+        if os.path.isfile(fl) and not overwrite:
+            msg = f'File {fl} exists. If you mean to replace it then '
+            msg += 'use the argument "overwrite=True".'
+            raise OSError(msg)
+        with open(fl, 'wb') as fp:
+            pickle.dump(self, fp, pickle.HIGHEST_PROTOCOL)
+        return fl
+
+    #------
+
+    @classmethod
+    def load(self, filename):
+        """
+        Load a MultiVisit from a pickle file
+
+        :param filename: pickle file name
+
+        :returns: MultiVisit object
         
-    # ------------------------------------------------------------
+        """
+        with open(filename, 'rb') as fp:
+            self = pickle.load(fp)
+        return self
+
+    #------
+
+    def __getstate__(self):
+
+        state = self.__dict__.copy()
+
+        # Replace lmfit models with their string representation
+        if '__models__' in state.keys():
+            state['__models__'] = [m.__repr__() for m in state['__models__']]
+        else:
+            state['__models__'] = []
+
+        return state
+
+    #------
+
+    def __setstate__(self, state):
+
+        self.__dict__.update(state)
+
+        models = []
+        for model_repr,d in zip(self.__models__, self.datasets):
+            t = d.lc['time']
+            try:
+                smear = d.lc['smear']
+            except KeyError:
+                smear = np.zeros_like(t)
+            try:
+                deltaT = d.lc['deltaT']
+            except KeyError:
+                deltaT = np.zeros_like(t)
+            if d.__scale__:
+                factor_model = FactorModel(
+                    dx = _make_interp(t,d.lc['xoff'], scale='range'),
+                    dy = _make_interp(t,d.lc['yoff'], scale='range'),
+                    bg = _make_interp(t,d.lc['bg'], scale='range'),
+                    contam = _make_interp(t,d.lc['contam'], scale='range'),
+                    smear = _make_interp(t,smear, scale='range'),
+                    deltaT = _make_interp(t,deltaT),
+                    extra_basis_funcs=d.__extra_basis_funcs__)
+            else:
+                factor_model = FactorModel(
+                    dx = _make_interp(t,d.lc['xoff']),
+                    dy = _make_interp(t,d.lc['yoff']),
+                    bg = _make_interp(t,d.lc['bg']),
+                    contam = _make_interp(t,d.lc['contam']),
+                    smear = _make_interp(t,smear),
+                    deltaT = _make_interp(t,deltaT),
+                    extra_basis_funcs=d.__extra_basis_funcs__)
+
+            if self.__fittype__ == 'transit':
+                model = TransitModel()*factor_model
+            elif self.__fittype__ == 'eclipse':
+                model = EclipseModel()*factor_model
+            elif self.__fittype__ == 'eblm':
+                model = EBLMModel()*factor_model
+            elif self.__fittype__ == 'planet':
+                model = PlanetModel()*factor_model
+
+            if 'glint_func' in model_repr:
+                delta_t = d._old_bjd_ref - d.bjd_ref
+                model += Model(_glint_func, independent_vars=['t'],
+                    f_theta=d.f_theta, f_glint=d.f_glint, delta_t=delta_t)
+
+            models.append(model)
+
+        self.__models__ = models
 

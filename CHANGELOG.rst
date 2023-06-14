@@ -1,8 +1,39 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.0 (2023-07-14)
+~~~~~~~~~~~~~~~~~~
+* New extra_decorr_vectors option in Dataset and Multivisit fitting routines.
+* New Dataset.select_detrend() feature, parameter selection from Bayes factors
+* New MultiVisit.fit_planet() method for transit+eclipse fitting.
+* Added 'tag' option to Dataset.save() and Multivisit.save()
+* Added Dataset.from_pipe_file()
+* Added MultiVisit.save() and MultiVisit.load() (#176)
+* Added "copy=False" in call to interp1d in Dataset._make_interp().
+* Changed zero-point of scaling for xoff, yoff, bg, etc. to median instead of
+  mid-point of the values - should reduce correlation with 'c'. 
+* Updated description of parameter scaling in  Dataset.lmfit_transit().
+* In Dataset, set source automatically from file_key if not specified by user.
+* Added xlim option to Dataset.plot_lmfit() and Dataset.plot_emcee().
+* Added esinw, ecosw, T_tot, etc. to parameters for eccentric orbits in 
+  the fitting routines in Dataset and MultiVisit.
+* Added notes on unwrap and nroll to fit report in MultiVisit (#285)
+* Raise error if initial value is out of range for Dataset or MultiVisit.
+* Scaling of contam, smear and bg in MultiVisit, now consistent with Dataset
+* Added target location on CCD to verbose output for Dataset.get_lightcurve()
+* In Dataset, yoff was measured relative to the wrong value - fixed.
+* Improved initialisation of walkers in MultiVisit fit routines - use standard
+  deviation based on previous fits rather than arbitrary values.
+* Added overwrite=False keyword option to MultiVisit.save() and Dataset.save() 
+* Fix problem with automatic selection of x limits in MultiVisit.plot_fit()
+* Fix problem on 'c' missing from parameters if fixed for MultiVisit
+* Fix bug in calculation of rms for MultiVisit
+* Fix display of prior for T_0 in MultiVisit.corner_plot()
+* Allow list input to combine.combine()
+* Added custom_labels option to MultiVisit.corner_plot()
+
 1.0.19 (2023-05-12)
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 * Added "aperture" attribute to Dataset to store aperture name.
 * Added scaling of detrending functions to Dataset.aperture_scan() 
 * Added N_data to output of Dataset.aperture_scan()
