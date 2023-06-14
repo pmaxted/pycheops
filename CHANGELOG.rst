@@ -3,10 +3,10 @@ Changes since 1.0.0 onwards.
 
 1.1.0 (2023-07-14)
 ~~~~~~~~~~~~~~~~~~
-* New extra_basis_funcs option in Dataset and Multivisit fitting routines.
+* New extra_decorr_vectors option in Dataset and Multivisit fitting routines.
 * New Dataset.select_detrend() feature, parameter selection from Bayes factors
 * New MultiVisit.fit_planet() method for transit+eclipse fitting.
-* Added 'tag' option to Dataset.save() and Multivisit()
+* Added 'tag' option to Dataset.save() and Multivisit.save()
 * Added Dataset.from_pipe_file()
 * Added MultiVisit.save() and MultiVisit.load() (#176)
 * Added "copy=False" in call to interp1d in Dataset._make_interp().
@@ -28,6 +28,9 @@ Changes since 1.0.0 onwards.
 * Fix problem with automatic selection of x limits in MultiVisit.plot_fit()
 * Fix problem on 'c' missing from parameters if fixed for MultiVisit
 * Fix bug in calculation of rms for MultiVisit
+* Fix display of prior for T_0 in MultiVisit.corner_plot()
+* Allow list input to combine.combine()
+* Added custom_labels option to MultiVisit.corner_plot()
 
 1.0.19 (2023-05-12)
 ~~~~~~~~~~~~~~~~~~~

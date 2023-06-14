@@ -1044,8 +1044,10 @@ class Dataset(object):
                 print('Photometry from PSF fitting')
             else:
                 print('Aperture radius used = {:0.1f} arcsec'.format(ap_rad))
-            print('UTC start: ',table.meta['V_STRT_U'][0:19])
-            print('UTC end:   ',table.meta['V_STOP_U'][0:19])
+            if 'V_STRT_U' in table.meta:
+                print('UTC start: ',table.meta['V_STRT_U'][0:19])
+            if 'V_STOP_U' in table.meta:
+                print('UTC end:   ',table.meta['V_STOP_U'][0:19])
             duration = (table['MJD_TIME'][-1] - table['MJD_TIME'][0])*86400
             print('Visit duration: {:0.0f} s'.format(duration))
             print('Exposure time: {} x {:0.1f} s'.format(self.nexp,

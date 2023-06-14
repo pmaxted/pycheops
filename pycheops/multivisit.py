@@ -1407,8 +1407,26 @@ class MultiVisit(object):
 
     # ----------------------------------------------------------------
 
-    def corner_plot(self, plotkeys=None, 
+    def corner_plot(self, plotkeys=None, custom_labels=None, 
             show_priors=True, show_ticklabels=False,  kwargs=None):
+        """
+        Parameter correlation plot 
+
+        Use custom_labels to change the string used for the axis labels, e.g.
+        custom_labels={'F_max':r'$F_{\rm pl}/F_{\star}$'}
+
+
+        plotkeys
+        :param plotkeys: list of variables to include in the corner plot
+        :param custom_labels: dict of custom labels 
+        :param show_priors: show +-1-sigma limits for Gaussian priors
+        :param show_ticklabels: Show sumerical labels for tick marks
+        :param kwargs: dict of keywords to pass through to corner.corner
+
+        See also  https://corner.readthedocs.io/en/latest/ 
+
+        """
+
 
         result = self.__result__
         params = result.params
@@ -1485,7 +1503,10 @@ class MultiVisit(object):
         kws = {} if kwargs is None else kwargs
 
         xs = np.array(xs).T
-        extra_labels = {}
+        if custom_labels is None:
+            extra_labels = {}
+        else:
+            extra_labels = custom_labels
         for i,d in enumerate(self.datasets):
             if d.extra_decorr_vectors != None:
                 for k in d.extra_decorr_vectors:
@@ -1517,6 +1538,7 @@ class MultiVisit(object):
             for i, key in enumerate(plotkeys):
                 q = params[key].user_data
                 if isinstance(q, UFloat):
+                    if key == 'T_0': q -= d0
                     ax = axes[i, i]
                     ax.axvline(q.n - q.s, color="g", linestyle='--')
                     ax.axvline(q.n + q.s, color="g", linestyle='--')

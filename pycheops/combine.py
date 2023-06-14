@@ -53,6 +53,9 @@ def combine(y, yerr, walkers=64, steps=256, discard=128):
         sigma2 = yvar + np.exp(2*lnsig)
         return -0.5 * np.sum((y - mu)**2/sigma2 + np.log(sigma2))
 
+    y = np.array(y)
+    yerr = np.array(yerr)
+
     mulo = y.min() - yerr.max()
     muhi = y.max() + yerr.max()
     mu_i = np.random.normal(y.mean(),y.std()+yerr.min(), walkers)
@@ -177,7 +180,7 @@ def main():
     else:
         nw, ns, nb, sf = 64, 150, 50, 1
 
-    mu, e_mu, sig, e_sig, sampler = combine(y, yerr, 
+    mu, e_mu, sig, e_sig, sampler = combine(y, yerr,
             walkers=nw, steps=ns, discard=nb)
 
     if not args.one_line:
