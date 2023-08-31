@@ -1789,7 +1789,7 @@ class MultiVisit(object):
             ecc = f_c**2 + f_s**2
             omdeg = np.arctan2(f_s, f_c)*180/np.pi
             sini = par['sini'].value
-            ph_sec = eclipse_phase(P,sini,ecc,omdeg)
+            ph_sec = eclipse_phase(sini,ecc,omdeg)
             is_ecl = [min(abs(ph-ph_sec)) < 0.05 for ph in ph_fluxes]
             n_ecl = sum(is_ecl)
             n_tr = n-n_ecl

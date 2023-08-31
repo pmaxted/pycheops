@@ -75,11 +75,13 @@ from os.path import getmtime
 from .core import load_config
 from matplotlib.patches import Ellipse
 from scipy.signal import argrelextrema
+from scipy.optimize import brentq
 import warnings
 
 __all__ = [ 'a_rsun','f_m','m1sin3i','m2sin3i','asini','rhostar','g_2',
-        'K_kms','m_comp','transit_width','esolve','t2z',
-        'tperi2tzero','tzero2tperi', 'vrad', 'xyz_planet', 'delta_t_sec']
+           'K_kms','m_comp','transit_width','esolve','t2z',
+           'tperi2tzero','tzero2tperi','tzero2tinf','contact_points',
+           'vrad', 'xyz_planet', 'delta_t_sec']
 
 _arsun   = (GM_SunN*mean_solar_day**2/(4*pi**2))**(1/3.)/R_SunN
 _f_m     = mean_solar_day*1e9/(2*pi)/GM_SunN
@@ -325,10 +327,10 @@ def t2z(t, tzero, P, sini, rstar, ecc=0, omdeg=90, returnMask=False):
 
     Optionally, return a flag/mask to indicate cases where the planet is
     further from the observer than the star, i.e., whether phases with z<1 are
-    transits (mask==True) or eclipses (mask==False)
+    transits (mask==False) or eclipses (mask==True)
 
     :param t: time of observation (scalar or array)
-    :param tzero: time of inferior conjunction, i.e., mid-transit
+    :param tzero: time of mid-transit (minimum on-sky star-planet separation)
     :param P: orbital period
     :param sini: sine of orbital inclination
     :param rstar: scaled stellar radius, R_star/a
@@ -379,6 +381,37 @@ def t2z(t, tzero, P, sini, rstar, ecc=0, omdeg=90, returnMask=False):
         return z, sin(nu + omrad)*sini < 0
     else:
         return z
+#---------
+
+def tzero2tinf(tzero,P,sini,ecc,omdeg):
+    """
+    Calculate time of inferior conjunction from time of mid-transit
+
+    :param tzero: time of mid-transit (minimum on-sky star-planet separation)
+    :param P: orbital period
+    :param sini: sine of orbital inclination 
+    :param ecc: eccentricity 
+    :param omdeg: longitude of periastron in degrees
+
+    :returns: time of inferior conjunction closest to tzero
+
+    :Example:
+     >>> from pycheops.funcs import tzero2tinf
+     >>> tzero = 54321.6789
+     >>> P = 1.23456
+     >>> sini = 0.987
+     >>> ecc = 0.654
+     >>> omdeg = 89.01
+     >>> print("{:0.4f}".format(tzero2tinf(tzero,P,sini,ecc,omdeg)))
+     54321.6784
+
+    """
+    # See Hilditch Sec 4.2.1
+    tperi = tzero2tperi(tzero,P,sini,ecc,omdeg)
+    theta = pi/2 - omdeg*pi/180
+    E = 2*arctan(sqrt((1-ecc)/(1+ecc))*tan(theta/2))
+    eta = E - ecc*sin(E)
+    return eta*P/(2*pi) + tperi
 
 #---------
 
@@ -389,7 +422,7 @@ def tzero2tperi(tzero,P,sini,ecc,omdeg,
 
     Uses the method by Lacy, 1992AJ....104.2213L
 
-    :param tzero: times of mid-transit
+    :param tzero: time of mid-transit (minimum on-sky star-planet separation)
     :param P: orbital period
     :param sini: sine of orbital inclination 
     :param ecc: eccentricity 
@@ -527,14 +560,16 @@ def tperi2tzero(tperi,P,sini,ecc,omdeg,eclipse=False):
 
 #---------------
 
-def eclipse_phase (P,sini,ecc,omdeg):
+def eclipse_phase (sini,ecc,omdeg):
     """
-    Calculate time of mid-transit/mid-eclipse from time of periastron
+    Calculate phase of mid-eclipse from time of mid-transit
 
     Uses the method by Lacy, 1992AJ....104.2213L
 
-    :param tzero: times of mid-transit
-    :param P: orbital period
+    Time of mid-transit is time of minimum on-sky star-planet separation.
+
+    Does not include correction for light travel time (see delta_t_sec).
+
     :param sini: sine of orbital inclination 
     :param ecc: eccentricity 
     :param omdeg: longitude of periastron in degrees
@@ -543,17 +578,15 @@ def eclipse_phase (P,sini,ecc,omdeg):
 
     :Example:
      >>> from pycheops.funcs import eclipse_phase
-     >>> P = 1.23456
      >>> sini = 0.987
      >>> ecc = 0.654
      >>> omdeg = 89.01
-     >>> ph_ecl = eclipse_phase(tzero,P,sini,ecc,omdeg)
+     >>> ph_ecl = eclipse_phase(sini,ecc,omdeg)
      >>> print(f"Phase of eclipse = {ph_ecl:0.4f}")
 
     """
-    t_peri = tzero2tperi(0,P,sini,ecc,omdeg)
-    t_ecl = tperi2tzero(t_peri,P,sini,ecc,omdeg,eclipse=True)
-    return t_ecl/P % 1
+    t_peri = tzero2tperi(0,1,sini,ecc,omdeg)
+    return tperi2tzero(t_peri,1,sini,ecc,omdeg,eclipse=True)
 
 #---------------
 
@@ -583,7 +616,7 @@ def vrad(t,tzero,P,K,ecc=0,omdeg=90,sini=1, primary=True):
     Calculate radial velocity, V_r, for body in a Keplerian orbit
 
     :param t: array of input times 
-    :param tzero: time of inferior conjunction, i.e., mid-transit
+    :param tzero: time of mid-transit (minimum on-sky star-planet separation)
     :param P: orbital period
     :param K: radial velocity semi-amplitude 
     :param ecc: eccentricity (optional, default=0)
@@ -613,7 +646,7 @@ def xyz_planet(t, tzero, P, sini, ecc=0, omdeg=90):
     semi-major axis is taken to be a=1.
 
     :param t: time of observation (scalar or array)
-    :param tzero: time of inferior conjunction, i.e., mid-transit
+    :param tzero: time of mid-transit (minimum on-sky star-planet separation)
     :param P: orbital period
     :param sini: sine of orbital inclination
     :param ecc: eccentricity (optional, default=0)
@@ -1074,6 +1107,87 @@ def massradius(P=None, k=None, sini=None, ecc=None,
 
 #---------------
 
+def contact_points(tzero, P, rstar, k, sini, ecc, omdeg, M, q=0):
+    """
+    Calculate times of 1st, 2nd, 3rd and 4th contact for transit and eclipse 
+
+    Times are returned as np.nan if no such contact point exists, e.g for
+    partial eclipses.
+
+    Includes calculation of light travel time across the orbit for the eclipse
+
+    :param tzero: time of mid-transit (minimum on-sky star-planet separation)
+    :param P: orbital period in days
+    :param rstar: scaled stellar radius, R_star/a
+    :param k: R_planet/R_star
+    :param sini: sine of orbital inclination (optional, default 1)
+    :param ecc: eccentricity (optional, default=0)
+    :param omdeg: longitude of periastron in degrees (optional, default=90)
+    :param M: primary star mass in solar masses 
+    :param q: mass ratio = M_companion/M_star (optional, default 0)
+
+    N.B. omdeg is the longitude of periastron for the primary star's orbit
+
+    :returns: dict of contact points, t1-t4 for transit, t5-t8 for eclipse
+
+    :Example:
+
+    HD 80606
+
+    >>> tzero = 2458888.07466
+    >>> P = 111.436765
+    >>> sini = sin(radians(89.24))
+    >>> ecc = 0.93183
+    >>> omdeg = -58.887
+    >>> rstar = 1/94.452
+    >>> k = sqrt(0.01019)
+    >>> M = 1.05
+    >>> c = contact_points(tzero, P, rstar, k, sini, ecc, omdeg, M)
+    >>> t14 = c['t4']-c['t1']
+    >>> t58 = c['t8']-c['t5']
+    >>> print(f'Transit duration = {t14:0.3f} d')
+    Transit duration = 0.499 d
+    >>> print(f'Eclipse duration = {t58:0.3f} d')
+    Eclipse duration = 0.083 d
+
+    """
+    def _f1_(t):
+        return t2z(t, tzero, P, sini, rstar, ecc, omdeg) - (1+k)
+    def _f2_(t):
+        return t2z(t, tzero, P, sini, rstar, ecc, omdeg) - (1-k)
+
+    r = dict(zip([f't{i+1}' for i in range(8)],[nan]*8))
+    t = linspace(tzero-P/4,tzero+P/4, 65536) 
+    dt = ptp(t)/65535
+    z,m = t2z(t, tzero, P, sini, rstar, ecc, omdeg, returnMask=True)
+    if min(z[~m]) < (1+k):
+        ta = max(t[~m & (t < tzero) & (z > (1+k))])
+        r['t1'] = brentq(_f1_,ta,ta+dt)
+        tb = min(t[~m & (t > tzero) & (z > (1+k))])
+        r['t4'] = brentq(_f1_,tb-dt,tb)
+    if min(z[~m]) < (1-k):
+        ta = max(t[~m & (t < tzero) & (z > (1-k))])
+        r['t2'] = brentq(_f2_,ta,ta+dt)
+        tb = min(t[~m & (t > tzero) & (z > (1-k))])
+        r['t3'] = brentq(_f2_,tb-dt,tb)
+    tsec = tzero + P*eclipse_phase(sini, ecc, omdeg)
+    t = linspace(tsec-P/4,tsec+P/4,65536) 
+    ltt = delta_t_sec(P, M, sini, ecc, omdeg, q)/86400
+    z,m = t2z(t, tzero, P, sini, rstar, ecc, omdeg, returnMask=True)
+    if min(z[m]) < (1+k):
+        ta = max(t[m & (t < tsec) & (z > (1+k))])
+        r['t5'] = brentq(_f1_,ta,ta+dt) + ltt
+        tb = min(t[m & (t > tsec) & (z > (1+k))])
+        r['t8'] = brentq(_f1_,tb-dt,tb) + ltt
+    if min(z[m]) < (1-k):
+        ta = max(t[m & (t < tsec) & (z > (1-k))])
+        r['t6'] = brentq(_f2_,ta,ta+dt) + ltt
+        tb = min(t[m & (t > tsec) & (z > (1-k))])
+        r['t7'] = brentq(_f2_,tb-dt,tb) + ltt
+    return r
+
+#---------------
+
 def delta_t_sec(P, M=1, sini=1, ecc=0, omdeg=90, q=0):
     """
     Correction to time of mid-eclipse due to light travel time.
@@ -1081,7 +1195,7 @@ def delta_t_sec(P, M=1, sini=1, ecc=0, omdeg=90, q=0):
     From Borkovits, et al. 2015MNRAS.448..946B, equation (25)
 
     :param P: orbital period in days
-    :param Mass: primary star mass in solar masses (optional, default 1)
+    :param M: primary star mass in solar masses (optional, default 1)
     :param sini: sine of orbital inclination (optional, default 1)
     :param ecc: eccentricity (optional, default=0)
     :param omdeg: longitude of periastron in degrees (optional, default=90)
