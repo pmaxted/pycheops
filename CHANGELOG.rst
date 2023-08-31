@@ -1,7 +1,7 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1.1.1 (2023-08-29)
+1.1.1 (2023-08-31)
 ~~~~~~~~~~~~~~~~~~
 * Correction to tzero parameter definitions in docstrings for module funcs 
 * Correction to description of mask in funcs.t2z() docstring
