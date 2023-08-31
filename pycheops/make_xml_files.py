@@ -540,7 +540,7 @@ def _parcheck_time_critical(Priority, MinEffDur,
 
 def _target_table_row_to_xml(row, progamme_id=0,
         proprietary_first=547, proprietary_last=365, 
-        checker=False, user_g_mag=False):
+        user_g_mag=False):
 
     period = row['Period'] 
     t_exp = row['T_exp']
@@ -561,16 +561,6 @@ def _target_table_row_to_xml(row, progamme_id=0,
         gmag = row['dr2_g_mag']
         e_gmag = row['e_dr2_g_mag']
 
-    if checker:
-        try:
-            key = re.match('[AFGKM][0-9]', row['SpTy'])[0]
-            GV = SpTypeToGminusV[key]
-        except TypeError:
-            GV = -0.15
-        mag, e_mag = gmag-GV, e_gmag
-    else:
-        mag, e_mag = gmag, e_gmag
-
     if period > 0:
         error = _parcheck_time_critical(
                 row['Priority'], row['MinEffDur'],
@@ -588,7 +578,7 @@ def _target_table_row_to_xml(row, progamme_id=0,
               _creation_time_string(),
               progamme_id, proprietary_first, proprietary_last,
               row['Target'], row['Gaia_DR2'], row['SpTy'],
-              mag, e_mag,
+              gmag, e_gmag,
               _choose_romode(t_exp),
               radeg, dedeg, row['pmra'], row['pmdec'],
               row['parallax'], row['T_eff'], 
@@ -625,9 +615,6 @@ def _target_table_row_to_xml(row, progamme_id=0,
               row['T_visit'], row['N_Visits'], row['Priority'],
               row['MinEffDur']
               )
-
-    if checker:
-        xml = xml.replace('Target_Magnitude','Target_Vmagnitude')
 
     return xml
 
@@ -852,14 +839,6 @@ def main():
         help='Overwrite existing output files.'
     )
 
-    parser.add_argument('-c', '--checker', 
-        action='store_const',
-        dest='checker',
-        const=True,
-        default=False,
-        help='Output XML suitable for use with Scheduling Feasibility Checker'
-    )
-
     parser.add_argument('-x', '--suffix', 
         default='_EXT_APP_ObservationRequests.xml', type=str,
         help='''
@@ -1074,7 +1053,7 @@ def main():
                     progamme_id=args.programme_id, 
                     proprietary_first=args.proprietary_first,
                     proprietary_last=args.proprietary_last,
-                    checker=args.checker, user_g_mag=args.user_g_mag)
+                    user_g_mag=args.user_g_mag)
             )
         f.close()
 

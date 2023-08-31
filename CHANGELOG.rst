@@ -1,6 +1,14 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.1 (2023-08-29)
+~~~~~~~~~~~~~~~~~~
+* Correction to tzero parameter definitions in docstrings for module funcs 
+* Correction to description of mask in funcs.t2z() docstring
+* Removed argument "P" in call to funcs.eclipse_phase and updated docstring
+* Removed "-c" option from make_xml_files
+* Added funcs/contact_points()
+
 1.1.0 (2023-07-14)
 ~~~~~~~~~~~~~~~~~~
 * New extra_decorr_vectors option in Dataset and Multivisit fitting routines.
