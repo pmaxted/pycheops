@@ -1,6 +1,10 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.2 (2023-09-01)
+~~~~~~~~~~~~~~~~~~
+* make_xml_files bug fix.
+
 1.1.1 (2023-08-31)
 ~~~~~~~~~~~~~~~~~~
 * Correction to tzero parameter definitions in docstrings for module funcs 
