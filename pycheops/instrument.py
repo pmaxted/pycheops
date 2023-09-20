@@ -34,6 +34,7 @@ import numpy as np
 from os.path import join,abspath,dirname,isfile
 import pickle 
 from astropy.table import Table
+from astropy.coordinates import SkyCoord
 from .core import load_config
 from .models import TransitModel, scaled_transit_fit, minerr_transit_fit
 import warnings 
@@ -108,7 +109,18 @@ def visibility(ra, dec):
 
     """
 
-    return (_visibility_interpolator(ra, dec)*100).astype(int)
+    vis =  (_visibility_interpolator(ra, dec)*100).astype(int)
+    # Check if |ecliptic latitude| > 60 - never visible
+    # (CHEOPS-UGE-PSO-MAN-001  section 1.3.2)  
+    coo = SkyCoord(ra, dec, unit='degree')
+    if np.isscalar(vis):
+        if abs(coo.barycentrictrueecliptic.lat.degree) > 60:
+            vis = 0
+    else:
+        vis[abs(coo.barycentrictrueecliptic.lat.degree) > 60] = 0
+
+    return vis
+
 
 
 #-----------------------------

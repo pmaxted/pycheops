@@ -1,6 +1,11 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.3 (2023-09-20)
+~~~~~~~~~~~~~~~~~~
+* Improved visibility calculation in make_xml_files. Visibility for stars with
+  ecliptic latitude <-60,>+60 is now 0 (CHEOPS-UGE-PSO-MAN-001  section 1.3.2)
+
 1.1.2 (2023-09-01)
 ~~~~~~~~~~~~~~~~~~
 * make_xml_files bug fix.
