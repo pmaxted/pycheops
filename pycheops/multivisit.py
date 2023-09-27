@@ -42,7 +42,7 @@ from . import __version__
 from lmfit.models import ExpressionModel, Model
 from lmfit.minimizer import MinimizerResult
 from .models import TransitModel, FactorModel, EclipseModel, EBLMModel
-from .models import PlanetModel
+from .models import PlanetModel, HotPlanetModel
 from celerite2.terms import Term, SHOTerm
 from celerite2 import GaussianProcess
 from .funcs import rhostar, massradius, eclipse_phase
@@ -483,13 +483,16 @@ class MultiVisit(object):
         vals = OrderedDict()
         fittype = self.__fittype__
         klist = ['D', 'W', 'b', 'P', 'T_0', 'f_c', 'f_s', 'l_3']
-        if fittype in ['transit', 'eblm', 'planet']:
+        if fittype in ['transit', 'eblm', 'planet', 'hotplanet']:
             klist.append('h_1')
             klist.append('h_2')
         if fittype in ['eclipse', 'eblm']:
-            klist.append('L')
-            klist.append('a_c')
+            for k in ['L', 'a_c']:
+                klist.append(k)
         if fittype in ['planet']:
+            for k in ['A_g', 'a_c']:
+                klist.append(k)
+        if fittype in ['hotplanet']:
             for k in ['F_max', 'F_min', 'ph_off', 'a_c']:
                 klist.append(k)
         for k in klist:
@@ -502,7 +505,8 @@ class MultiVisit(object):
                 'h_1':1, 'h_2':1, 'L':1.0, 'F_max':1.0, 'l_3':1e6}
         step = {'D':1e-4, 'W':1e-4, 'b':1e-2, 'P':1e-6, 'T_0':1e-4,
                 'f_c':1e-4, 'f_s':1e-3, 'h_1':1e-3, 'h_2':1e-2,
-                'L':1e-5, 'F_max':1e-5, 'l_3':1e-3}
+                'L':1e-5, 'F_max':1e-5, 'l_3':1e-3, 'A_g':1e-3}
+
         # Initial stderr value for list of values that may be np.nan or None
         def robust_stderr(vals, stds, default):
             varr = np.array([v if v is not None else np.nan for v in vals])
@@ -534,9 +538,13 @@ class MultiVisit(object):
 
         for k in vals:
 
-            # For fit_planet, 'L'='F_max', so ...
-            if (fittype == 'planet') and (k == 'F_max'):
+            # For fit_hotplanet, 'L'='F_max', so ...
+            if (fittype == 'hotplanet') and (k == 'F_max'):
                 kp,kv = 'L','F_max'
+            # For fit_planet we use 'L' to compute 'A_g', so store it
+            # temporarily in 'A_g' ready for computation below
+            elif (fittype == 'planet') and (k == 'A_g'):
+                kp,kv = 'L','A_g'
             else:
                 kp,kv = k,k
 
@@ -556,7 +564,6 @@ class MultiVisit(object):
                         stds = [p[kp].stderr for p in plist]
                         stderr = robust_stderr(t, stds, step['T_0'])
                 else:
-
                     # Not all datasets have all parameters so ...
                     v = [p[kp].value if kp in p else np.nan for p in plist]
                     val = np.nanmean(v)
@@ -571,10 +578,15 @@ class MultiVisit(object):
                     vmax = np.nanmax(v)
                     if (kv in pmax) and not np.isfinite(vmax):
                         vmax = pmax[kv]
+                    # Limits of 'A_g' inherited from 'L' will not be right
+                    if (kv == 'A_g'):
+                        vmin = 0
+                        vmax = 1
+
                 params.add(kv, val, vary=vary, min=vmin, max=vmax)
-                vals[kv] = val
                 if vary:
-                    params.stderr = stderr
+                    params[kv].stderr = stderr
+                vals[kv] = val
 
             else:    # Value for parameter from kwargs
 
@@ -605,6 +617,7 @@ class MultiVisit(object):
                 # Needed to avoid errors when printing parameters
                 params[kv].stderr = None
 
+
         # Derived parameters
         params.add('k',expr='sqrt(D)',min=0,max=1)
         params.add('aR',expr='sqrt((1+k)**2-b**2)/W/pi',min=1)
@@ -634,6 +647,19 @@ class MultiVisit(object):
                 if k in params:
                     params[k].user_data = extra_priors[k]
 
+        # Compute A_g for fit_planet
+        # So far, we have stored the value of L and its standard error in
+        # place of this variable. Needs to be done here so that we can use
+        # consistent values of D and R*/a for the calculation.
+        if (fittype == 'planet'):
+            L = params['A_g'].value   # this is actually the value of L 
+            e_L = params['A_g'].stderr
+            params['A_g'].value = params['aR']**2 * L/params['D'].value
+            params['A_g'].stderr = params['A_g'].value * e_L/L
+            params.add('L_0',expr='D*A_g/aR**2')
+            vv[vn.index('A_g')] = params['A_g'].value
+            vs[vn.index('A_g')] = params['A_g'].stderr
+
         if fittype == 'transit':
             ttv = kwargs['ttv']
             ttv_prior = kwargs['ttv_prior']
@@ -648,7 +674,7 @@ class MultiVisit(object):
                 raise ValueError('L must be a fixed parameter of edv=True.')
             ttv, ttv_prior = False, None
 
-        if fittype in ['eblm', 'planet']:
+        if fittype in ['eblm', 'planet', 'hotplanet']:
             ttv = kwargs['ttv']
             ttv_prior = kwargs['ttv_prior']
             if ttv and (params['T_0'].vary or params['P'].vary):
@@ -657,6 +683,10 @@ class MultiVisit(object):
             edv_prior = kwargs['edv_prior']
             if edv and params['L'].vary:
                 raise ValueError('L must be a fixed parameter of edv=True.')
+            if edv and params['F_max'].vary:
+                raise ValueError('F_max must be a fixed parameter of edv=True.')
+            if edv and params['A_g'].vary:
+                raise ValueError('A_g must be a fixed parameter of edv=True.')
 
         # Make an lmfit Parameters() object that defines the noise model
         noisemodel = Parameters()  
@@ -763,6 +793,8 @@ class MultiVisit(object):
                 model = EBLMModel()*factor_model
             elif fittype == 'planet':
                 model = PlanetModel()*factor_model
+            elif fittype == 'hotplanet':
+                model = HotPlanetModel()*factor_model
             l = ['dfdbg','dfdcontam','dfdsmear','dfdx','dfdy']
             if True in [p_ in l for p_ in p]:
                 scales.append(d.__scale__)
@@ -1013,7 +1045,7 @@ class MultiVisit(object):
             f_unwrap = self.__fluxes_unwrap__[i]
     
             for p in ('T_0', 'P', 'D', 'W', 'b', 'f_c', 'f_s', 'l_3', 
-                    'h_1', 'h_2', 'L', 'F_max', 'F_min', 'ph_off'):
+                    'h_1', 'h_2', 'L', 'A_g', 'F_max', 'F_min', 'ph_off'):
                 if p in vn:
                     v = pos[vn.index(p)]
                     if not np.isfinite(v): return -np.inf, -np.inf
@@ -1022,7 +1054,7 @@ class MultiVisit(object):
                     modpar[p].value = v
     
             # Check that none of the derived parameters are out of range
-            for p in ('e', 'q_1', 'q_2', 'k', 'aR',  'rho',):
+            for p in ('e', 'q_1', 'q_2', 'k', 'aR',  'rho', 'L_0'):
                 if p in modpar:
                     v = modpar[p].value
                     if not np.isfinite(v): return -np.inf, -np.inf
@@ -1218,17 +1250,17 @@ class MultiVisit(object):
 
 #--------------------------------------------------------------------------
 
-    def fit_planet(self, steps=128, nwalkers=64, burn=256, 
+    def fit_hotplanet(self, steps=128, nwalkers=64, burn=256, 
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None, 
             h_1=None, h_2=None, l_3=None, ttv=False, ttv_prior=3600, 
             F_max=None, F_min=0, ph_off=0,
-            a_c=0, edv=False, edv_prior=1e-3, extra_priors=None, 
+            a_c=None, edv=False, edv_prior=1e-3, extra_priors=None, 
             log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
             unroll=True, nroll=3, unwrap=False, thin=1, 
             init_scale=0.5, progress=True, backend=None):
         """
         Use emcee to fit the transits and eclipses in the current datasets
-        using the PlanetModel model.
+        using the HotPlanetModel model.
 
         If T_0 and P are both fixed parameters then ttv=True can be used to
         include the free parameters ttv_i, the offset in seconds from the
@@ -1244,6 +1276,46 @@ class MultiVisit(object):
         By default, this method assumes ph_off=0 and F_min=0. The initial
         value of F_max is calculated from the best-fit values of L in the
         input eclipse datasets, if possible.
+
+        """
+        # Get a dictionary of all keyword arguments excluding 'self'
+        kwargs = dict(locals())
+        del kwargs['self']
+        self.__fittype__ = 'hotplanet'
+
+        return self.__run_emcee__(**kwargs)
+
+
+#--------------------------------------------------------------------------
+
+    def fit_planet(self, steps=128, nwalkers=64, burn=256, 
+            T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None, 
+            h_1=None, h_2=None, l_3=None, ttv=False, ttv_prior=3600, 
+            A_g=None, a_c=None, edv=False, edv_prior=1e-3, extra_priors=None, 
+            log_sigma_w=None, log_omega0=None, log_S0=None, log_Q=None,
+            unroll=True, nroll=3, unwrap=False, thin=1, 
+            init_scale=0.5, progress=True, backend=None):
+        """
+        Use emcee to fit the transits and eclipses in the current datasets
+        using the PlanetModel model.
+
+        If T_0 and P are both fixed parameters then ttv=True can be used to
+        include the free parameters ttv_i, the offset in seconds from the
+        predicted time of mid-transit for each dataset i = 1, ..., N. The
+        prior on the values of ttv_i is a Gaussian with a width ttv_prior in
+        seconds.
+
+        Eclipse depths variations can be included in the fit using the keyword
+        edv=True. In this case A_g must be a fixed parameter and the value of
+        A_g for dataset i is A_g_i, i=1, ..., N. The prior on the values of
+        F_max_i is a Gaussian with mean value F_max and width edv_prior.
+
+        The initial value of A_g is estimated from the best-fit values of L
+        in the input eclipse datasets assuming a circular orbit, if possible,
+        i.e. A_g = (a/R_*)^2 * L/D
+
+        The output from this method includes the derived parameter L_0, which
+        is the eclipse depth calculated from A_g using the same expression.
 
         """
         # Get a dictionary of all keyword arguments excluding 'self'
@@ -1363,6 +1435,8 @@ class MultiVisit(object):
             if self.__fittype__ == 'transit':
                 l = ['D', 'W', 'b', 'T_0', 'P', 'h_1', 'h_2']
             elif self.__fittype__ == 'planet':
+                l = ['D', 'W', 'b', 'T_0', 'P', 'A_g']
+            elif self.__fittype__ == 'hotplanet':
                 l = ['D', 'W', 'b', 'T_0', 'P', 'F_max']
             elif self.__fittype__ == 'eblm':
                 l = ['D', 'W', 'b', 'T_0', 'P', 'L']
@@ -1439,6 +1513,8 @@ class MultiVisit(object):
             if self.__fittype__ == 'transit':
                 l = ['D', 'W', 'b', 'T_0', 'P', 'h_1', 'h_2']
             elif self.__fittype__ == 'planet':
+                l = ['D', 'W', 'b', 'T_0', 'P', 'A_g']
+            elif self.__fittype__ == 'hotplanet':
                 l = ['D', 'W', 'b', 'T_0', 'P', 'F_max']
             elif self.__fittype__ == 'eblm':
                 l = ['D', 'W', 'b', 'T_0', 'P', 'L']
@@ -1782,7 +1858,7 @@ class MultiVisit(object):
             lc_grid.append(model.eval_components(params=modpar,t=tp)[k])
 
         plt.rc('font', size=fontsize)    
-        if self.__fittype__ in ['eblm', 'planet']:
+        if self.__fittype__ in ['eblm', 'hotplanet', 'planet']:
 
             f_c = par['f_c'].value
             f_s = par['f_s'].value
@@ -1938,7 +2014,7 @@ class MultiVisit(object):
             axes[1,1].set_xlabel('Phase')
             axes[1,0].set_ylabel('Residual')
 
-        else: # Not EBLM or Planet
+        else: # Not EBLM or Planet or HotPlanet
 
             if figsize is None:
                 figsize = (8, 2+1.5*n)
@@ -2225,6 +2301,8 @@ class MultiVisit(object):
                 model = EclipseModel()*factor_model
             elif self.__fittype__ == 'eblm':
                 model = EBLMModel()*factor_model
+            elif self.__fittype__ == 'hotplanet':
+                model = HotPlanetModel()*factor_model
             elif self.__fittype__ == 'planet':
                 model = PlanetModel()*factor_model
 

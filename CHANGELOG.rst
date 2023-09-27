@@ -1,6 +1,16 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.4 (2023-09-27)
+~~~~~~~~~~~~~~~~~~
+* PlanetModel renamed to HotPlanetModel
+* Multivisit.fit_planet() renamed to Multivisit.fit_hotplanet()
+* New PlanetModel that assumes flux from planet is due to reflection
+* Multivisit.fit_planet() now assumes flux from planet is due to reflection
+* Ensure funcs.eclipse_phase() returns phases in the range [0, 1)  
+* Change default keyword value a_c=0 to a_c=None so that it gets properly
+  initialised from the input datasets.
+
 1.1.3 (2023-09-20)
 ~~~~~~~~~~~~~~~~~~
 * Improved visibility calculation in make_xml_files. Visibility for stars with

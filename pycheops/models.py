@@ -41,7 +41,7 @@ c_light = c/1000 # km/s
 __all__ = ['qpower2', 'ueclipse', 'TransitModel', 'EclipseModel', 
            'FactorModel', 'ThermalPhaseModel', 'ReflectionModel',
            'RVModel', 'RVCompanion','EBLMModel', 'PlanetModel',
-           'scaled_transit_fit', 'minerr_transit_fit']
+           'HotPlanetModel', 'scaled_transit_fit', 'minerr_transit_fit']
 
 @jit(nopython=True)
 def qpower2(z,k,c,a):
@@ -693,9 +693,9 @@ class ReflectionModel(Model):
             ecc = f_c**2 + f_s**2
             if ecc > 0.95 : return np.zeros_like(t)
             om = np.arctan2(f_s, f_c)*180/np.pi
-            x,y,z = xyz_planet(t, T_0, P, sini, ecc, om)
-            r = np.sqrt(x**2+y**2+z**2)
-            beta = np.arccos(-z/r)
+            x_p,y_p,z_p = xyz_planet(t, T_0, P, sini, ecc, om)
+            r = np.sqrt(x_p**2+y_p**2+z_p**2)
+            beta = np.arccos(-z_p/r)
             Phi_L = (np.sin(beta) + (np.pi-beta)*np.cos(beta) )/np.pi
             return A_g*(r_p/r)**2*Phi_L
 
@@ -859,6 +859,151 @@ class RVCompanion(Model):
 
 class PlanetModel(Model):
     r"""Light curve model for a transiting exoplanet including transits,
+    eclipses, and reflected light from the planet.
+
+    :param t:      - independent variable (time)
+    :param T_0:    - time of mid-transit
+    :param P:      - orbital period
+    :param D:      - (R_2/R_1)**2 = k**2
+    :param W:      - (R_1/a)*sqrt((1+k)**2 - b**2)/pi
+    :param b:      - a*cos(i)/R_1
+    :param A_g:    - planet albedo
+    :param f_c:    - sqrt(ecc).cos(omega)
+    :param f_s:    - sqrt(ecc).sin(omega)
+    :param h_1:    - I(0.5) = 1 - c*(1-0.5**alpha)
+    :param h_2:    - I(0.5) - I(0) = c*0.5**alpha
+    :param a_c:    - correction for light travel time across the orbit
+    :param l_3:    - Third light 
+
+    The flux level from the star is 1 and is assumed to be constant.  
+
+    The reflected light from the planet is computed assuming a Lambertian
+    phase function. The fraction of the stellar flux reflected from the planet
+    of radius :math:`R_p` at a distance :math:`r` from the star and viewed at
+    phase angle :math:`\beta` is
+
+    .. math::
+        A_g(R_p/r)^2  \times  [\sin(\beta) + (\pi-\beta)*\cos(\beta) ]/\pi
+ 
+
+    The transit depth, width shape are parameterised by D, W and b. These
+    parameters are defined above in terms of the radius of the star,  R_1 and
+    R_2, the semi-major axis, a, and the orbital inclination, i. This model
+    assumes R_1 >> R_2, i.e., k=R_2/R_1 <~0.2.  The eccentricy and longitude
+    of periastron for the star's orbit are e and omega, respectively. These
+    are the same parameters used in TransitModel. The eclipse of the planet
+    assumes a uniform flux distribution.
+
+    The apparent time of mid-eclipse includes the correction a_c for the
+    light travel time across the orbit, i.e., for a circular orbit the time of
+    mid-eclipse is (T_0 + 0.5*P) + a_c. 
+
+    **N.B.** a_c must have the same units as P. 
+
+    Stellar limb-darkening is described by the power-2 law:
+
+    .. math::
+
+        I(\mu) = 1 - c (1 - \mu^\alpha)
+
+    The following parameters are defined for convenience:
+
+    * k = R_2/R_1; 
+    * aR = a/R_1; 
+    * A = F_max - F_min = amplitude of thermal phase effect.
+    * rho = 0.013418*aR**3/(P/d)**2.
+
+    **N.B.** the mean stellar density in solar units is rho, but only if the
+    mass ratio q = M_planet/M_star is q << 1. 
+
+    Third light is a constant added to the light curve and the fluxes are
+    re-normalised, i.e. PlanetModel = (light_curve + l_3)/(1+l_3)
+
+    """
+
+    def __init__(self, independent_vars=['t'], prefix='', nan_policy='raise',
+                 **kwargs):
+        kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
+                       'independent_vars': independent_vars})
+
+        def _planet_func(t, T_0, P, D, W, b, A_g, f_c, f_s,
+                h_1, h_2, a_c, l_3):
+            if (D <= 0) or (D > 0.25) or (W <= 0) or (b < 0):
+                return np.ones_like(t)
+            if ((1-abs(f_c)) <= 0) or ((1-abs(f_s)) <= 0):
+                return np.ones_like(t)
+
+            q1 = (1-h_2)**2
+            if (q1 <= 0) or (q1 >=1): return np.ones_like(t)
+            q2 = (h_1-h_2)/(1-h_2)
+            if (q2 <= 0) or (q2 >=1): return np.ones_like(t)
+            c2 = 1 - h_1 + h_2
+            a2 = np.log2(c2/h_2)
+            k = np.sqrt(D)
+            q = (1+k)**2 - b**2
+            if q <= 0: return np.ones_like(t)
+            r_star = np.pi*W/np.sqrt(q)
+            q = 1-b**2*r_star**2
+            if q <= 0: return np.ones_like(t)
+            sini = np.sqrt(q)
+            ecc = f_c**2 + f_s**2
+            if ecc > 0.95 : return np.ones_like(t)
+            om = np.arctan2(f_s, f_c)*180/np.pi
+            # Star-planet apparent separation and mask eclipses/transits
+            z,m = t2z(t, T_0, P, sini, r_star, ecc, om, returnMask=True)
+            if False in np.isfinite(z): return np.ones_like(t)
+            # Set z values where planet is behind star to a large nominal
+            # value for calculation of the transit
+            zt = z + 0   # copy 
+            zt[m] = 100
+            # Flux from the star including transits
+            f_star = qpower2(zt, k, c2, a2)
+            # Reflected light
+            x_p,y_p,z_p = xyz_planet(t, T_0, P, sini, ecc, om)
+            r = np.sqrt(x_p**2+y_p**2+z_p**2)
+            beta = np.arccos(-z_p/r)
+            Phi_L = (np.sin(beta) + (np.pi-beta)*np.cos(beta) )/np.pi
+            r_p = r_star*k
+            f_refl = A_g*(r_p/r)**2*Phi_L
+            # Flux from planet including eclipses
+            z[~m]  = 100
+            f_planet = f_refl * ueclipse(z, k)
+            return (f_star + f_planet + l_3)/(1+l_3)
+
+        super(PlanetModel, self).__init__(_planet_func, **kwargs)
+        self._set_paramhints_prefix()
+
+    def _set_paramhints_prefix(self):
+        p = self.prefix
+        self.set_param_hint(f'{p}P', value=1, min=1e-15)
+        self.set_param_hint(f'{p}D', value=0.01, min=0, max=0.25)
+        self.set_param_hint(f'{p}W', value=0.1, min=0, max=0.3)
+        self.set_param_hint(f'{p}b', value=0.3, min=0, max=1.0)
+        self.set_param_hint(f'{p}A_g', value=0.5, min=0, max=1)
+        self.set_param_hint(f'{p}f_c', value=0, min=-1, max=1, vary=False)
+        self.set_param_hint(f'{p}f_s', value=0, min=-1, max=1, vary=False)
+        expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
+        self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
+        self.set_param_hint(f'{p}h_1', value=0.7224, min=0, max=1, vary=False)
+        self.set_param_hint(f'{p}h_2', value=0.6713, min=0, max=1, vary=False)
+        expr = "(1-{p:s}h_2)**2".format(p=self.prefix)
+        self.set_param_hint(f'{p}q_1',min=0,max=1,expr=expr)
+        expr = "({p:s}h_1-{p:s}h_2)/(1-{p:s}h_2)".format(p=self.prefix)
+        self.set_param_hint(f'{p}q_2',min=0,max=1,expr=expr)
+        self.set_param_hint(f'{p}a_c', value=0, min=0, vary=False)
+        self.set_param_hint(f'{p}l_3', value=0,min=-0.99,max=1e6,vary=False)
+        expr = "sqrt({prefix:s}D)".format(prefix=self.prefix)
+        self.set_param_hint(f'{p}k', expr=expr, min=0, max=1)
+        expr ="sqrt((1+{p:s}k)**2-{p:s}b**2)/{p:s}W/pi".format(p=self.prefix)
+        self.set_param_hint(f'{p}aR',min=1, expr=expr)
+        expr = "0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix)
+        self.set_param_hint(f'{p}rho', min=0, expr = expr)
+
+
+#----------------------
+
+class HotPlanetModel(Model):
+    r"""Light curve model for a transiting exoplanet including transits,
     eclipses, and a thermal phase curve for the planet with an offset.
 
     :param t:      - independent variable (time)
@@ -922,7 +1067,7 @@ class PlanetModel(Model):
     mass ratio q = M_planet/M_star is q << 1. 
 
     Third light is a constant added to the light curve and the fluxes are
-    re-normalised, i.e. PlanetModel = (light_curve + l_3)/(1+l_3)
+    re-normalised, i.e. HotPlanetModel = (light_curve + l_3)/(1+l_3)
 
     """
 
@@ -973,7 +1118,7 @@ class PlanetModel(Model):
             f_planet = f_th * ueclipse(z, k)
             return (f_star + f_planet + l_3)/(1+l_3)
 
-        super(PlanetModel, self).__init__(_planet_func, **kwargs)
+        super(HotPlanetModel, self).__init__(_planet_func, **kwargs)
         self._set_paramhints_prefix()
 
     def _set_paramhints_prefix(self):
