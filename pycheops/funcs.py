@@ -381,6 +381,7 @@ def t2z(t, tzero, P, sini, rstar, ecc=0, omdeg=90, returnMask=False):
         return z, sin(nu + omrad)*sini < 0
     else:
         return z
+
 #---------
 
 def tzero2tinf(tzero,P,sini,ecc,omdeg):
@@ -586,7 +587,7 @@ def eclipse_phase (sini,ecc,omdeg):
 
     """
     t_peri = tzero2tperi(0,1,sini,ecc,omdeg)
-    return tperi2tzero(t_peri,1,sini,ecc,omdeg,eclipse=True)
+    return tperi2tzero(t_peri,1,sini,ecc,omdeg,eclipse=True) % 1
 
 #---------------
 
