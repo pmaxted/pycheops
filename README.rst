@@ -20,6 +20,14 @@ algorithms and assumptions used in pycheops.
 Troubleshooting
 ***************
 
+SSLCertVerificationError
+------------------------
+Try
+
+ ``$ pip uninstall python-dace-client``
+
+ ``$ pip install dace-query``
+
 Installation fails with "ModuleNotFoundError: No module named 'pybind11'"
 --------------------------------------------------------------------------
 
