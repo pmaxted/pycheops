@@ -1,6 +1,10 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.5 
+~~~~~~~~~~~~~~~~~~
+* Add fix for SSLCertVerificationError to README.rst
+
 1.1.4 (2023-09-27)
 ~~~~~~~~~~~~~~~~~~
 * PlanetModel renamed to HotPlanetModel
