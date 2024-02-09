@@ -1,7 +1,12 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1.1.5 
+1.1.6 (2024-02-09)
+~~~~~~~~~~~~~~~~~~
+* Added (insecure) work-around for SSL: CERTIFICATE_VERIFY_FAILED problem in
+  StarProperties when downloading SWEET-Cat.
+
+1.1.5 (2023-11-10)
 ~~~~~~~~~~~~~~~~~~
 * Add fix for SSLCertVerificationError to README.rst
 

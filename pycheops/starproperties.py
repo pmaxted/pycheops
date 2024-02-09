@@ -112,7 +112,10 @@ class StarProperties(object):
 
         if download_sweetcat:
             url = config['SWEET-Cat']['download_url']
-            req=requests.post(url)
+            try:
+                req=requests.post(url)
+            except:
+                req=requests.post(url,verify=False)
             with open(sweetCatPath, 'wb') as file:
                 file.write(req.content)
             if verbose:
