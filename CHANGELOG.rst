@@ -1,6 +1,10 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.7 (2024-03-06)
+~~~~~~~~~~~~~~~~~~
+* Update make_xml_files and fix bug with N_Ranges being ignored.
+
 1.1.6 (2024-02-09)
 ~~~~~~~~~~~~~~~~~~
 * Added (insecure) work-around for SSL: CERTIFICATE_VERIFY_FAILED problem in
