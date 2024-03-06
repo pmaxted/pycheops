@@ -52,8 +52,8 @@ PSF_R90 = 16.2
 PSF_HP = 0.0046
 FWC = 114000
 
-# From Benz et al., 2020
-CHEOPS_ORBIT_MINUTES = 98.725
+# From CH_TU2024-03-12T10-00-00_EXT_APP_ObservationRequests_V0003.xml
+CHEOPS_ORBIT_MINUTES = 98.77
 
 with open(join(_cache_path,'C_G_Teff_interpolator.p'),'rb') as fp:
     _C_G_Teff_interpolator = pickle.load(fp)
