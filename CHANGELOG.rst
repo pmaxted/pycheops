@@ -1,6 +1,11 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.8 (2024-03-16)
+~~~~~~~~~~~~~~~~~~
+* Added 'L_0' to list of valid plotkeys in multivisit.corner_plot() and
+  tidied-up logic so that invalid keys can return a helpful error message.
+
 1.1.7 (2024-03-06)
 ~~~~~~~~~~~~~~~~~~
 * Update make_xml_files and fix bug with N_Ranges being ignored.

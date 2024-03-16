@@ -1489,8 +1489,6 @@ class MultiVisit(object):
         Use custom_labels to change the string used for the axis labels, e.g.
         custom_labels={'F_max':r'$F_{\rm pl}/F_{\star}$'}
 
-
-        plotkeys
         :param plotkeys: list of variables to include in the corner plot
         :param custom_labels: dict of custom labels 
         :param show_priors: show +-1-sigma limits for Gaussian priors
@@ -1531,6 +1529,25 @@ class MultiVisit(object):
             d0 = np.floor(np.nanmedian(chain[:,var_names.index('T_0')]))
         else:
             d0 = 0 
+
+        if 'D' in var_names:
+            k = np.sqrt(chain[:,var_names.index('D')])
+        else:
+            k = np.sqrt(params['D'].value) # Needed for later calculations
+
+        if 'b' in var_names:
+            b = chain[:,var_names.index('b')]
+        else:
+            b = params['b'].value  # Needed for later calculations
+
+        if 'W' in var_names:
+            W = chain[:,var_names.index('W')]
+        else:
+            W = params['W'].value  # Needed for later calculations
+
+        aR = np.sqrt((1+k)**2-b**2)/W/np.pi
+        sini = np.sqrt(1 - (b/aR)**2)
+
         for key in plotkeys:
             if key in var_names:
                 if key == 'T_0':
@@ -1538,43 +1555,34 @@ class MultiVisit(object):
                 else:
                     xs.append(chain[:,var_names.index(key)])
 
-            if key == 'sigma_w' and params['log_sigma_w'].vary:
+            elif key == 'sigma_w' and params['log_sigma_w'].vary:
                 xs.append(np.exp(self.emcee.chain[:,-1])*1e6)
 
-            if 'D' in var_names:
-                k = np.sqrt(chain[:,var_names.index('D')])
-            else:
-                k = np.sqrt(params['D'].value) # Needed for later calculations
-
-            if key == 'k' and 'D' in var_names:
+            elif key == 'k' and 'D' in var_names:
                 xs.append(k)
 
-            if 'b' in var_names:
-                b = chain[:,var_names.index('b')]
-            else:
-                b = params['b'].value  # Needed for later calculations
-
-            if 'W' in var_names:
-                W = chain[:,var_names.index('W')]
-            else:
-                W = params['W'].value
-
-            aR = np.sqrt((1+k)**2-b**2)/W/np.pi
-            if key == 'aR':
+            elif key == 'aR':
                 xs.append(aR)
 
-            sini = np.sqrt(1 - (b/aR)**2)
-            if key == 'sini':
+            elif key == 'sini':
                 xs.append(sini)
 
-            if 'P' in var_names:
-                P = chain[:,var_names.index('P')]
-            else:
-                P = params['P'].value   # Needed for later calculations
-
-            if key == 'logrho':
+            elif key == 'logrho':
+                if 'P' in var_names:
+                    P = chain[:,var_names.index('P')]
+                else:
+                    P = params['P'].value   # Needed for later calculations
                 logrho = np.log10(4.3275e-4*((1+k)**2-b**2)**1.5/W**3/P**2)
                 xs.append(logrho)
+
+            elif key == 'L_0':
+                if 'A_g' in var_names:
+                    L = chain[:,var_names.index('A_g')]*(k/aR)**2
+                else:
+                    L = params['A_g'].value*(k/aR)**2
+                xs.append(L)
+            else:
+                raise ValueError(f'Variable {key} not in emcee chain')
 
         kws = {} if kwargs is None else kwargs
 
