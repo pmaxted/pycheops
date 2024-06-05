@@ -1,5 +1,10 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1.1.11 (2024-06-05)
+~~~~~~~~~~~~~~~~~~~
+* Cookbook updated (Pia Cortes Zuleta)
+
 1.1.10 (2024-04-24)
 ~~~~~~~~~~~~~~~~~~~
 * Example notebooks updated.
