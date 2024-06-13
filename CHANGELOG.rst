@@ -1,6 +1,10 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.12 (2024-06-13)
+~~~~~~~~~~~~~~~~~~~
+* Update dataset.animate_frames() (Tom Wilson)
+
 1.1.11 (2024-06-05)
 ~~~~~~~~~~~~~~~~~~~
 * Cookbook updated (Pia Cortes Zuleta)
