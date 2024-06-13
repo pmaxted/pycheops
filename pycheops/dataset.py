@@ -1185,9 +1185,9 @@ class Dataset(object):
                         title = str(self.target) + " - subarray - R = " + str(aperture) + " pix"
                     try:
                         frame_cube = self.get_subarrays()[::nframes,:,:]
-                        pltlims = 200
-                        cen_x = self.lc['table']['CENTROID_X'][::nframes]-self.lc['table']['LOCATION_X'][::nframes]+(pltlims/2)
-                        cen_y = self.lc['table']['CENTROID_Y'][::nframes]-self.lc['table']['LOCATION_Y'][::nframes]+(pltlims/2)
+                        pltlims = np.shape(frame_cube)[2]
+                        cen_x = _make_interp(self.lc['table']['MJD_TIME'], self.lc['table']['CENTROID_X']-self.lc['table']['LOCATION_X']+(pltlims/2))(self.subarrays['meta']['MJD_TIME'])[::nframes]
+                        cen_y = _make_interp(self.lc['table']['MJD_TIME'], self.lc['table']['CENTROID_Y']-self.lc['table']['LOCATION_Y']+(pltlims/2))(self.subarrays['meta']['MJD_TIME'])[::nframes]
                     except:
                         print("\nNo subarray data.")
                         continue
@@ -1197,10 +1197,10 @@ class Dataset(object):
                     else:
                         title = str(self.target) + " - imagette - R = " + str(aperture) + " pix"
                     try:
-                        pltlims = 50 
                         frame_cube = self.get_imagettes()[::nframes,:,:]
-                        cen_x = self.lc['table']['CENTROID_X'][::nframes]-self.lc['table']['LOCATION_X'][::nframes]+(pltlims/2)
-                        cen_y = self.lc['table']['CENTROID_Y'][::nframes]-self.lc['table']['LOCATION_Y'][::nframes]+(pltlims/2)
+                        pltlims = np.shape(frame_cube)[2]
+                        cen_x = _make_interp(self.lc['table']['MJD_TIME'], self.lc['table']['CENTROID_X']-self.lc['table']['LOCATION_X']+(pltlims/2))(self.imagettes['meta']['MJD_TIME'])[::nframes]
+                        cen_y = _make_interp(self.lc['table']['MJD_TIME'], self.lc['table']['CENTROID_Y']-self.lc['table']['LOCATION_Y']+(pltlims/2))(self.imagettes['meta']['MJD_TIME'])[::nframes]
                     except:
                         print("\nNo imagette data.")
                         continue
@@ -1246,9 +1246,11 @@ class Dataset(object):
                         if aperture == "DEFAULT":
                             aprad = 25
                         elif aperture == "RINF":
-                            aprad = 22
+                            aprad = 22.5
                         elif aperture == "RSUP":
                             aprad = 30
+                        elif aperture[:1] == "R":
+                            aprad = float(aperture[1:])
                         elif aperture == "OPTIMAL":
                             lcFile = "{}-{}.fits".format(self.file_key,aperture)
                             lcPath = Path(self.tgzfile).parent / lcFile
