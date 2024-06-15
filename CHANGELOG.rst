@@ -1,6 +1,13 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.2.0 ()
+~~~~~~~~~~~~~~~~~~~
+
+* Avoid need for aperture and decontaminate keywords in
+  dataset.get_lightcurve() for Kepler/TESS data from pycdata
+* Avoid "No metadata" warning when loading Kepler/TESS data from pycdata
+
 1.1.12 (2024-06-13)
 ~~~~~~~~~~~~~~~~~~~
 * Update dataset.animate_frames() (Tom Wilson)
