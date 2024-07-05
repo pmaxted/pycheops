@@ -407,8 +407,8 @@ class TransitModel1Spot(Model):
 
     The amplitude of the spot crossing event is specified as a factor of the
     flux drop due to the transit of the star by the companion using the
-    contrast factor, c1, i.e. if c1=1 then the flux at the peak of the spot
-    crossing event will return to the out-of-transit level. 
+    contrast factor, c1, i.e. a1=c1*D, so if c1=1 then the flux at the peak of
+    the spot crossing event will return to the out-of-transit level. 
 
     See SpotCrossingModel for more details of the spot crossing model.
 
@@ -492,6 +492,8 @@ class TransitModel1Spot(Model):
         self.set_param_hint(f'{p}w1', value=0.05, min=1e-15)
         self.set_param_hint(f'{p}f1', value=0.5, min=0, max=1)
         self.set_param_hint(f'{p}s1', value=0, min=-1, max=1)
+        expr = "{p:s}c1*{p:s}D".format(p=self.prefix)
+        self.set_param_hint(f'{p}a1',min=0, expr=expr)
 
 #----------------------
 
@@ -610,10 +612,14 @@ class TransitModel2Spot(Model):
         self.set_param_hint(f'{p}w1', value=0.05, min=1e-15)
         self.set_param_hint(f'{p}f1', value=0.5, min=0, max=1)
         self.set_param_hint(f'{p}s1', value=0, min=-1, max=1)
+        expr = "{p:s}c1*{p:s}D".format(p=self.prefix)
+        self.set_param_hint(f'{p}a1',min=0, expr=expr)
         self.set_param_hint(f'{p}c2', value=0.2, min=0, max=1)
         self.set_param_hint(f'{p}w2', value=0.05, min=1e-15)
         self.set_param_hint(f'{p}f2', value=0.5, min=0, max=1)
         self.set_param_hint(f'{p}s2', value=0, min=-1, max=1)
+        expr = "{p:s}c2*{p:s}D".format(p=self.prefix)
+        self.set_param_hint(f'{p}a2',min=0, expr=expr)
 
 #----------------------
 
