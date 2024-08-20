@@ -4,9 +4,13 @@ Changes since 1.0.0 onwards.
 1.2.0 ()
 ~~~~~~~~~~~~~~~~~~~
 
+* Added models/SpotModel, etc,
+
 * Avoid need for aperture and decontaminate keywords in
   dataset.get_lightcurve() for Kepler/TESS data from pycdata
 * Avoid "No metadata" warning when loading Kepler/TESS data from pycdata
+* Added omega as a derived parameter for all models that have parameters f_c,
+  f_s, and updated other models to have the same expression for this value.
 
 1.1.12 (2024-06-13)
 ~~~~~~~~~~~~~~~~~~~
