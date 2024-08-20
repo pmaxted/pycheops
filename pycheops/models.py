@@ -370,8 +370,9 @@ class TransitModel(Model):
         self.set_param_hint(f'{p}f_s', value=0, min=-1, max=1, vary=False)
         expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
         self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
-        expr = "degrees(atan2({p:s}f_s, {p:s}f_c))".format(p=self.prefix)
-        self.set_param_hint(f'{p}omega'.format(p=self.prefix), expr=expr)
+        expr = "degrees(atan2({p:s}f_s,{p:s}f_c))".format(p=self.prefix)
+        self.set_param_hint(f'{p}omega'.format(p=self.prefix),
+                            min=-360,max=360,expr=expr)
         self.set_param_hint(f'{p}h_1', value=0.7224,min=0,max=1,vary=False)
         self.set_param_hint(f'{p}h_2', value=0.6713,min=0,max=1,vary=False)
         self.set_param_hint(f'{p}l_3', value=0,min=-0.99,max=1e6,vary=False)
@@ -477,7 +478,8 @@ class TransitModel1Spot(Model):
         expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
         self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
         expr = "degrees(atan2({p:s}f_s,{p:s}f_c))".format(p=self.prefix)
-        self.set_param_hint(f'{p}omega'.format(p=self.prefix), expr=expr)
+        self.set_param_hint(f'{p}omega'.format(p=self.prefix),
+                            min=-360,max=360,expr=expr)
         self.set_param_hint(f'{p}h_1', value=0.7224,min=0,max=1,vary=False)
         self.set_param_hint(f'{p}h_2', value=0.6713,min=0,max=1,vary=False)
         self.set_param_hint(f'{p}l_3', value=0,min=-0.99,max=1e6,vary=False)
@@ -599,7 +601,8 @@ class TransitModel2Spot(Model):
         expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
         self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
         expr = "degrees(atan2({p:s}f_s,{p:s}f_c))".format(p=self.prefix)
-        self.set_param_hint(f'{p}omega',min=0,max=1,expr=expr)
+        self.set_param_hint(f'{p}omega'.format(p=self.prefix),
+                            min=-360,max=360,expr=expr)
         self.set_param_hint(f'{p}h_1', value=0.7224,min=0,max=1,vary=False)
         self.set_param_hint(f'{p}h_2', value=0.6713,min=0,max=1,vary=False)
         self.set_param_hint(f'{p}l_3', value=0,min=-0.99,max=1e6,vary=False)
@@ -716,7 +719,8 @@ class EclipseModel(Model):
         expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
         self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
         expr = "degrees(atan2({p:s}f_s,{p:s}f_c))".format(p=self.prefix)
-        self.set_param_hint(f'{p}omega',min=0,max=1,expr=expr)
+        self.set_param_hint(f'{p}omega'.format(p=self.prefix),
+                            min=-360,max=360,expr=expr)
         self.set_param_hint(f'{p}a_c', value=0, min=0, vary=False)
         self.set_param_hint(f'{p}l_3', value=0,min=-0.99,max=1e6,vary=False)
         expr = "sqrt({prefix:s}D)".format(prefix=self.prefix)
@@ -1023,7 +1027,8 @@ class RVModel(Model):
         expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
         self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
         expr = "degrees(atan2({p:s}f_s,{p:s}f_c))".format(p=self.prefix)
-        self.set_param_hint(f'{p}omega',min=0,max=1,expr=expr)
+        self.set_param_hint(f'{p}omega'.format(p=self.prefix),
+                            min=-360,max=360,expr=expr)
         self.set_param_hint(f'{p}sini', value=1, vary=False, min=0, max=1)
 
     __init__.__doc__ = COMMON_INIT_DOC
@@ -1095,7 +1100,8 @@ class RVCompanion(Model):
         self.set_param_hint(f'{p}e'.format(p=self.prefix), expr=expr, 
                 min=0, max=1)
         expr = "degrees(atan2({p:s}f_s,{p:s}f_c))".format(p=self.prefix)
-        self.set_param_hint(f'{p}omega',min=0,max=1,expr=expr)
+        self.set_param_hint(f'{p}omega'.format(p=self.prefix),
+                            min=-360,max=360,expr=expr)
 
     __init__.__doc__ = COMMON_INIT_DOC
 
@@ -1229,7 +1235,8 @@ class PlanetModel(Model):
         expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
         self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
         expr = "degrees(atan2({p:s}f_s,{p:s}f_c))".format(p=self.prefix)
-        self.set_param_hint(f'{p}omega'.format(p=self.prefix), expr=expr)
+        self.set_param_hint(f'{p}omega'.format(p=self.prefix),
+                            min=-360,max=360,expr=expr)
         self.set_param_hint(f'{p}h_1', value=0.7224, min=0, max=1, vary=False)
         self.set_param_hint(f'{p}h_2', value=0.6713, min=0, max=1, vary=False)
         expr = "(1-{p:s}h_2)**2".format(p=self.prefix)
@@ -1381,7 +1388,8 @@ class HotPlanetModel(Model):
         expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
         self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
         expr = "degrees(atan2({p:s}f_s,{p:s}f_c))".format(p=self.prefix)
-        self.set_param_hint(f'{p}omega'.format(p=self.prefix), expr=expr)
+        self.set_param_hint(f'{p}omega'.format(p=self.prefix),
+                            min=-360,max=360,expr=expr)
         self.set_param_hint(f'{p}h_1', value=0.7224, min=0, max=1, vary=False)
         self.set_param_hint(f'{p}h_2', value=0.6713, min=0, max=1, vary=False)
         expr = "(1-{p:s}h_2)**2".format(p=self.prefix)
@@ -1504,7 +1512,8 @@ class EBLMModel(Model):
         expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
         self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
         expr = "degrees(atan2({p:s}f_s, {p:s}f_c))".format(p=self.prefix)
-        self.set_param_hint(f'{p}omega'.format(p=self.prefix), expr=expr)
+        self.set_param_hint(f'{p}omega'.format(p=self.prefix),
+                            min=-360,max=360,expr=expr)
         self.set_param_hint(f'{p}h_1', value=0.7224,min=0,max=1,vary=False)
         self.set_param_hint(f'{p}h_2', value=0.6713,min=0,max=1,vary=False)
         expr = "(1-{p:s}h_2)**2".format(p=self.prefix)
