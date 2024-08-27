@@ -1,6 +1,16 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.2.0 ()
+~~~~~~~~~~~~~~~~~~~
+* Added SpotCrossingModel,TransitModel1Spot and TransitModel2Spot to models.
+* Fix to plotting with glint in dataset (#320)  
+* Avoid need for aperture and decontaminate keywords in
+  dataset.get_lightcurve() for Kepler/TESS data from pycdata
+* Avoid "No metadata" warning when loading Kepler/TESS data from pycdata
+* Added omega as a derived parameter for all models that have parameters f_c,
+  f_s, and updated other models to have the same expression for this value.
+
 1.1.12 (2024-06-13)
 ~~~~~~~~~~~~~~~~~~~
 * Update dataset.animate_frames() (Tom Wilson)

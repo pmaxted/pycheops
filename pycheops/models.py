@@ -41,6 +41,7 @@ c_light = c/1000 # km/s
 __all__ = ['qpower2', 'ueclipse', 'TransitModel', 'EclipseModel', 
            'FactorModel', 'ThermalPhaseModel', 'ReflectionModel',
            'RVModel', 'RVCompanion','EBLMModel', 'PlanetModel',
+           'SpotCrossingModel','TransitModel1Spot', 'TransitModel2Spot',
            'HotPlanetModel', 'scaled_transit_fit', 'minerr_transit_fit']
 
 @jit(nopython=True)
@@ -97,9 +98,9 @@ def qpower2(z,k,c,a):
         if zt <= (1-k):
             s = 1-zt**2
             c0 = (1-c+c*s**g)
-            c2 = 0.5*a*c*s**(g-2)*((a-1)*zt**2-1)
+            c_2 = 0.5*a*c*s**(g-2)*((a-1)*zt**2-1)
             f[i] = 1-I_0*np.pi*k**2*(
-                    c0 + 0.25*k**2*c2 - 0.125*a*c*k**2*s**(g-1) )
+                    c0 + 0.25*k**2*c_2 - 0.125*a*c*k**2*s**(g-1) )
         elif np.abs(zt-1) < k:
             d = (zt**2 - k**2 + 1)/(2*zt)
             ra = 0.5*(zt-k+d)
@@ -348,13 +349,13 @@ class TransitModel(Model):
             ecc = f_c**2 + f_s**2
             if ecc > 0.95 : return np.ones_like(t)
             om = np.arctan2(f_s, f_c)*180/np.pi
-            c2 = 1 - h_1 + h_2
-            a2 = np.log2(c2/h_2)
+            c_2 = 1 - h_1 + h_2
+            a_2 = np.log2(c_2/h_2)
             z,m = t2z(t, T_0, P, sini, r_star, ecc, om, returnMask = True)
             if False in np.isfinite(z): return np.ones_like(t)
             # Set z values where planet is behind star to a big nominal value
             z[m]  = 100
-            return (qpower2(z, k, c2, a2)+l_3)/(1+l_3)
+            return (qpower2(z, k, c_2, a_2)+l_3)/(1+l_3)
 
         super(TransitModel, self).__init__(_transit_func, **kwargs)
         self._set_paramhints_prefix()
@@ -369,6 +370,9 @@ class TransitModel(Model):
         self.set_param_hint(f'{p}f_s', value=0, min=-1, max=1, vary=False)
         expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
         self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
+        expr = "degrees(atan2({p:s}f_s,{p:s}f_c))".format(p=self.prefix)
+        self.set_param_hint(f'{p}omega'.format(p=self.prefix),
+                            min=-360,max=360,expr=expr)
         self.set_param_hint(f'{p}h_1', value=0.7224,min=0,max=1,vary=False)
         self.set_param_hint(f'{p}h_2', value=0.6713,min=0,max=1,vary=False)
         self.set_param_hint(f'{p}l_3', value=0,min=-0.99,max=1e6,vary=False)
@@ -384,6 +388,247 @@ class TransitModel(Model):
         expr = "0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix)
         self.set_param_hint(f'{p}rho', min=0, expr = expr)
 
+#----------------------
+
+class TransitModel1Spot(Model):
+    r"""Transit light curve model with 1 spot crossing event
+
+    Equivalent to TransitModel + SpotCrossingModel.
+
+    See TransitModel for transit model parameters.
+
+    N.B. there will be a systematic error in D due to unocculted spots - see
+    Czesla et al. (2009A&A...505.1277C), Oshagh et al. (2013A&A...556A..19O).
+
+    The parameters for the spot crossing event are 
+
+    :param t1: - mid-point of spot crossing event
+    :param c1: - contrast factor for spot crossing event (0 <= c1 <= 1)
+    :param w1: - half-width of spot crossing event (w1 > 0) 
+    :param f1: - flattening parameter (0 <= f1 <= 1)
+    :param s1: - skew parameter (-1 <= s1 <= 1) 
+
+    The amplitude of the spot crossing event is specified as a factor of the
+    flux drop due to the transit of the star by the companion using the
+    contrast factor, c1, i.e. a1=c1*D, so if c1=1 then the flux at the peak of
+    the spot crossing event will return to the out-of-transit level. 
+
+    See SpotCrossingModel for more details of the spot crossing model.
+
+    """
+
+    def __init__(self, independent_vars=['t'], prefix='', nan_policy='raise',
+                 **kwargs):
+        kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
+                       'independent_vars': independent_vars})
+
+        def _transit_func_1spot(t, T_0, P, D, W, b, f_c, f_s, h_1, h_2, l_3,
+                                t1, c1, w1, f1, s1 ):
+
+            if (D <= 0) or (D > 0.25) or (W <= 0) or (b < 0):
+                return np.ones_like(t)
+            if ((1-abs(f_c)) <= 0) or ((1-abs(f_s)) <= 0):
+                return np.ones_like(t)
+            if (c1 < 0) or (c1 > 1) or (f1 < 0) or (f1 > 1):
+                return np.ones_like(t)
+            if (w1 <= 0) or (s1 < -1) or (s1 > 1):
+                return np.ones_like(t)
+            q1 = (1-h_2)**2
+            if (q1 <= 0) or (q1 >=1): return np.ones_like(t)
+            q2 = (h_1-h_2)/(1-h_2)
+            if (q2 <= 0) or (q2 >=1): return np.ones_like(t)
+            k = np.sqrt(D)
+            q = (1+k)**2 - b**2
+            if q <= 0: return np.ones_like(t)
+            r_star = np.pi*W/np.sqrt(q)
+            q = 1-b**2*r_star**2
+            if q <= 0: return np.ones_like(t)
+            sini = np.sqrt(q)
+            ecc = f_c**2 + f_s**2
+            if ecc > 0.95 : return np.ones_like(t)
+            om = np.arctan2(f_s, f_c)*180/np.pi
+            c_2 = 1 - h_1 + h_2
+            a_2 = np.log2(c_2/h_2)
+            z,m = t2z(t, T_0, P, sini, r_star, ecc, om, returnMask = True)
+            if False in np.isfinite(z): return np.ones_like(t)
+            # Set z values where planet is behind star to a big nominal value
+            z[m]  = 100
+            r = qpower2(z, k, c_2, a_2)
+            # Check this is not an eclipse of the companion
+            z1,m1 = t2z(t1, T_0, P, sini, r_star, ecc, om, returnMask = True)
+            if ~m1: 
+                d = (t-t1)/w1
+                j = abs(d) < 1
+                dj = d[j]
+                r[j] += c1*(1-r[j])*(1 + s1*(dj**3-dj)-(1-f1)*dj**2 - f1*dj**8)
+            r = (r+l_3)/(1+l_3)
+            return r
+
+        super(TransitModel1Spot, self).__init__(_transit_func_1spot, **kwargs)
+        self._set_paramhints_prefix()
+
+    def _set_paramhints_prefix(self):
+        p = self.prefix
+        self.set_param_hint(f'{p}P', value=1, min=1e-15)
+        self.set_param_hint(f'{p}D', value=0.01, min=0, max=0.25)
+        self.set_param_hint(f'{p}W', value=0.1, min=0, max=0.3)
+        self.set_param_hint(f'{p}b', value=0.3, min=0, max=1.0)
+        self.set_param_hint(f'{p}f_c', value=0, min=-1, max=1, vary=False)
+        self.set_param_hint(f'{p}f_s', value=0, min=-1, max=1, vary=False)
+        expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
+        self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
+        expr = "degrees(atan2({p:s}f_s,{p:s}f_c))".format(p=self.prefix)
+        self.set_param_hint(f'{p}omega'.format(p=self.prefix),
+                            min=-360,max=360,expr=expr)
+        self.set_param_hint(f'{p}h_1', value=0.7224,min=0,max=1,vary=False)
+        self.set_param_hint(f'{p}h_2', value=0.6713,min=0,max=1,vary=False)
+        self.set_param_hint(f'{p}l_3', value=0,min=-0.99,max=1e6,vary=False)
+        expr = "(1-{p:s}h_2)**2".format(p=self.prefix)
+        self.set_param_hint(f'{p}q_1',min=0,max=1,expr=expr)
+        expr = "({p:s}h_1-{p:s}h_2)/(1-{p:s}h_2)".format(p=self.prefix)
+        self.set_param_hint(f'{p}q_2',min=0,max=1,expr=expr)
+        expr = "sqrt({p:s}D)".format(p=self.prefix)
+        self.set_param_hint(f'{p}k'.format(p=self.prefix), 
+                expr=expr, min=0, max=0.5)
+        expr ="sqrt((1+{p:s}k)**2-{p:s}b**2)/{p:s}W/pi".format(p=self.prefix)
+        self.set_param_hint(f'{p}aR',min=1, expr=expr)
+        expr = "0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix)
+        self.set_param_hint(f'{p}rho', min=0, expr = expr)
+        self.set_param_hint(f'{p}c1', value=0.2, min=0, max=1)
+        self.set_param_hint(f'{p}w1', value=0.05, min=1e-15)
+        self.set_param_hint(f'{p}f1', value=0.5, min=0, max=1)
+        self.set_param_hint(f'{p}s1', value=0, min=-1, max=1)
+        expr = "{p:s}c1*{p:s}D".format(p=self.prefix)
+        self.set_param_hint(f'{p}a1',min=0, expr=expr)
+
+#----------------------
+
+class TransitModel2Spot(Model):
+    r"""Transit light curve model with 2 spot crossing events
+
+    Equivalent to TransitModel + SpotCrossingModel_1 + SpotCrossingModels_2
+
+    See TransitModel for transit model parameters.
+
+    N.B. there will be a systematic error in D due to unocculted spots - see
+    Czesla et al. (2009A&A...505.1277C), Oshagh et al. (2013A&A...556A..19O).
+
+    The parameters for the spot crossing events are 
+
+    :param t1:     - mid-point of spot crossing event 1
+    :param a1:     - amplitude of spot crossing event 1
+    :param w1:     - half-width of spot crossing event 1 
+    :param f1:     - flattening parameter for spot crossing event 1 
+    :param s1:     - skew parameter for spot crossing event 1
+    :param t2:     - mid-point of spot crossing event 2
+    :param a2:     - amplitude of spot crossing event 2
+    :param w2:     - half-width of spot crossing event 2 
+    :param f2:     - flattening parameter for spot crossing event 2 
+    :param s2:     - skew parameter for spot crossing event 2
+
+    See SpotCrossingModel for more details of this model.
+
+    """
+
+    def __init__(self, independent_vars=['t'], prefix='', nan_policy='raise',
+                 **kwargs):
+        kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
+                       'independent_vars': independent_vars})
+
+        def _transit_func_2spot(t, T_0, P, D, W, b, f_c, f_s, h_1, h_2, l_3,
+                                t1, c1, w1, f1, s1, t2, c2, w2, f2, s2):
+
+            if (D <= 0) or (D > 0.25) or (W <= 0) or (b < 0):
+                return np.ones_like(t)
+            if ((1-abs(f_c)) <= 0) or ((1-abs(f_s)) <= 0):
+                return np.ones_like(t)
+            if (c1 < 0) or (c1 > 1) or (f1 < 0) or (f1 > 1):
+                return np.ones_like(t)
+            if (w1 <= 0) or (s1 < -1) or (s1 > 1):
+                return np.ones_like(t)
+            if (c2 < 0) or (c2 > 1) or (f2 < 0) or (f2 > 1):
+                return np.ones_like(t)
+            if (w2 <= 0) or (s2 < -1) or (s2 > 1):
+                return np.ones_like(t)
+            q1 = (1-h_2)**2
+            if (q1 <= 0) or (q1 >=1): return np.ones_like(t)
+            q2 = (h_1-h_2)/(1-h_2)
+            if (q2 <= 0) or (q2 >=1): return np.ones_like(t)
+            k = np.sqrt(D)
+            q = (1+k)**2 - b**2
+            if q <= 0: return np.ones_like(t)
+            r_star = np.pi*W/np.sqrt(q)
+            q = 1-b**2*r_star**2
+            if q <= 0: return np.ones_like(t)
+            sini = np.sqrt(q)
+            ecc = f_c**2 + f_s**2
+            if ecc > 0.95 : return np.ones_like(t)
+            om = np.arctan2(f_s, f_c)*180/np.pi
+            c_2 = 1 - h_1 + h_2
+            a_2 = np.log2(c_2/h_2)
+            z,m = t2z(t, T_0, P, sini, r_star, ecc, om, returnMask = True)
+            if False in np.isfinite(z): return np.ones_like(t)
+            # Set z values where planet is behind star to a big nominal value
+            z[m]  = 100
+            r = qpower2(z, k, c_2, a_2)
+            # Check this is not an eclipse of the companion
+            z1,m1 = t2z(t1, T_0, P, sini, r_star, ecc, om, returnMask = True)
+            if ~m1: 
+                d = (t-t1)/w1
+                j = abs(d) < 1
+                dj = d[j]
+                r[j] += c1*(1-r[j])*(1 + s1*(dj**3-dj)-(1-f1)*dj**2 - f1*dj**8)
+            z2,m2 = t2z(t2, T_0, P, sini, r_star, ecc, om, returnMask = True)
+            if ~m2: 
+                d = (t-t2)/w2
+                j = abs(d) < 1
+                dj = d[j]
+                r[j] += c2*(1-r[j])*(1 + s2*(dj**3-dj)-(1-f2)*dj**2 - f2*dj**8)
+            r = (r+l_3)/(1+l_3)
+            return r
+
+        super(TransitModel2Spot, self).__init__(_transit_func_2spot, **kwargs)
+        self._set_paramhints_prefix()
+
+    def _set_paramhints_prefix(self):
+        p = self.prefix
+        self.set_param_hint(f'{p}P', value=1, min=1e-15)
+        self.set_param_hint(f'{p}D', value=0.01, min=0, max=0.25)
+        self.set_param_hint(f'{p}W', value=0.1, min=0, max=0.3)
+        self.set_param_hint(f'{p}b', value=0.3, min=0, max=1.0)
+        self.set_param_hint(f'{p}f_c', value=0, min=-1, max=1, vary=False)
+        self.set_param_hint(f'{p}f_s', value=0, min=-1, max=1, vary=False)
+        expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
+        self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
+        expr = "degrees(atan2({p:s}f_s,{p:s}f_c))".format(p=self.prefix)
+        self.set_param_hint(f'{p}omega'.format(p=self.prefix),
+                            min=-360,max=360,expr=expr)
+        self.set_param_hint(f'{p}h_1', value=0.7224,min=0,max=1,vary=False)
+        self.set_param_hint(f'{p}h_2', value=0.6713,min=0,max=1,vary=False)
+        self.set_param_hint(f'{p}l_3', value=0,min=-0.99,max=1e6,vary=False)
+        expr = "(1-{p:s}h_2)**2".format(p=self.prefix)
+        self.set_param_hint(f'{p}q_1',min=0,max=1,expr=expr)
+        expr = "({p:s}h_1-{p:s}h_2)/(1-{p:s}h_2)".format(p=self.prefix)
+        self.set_param_hint(f'{p}q_2',min=0,max=1,expr=expr)
+        expr = "sqrt({p:s}D)".format(p=self.prefix)
+        self.set_param_hint(f'{p}k'.format(p=self.prefix), 
+                expr=expr, min=0, max=0.5)
+        expr ="sqrt((1+{p:s}k)**2-{p:s}b**2)/{p:s}W/pi".format(p=self.prefix)
+        self.set_param_hint(f'{p}aR',min=1, expr=expr)
+        expr = "0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix)
+        self.set_param_hint(f'{p}rho', min=0, expr = expr)
+        self.set_param_hint(f'{p}c1', value=0.2, min=0, max=1)
+        self.set_param_hint(f'{p}w1', value=0.05, min=1e-15)
+        self.set_param_hint(f'{p}f1', value=0.5, min=0, max=1)
+        self.set_param_hint(f'{p}s1', value=0, min=-1, max=1)
+        expr = "{p:s}c1*{p:s}D".format(p=self.prefix)
+        self.set_param_hint(f'{p}a1',min=0, expr=expr)
+        self.set_param_hint(f'{p}c2', value=0.2, min=0, max=1)
+        self.set_param_hint(f'{p}w2', value=0.05, min=1e-15)
+        self.set_param_hint(f'{p}f2', value=0.5, min=0, max=1)
+        self.set_param_hint(f'{p}s2', value=0, min=-1, max=1)
+        expr = "{p:s}c2*{p:s}D".format(p=self.prefix)
+        self.set_param_hint(f'{p}a2',min=0, expr=expr)
 
 #----------------------
 
@@ -473,6 +718,9 @@ class EclipseModel(Model):
         self.set_param_hint(f'{p}f_s', value=0, min=-1, max=1, vary=False)
         expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
         self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
+        expr = "degrees(atan2({p:s}f_s,{p:s}f_c))".format(p=self.prefix)
+        self.set_param_hint(f'{p}omega'.format(p=self.prefix),
+                            min=-360,max=360,expr=expr)
         self.set_param_hint(f'{p}a_c', value=0, min=0, vary=False)
         self.set_param_hint(f'{p}l_3', value=0,min=-0.99,max=1e6,vary=False)
         expr = "sqrt({prefix:s}D)".format(prefix=self.prefix)
@@ -778,9 +1026,10 @@ class RVModel(Model):
         self.set_param_hint(f'{p}q', value=0, vary=False, min=0)
         expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
         self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
+        expr = "degrees(atan2({p:s}f_s,{p:s}f_c))".format(p=self.prefix)
+        self.set_param_hint(f'{p}omega'.format(p=self.prefix),
+                            min=-360,max=360,expr=expr)
         self.set_param_hint(f'{p}sini', value=1, vary=False, min=0, max=1)
-        expr = "180*atan2({p:s}f_s, {p:s}f_c)/pi".format(p=self.prefix)
-        self.set_param_hint(f'{p}omega', expr=expr) 
 
     __init__.__doc__ = COMMON_INIT_DOC
 
@@ -850,8 +1099,9 @@ class RVCompanion(Model):
         expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
         self.set_param_hint(f'{p}e'.format(p=self.prefix), expr=expr, 
                 min=0, max=1)
-        expr = "180*atan2({p:s}f_s, {p:s}f_c)/pi".format(p=self.prefix)
-        self.set_param_hint(f'{p}omega'.format(p=self.prefix), expr=expr)
+        expr = "degrees(atan2({p:s}f_s,{p:s}f_c))".format(p=self.prefix)
+        self.set_param_hint(f'{p}omega'.format(p=self.prefix),
+                            min=-360,max=360,expr=expr)
 
     __init__.__doc__ = COMMON_INIT_DOC
 
@@ -937,8 +1187,8 @@ class PlanetModel(Model):
             if (q1 <= 0) or (q1 >=1): return np.ones_like(t)
             q2 = (h_1-h_2)/(1-h_2)
             if (q2 <= 0) or (q2 >=1): return np.ones_like(t)
-            c2 = 1 - h_1 + h_2
-            a2 = np.log2(c2/h_2)
+            c_2 = 1 - h_1 + h_2
+            a_2 = np.log2(c_2/h_2)
             k = np.sqrt(D)
             q = (1+k)**2 - b**2
             if q <= 0: return np.ones_like(t)
@@ -957,7 +1207,7 @@ class PlanetModel(Model):
             zt = z + 0   # copy 
             zt[m] = 100
             # Flux from the star including transits
-            f_star = qpower2(zt, k, c2, a2)
+            f_star = qpower2(zt, k, c_2, a_2)
             # Reflected light
             x_p,y_p,z_p = xyz_planet(t, T_0, P, sini, ecc, om)
             r = np.sqrt(x_p**2+y_p**2+z_p**2)
@@ -984,6 +1234,9 @@ class PlanetModel(Model):
         self.set_param_hint(f'{p}f_s', value=0, min=-1, max=1, vary=False)
         expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
         self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
+        expr = "degrees(atan2({p:s}f_s,{p:s}f_c))".format(p=self.prefix)
+        self.set_param_hint(f'{p}omega'.format(p=self.prefix),
+                            min=-360,max=360,expr=expr)
         self.set_param_hint(f'{p}h_1', value=0.7224, min=0, max=1, vary=False)
         self.set_param_hint(f'{p}h_2', value=0.6713, min=0, max=1, vary=False)
         expr = "(1-{p:s}h_2)**2".format(p=self.prefix)
@@ -1089,8 +1342,8 @@ class HotPlanetModel(Model):
             if (q1 <= 0) or (q1 >=1): return np.ones_like(t)
             q2 = (h_1-h_2)/(1-h_2)
             if (q2 <= 0) or (q2 >=1): return np.ones_like(t)
-            c2 = 1 - h_1 + h_2
-            a2 = np.log2(c2/h_2)
+            c_2 = 1 - h_1 + h_2
+            a_2 = np.log2(c_2/h_2)
             k = np.sqrt(D)
             q = (1+k)**2 - b**2
             if q <= 0: return np.ones_like(t)
@@ -1109,7 +1362,7 @@ class HotPlanetModel(Model):
             zt = z + 0   # copy 
             zt[m] = 100
             # Flux from the star including transits
-            f_star = qpower2(zt, k, c2, a2)
+            f_star = qpower2(zt, k, c_2, a_2)
             # thermal phase effect
             A = F_max - F_min
             f_th = F_min + A*(1-np.cos(2*np.pi*((t-T_0)/P-ph_off)))/2
@@ -1134,6 +1387,9 @@ class HotPlanetModel(Model):
         self.set_param_hint(f'{p}f_s', value=0, min=-1, max=1, vary=False)
         expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
         self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
+        expr = "degrees(atan2({p:s}f_s,{p:s}f_c))".format(p=self.prefix)
+        self.set_param_hint(f'{p}omega'.format(p=self.prefix),
+                            min=-360,max=360,expr=expr)
         self.set_param_hint(f'{p}h_1', value=0.7224, min=0, max=1, vary=False)
         self.set_param_hint(f'{p}h_2', value=0.6713, min=0, max=1, vary=False)
         expr = "(1-{p:s}h_2)**2".format(p=self.prefix)
@@ -1216,8 +1472,8 @@ class EBLMModel(Model):
             if (q1 <= 0) or (q1 >=1): return np.ones_like(t)
             q2 = (h_1-h_2)/(1-h_2)
             if (q2 <= 0) or (q2 >=1): return np.ones_like(t)
-            c2 = 1 - h_1 + h_2
-            a2 = np.log2(c2/h_2)
+            c_2 = 1 - h_1 + h_2
+            a_2 = np.log2(c_2/h_2)
             k = np.sqrt(D)
             q = (1+k)**2 - b**2
             if q <= 0: return np.ones_like(t)
@@ -1233,7 +1489,7 @@ class EBLMModel(Model):
             # Set z values where star 2 is behind star  1 to a large nominal
             # value for calculation of the transit
             z[m] = 100
-            lc =  qpower2(z, k, c2, a2)
+            lc =  qpower2(z, k, c_2, a_2)
             z,m = t2z(t-a_c, T_0, P, sini, r_star, ecc, om, returnMask=True)
             if False in np.isfinite(z): return np.ones_like(t)
             # Set z values where star  1 is behind star 2 to a large nominal
@@ -1255,6 +1511,9 @@ class EBLMModel(Model):
         self.set_param_hint(f'{p}f_s', value=0, min=-1, max=1, vary=False)
         expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
         self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
+        expr = "degrees(atan2({p:s}f_s, {p:s}f_c))".format(p=self.prefix)
+        self.set_param_hint(f'{p}omega'.format(p=self.prefix),
+                            min=-360,max=360,expr=expr)
         self.set_param_hint(f'{p}h_1', value=0.7224,min=0,max=1,vary=False)
         self.set_param_hint(f'{p}h_2', value=0.6713,min=0,max=1,vary=False)
         expr = "(1-{p:s}h_2)**2".format(p=self.prefix)
@@ -1274,68 +1533,48 @@ class EBLMModel(Model):
 
 #----------------------
 
-class Priors(OrderedDict):
-    """An ordered dictionary of all the Prior objects required to evaluate the
-    log-value of the prior for Bayesian model fitting. 
+class SpotCrossingModel(Model):
+    r"""Parametric model of a spot crossing event in a transit
 
-    All values of a Priors() instance must be Prior objects.
+    :param t:      - independent variable (time)
+    :param t0:     - mid-point of spot crossing event
+    :param a:      - amplitude of spot crossing event (a > 0)
+    :param w:      - half-width of spot crossing event (w > 0) 
+    :param f:      - flattening parameter  (0 <= f <= 1)
+    :param s:      - skew parameter (-1 <= s <= 1) 
 
-    A Priors() instance includes an asteval interpreter used for
-    evaluation of constrained Parameters.
+    This is a simple model for the "bumps" in transit light curves due to the
+    companion crossing a dark spot. The model is a polynomial function within
+    the range -1 < d < 1, where d = (t-t0)/w, and is 0 otherwise. 
 
-    ToDo: copying, pickling and serialization
-
-    """
-
-    def __init__(self, usersyms=None):
-        """
-        Arguments
-        ---------
-        usersyms : dictionary of symbols to add to the
-            :class:`asteval.Interpreter`.
-
-        """
-
-        super(Parameters, self).__init__(self)
-        self._asteval = Interpreter(usersyms=usersyms)
-
-#----------------------
-
-class Prior(object):
-    """A Prior is an object that can be used in the calculation of the
-    log-likelihood function for Bayeisan model fitting methods.
-
-    A Prior has a `name` attribute that corresponds to the name of one of the
-    parameters in the model, i.e., there must be a corresponding Parameter
-    object in the model with the same name. The log-value of the prior for a
-    given parameter value is evaluated using the mathemetical expression
-    provided in `expr`, e.g., for a Gaussian with mean mu and standard
-    deviation sigma, the contribution to the total log-likelihood for a
-    parameter with value x is -0.5*(mu-x)**2/sigma**2. The constants mu and
-    sigma are hyper-parameters, i.e., parameters of the prior model, not of
-    the data model.
+    .. math::
+        a*(1 + s*(d**3-d)-(1-f)*d**2 - f*d**8)*(abs(d)<1)
+ 
+    Returns 0 for all values of t if any parameter is out of range.
 
     """
 
-    def __init__(self, name=None, expr=None, hyper=None):
-        """
-        Parameters
-        ----------
+    def __init__(self, independent_vars=['t'], prefix='', nan_policy='raise',
+                 **kwargs):
+        kwargs.update({'prefix': prefix, 'nan_policy': nan_policy,
+                       'independent_vars': independent_vars})
 
-        name : str
-            Name of the Parameter to which the Prior is applied.
-        expr : str
-            Mathematical expression used to evaluate the prior log-value
-        hyper : dict
-            A dictionary of hyper-parameters.
+        def _spot_crossing_func(t, t0, a, w, f, s):
+            r = np.zeros_like(t)
+            if (a > 0) & (0 <= f <= 1) & (w > 0) & (-1 <= s <= 1):
+                d = (t-t0)/w
+                j = abs(d) < 1
+                dj = d[j]
+                r[j] = a*(1 + s*(dj**3-dj)-(1-f)*dj**2 - f*dj**8)
+            return r
 
-        """
+        super(SpotCrossingModel, self).__init__(_spot_crossing_func, **kwargs)
+        self._set_paramhints_prefix()
 
-        self.name = name
-        self.expr = expr
-        self.hyper = hyper
-
-    def __repr__(self):
-        """Return printable representation of a Parameter object."""
-        return "<Prior {}> : {}".format(self.name, self.expr)
-
+    def _set_paramhints_prefix(self):
+        p = self.prefix
+        self.set_param_hint(f'{p}t0', value=0)
+        self.set_param_hint(f'{p}a', value=1, min=1e-15)
+        self.set_param_hint(f'{p}w', value=1, min=1e-15)
+        self.set_param_hint(f'{p}f', value=0.5, min=0, max=1)
+        self.set_param_hint(f'{p}s', value=0, min=-1, max=1)

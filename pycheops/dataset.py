@@ -495,7 +495,10 @@ class Dataset(object):
                 metafile = list(filter(r.match, self.list))
                 if len(metafile) > 1:
                     raise Exception('Multiple metadata files in datset')
-                if len(metafile) == 0:
+                # Load metadata
+                if source in ['Kepler','TESS']:
+                    pass
+                elif len(metafile) == 0:
                     msg = "No metadata in file {}".format(self.tgzfile)
                     warnings.warn(msg)
                 else:
@@ -982,14 +985,21 @@ class Dataset(object):
 
         """
 
-        if self.source == 'PIPE':
+        if self.source == 'CHEOPS':
+            if aperture not in self.list_apertures():
+                raise ValueError('Invalid/missing aperture name')
+            if decontaminate not in (True, False):
+                raise ValueError('Set decontaminate =True or =False')
+
+        elif self.source == 'PIPE':
             aperture = 'PSF'
 
-        if aperture not in self.list_apertures():
-            raise ValueError('Invalid/missing aperture name')
+        elif self.source in ['Kepler', 'TESS']:
+            aperture = 'DEFAULT'
 
-        if decontaminate not in (True, False) and aperture not in ('PSF'):
-            raise ValueError('Set decontaminate =True or =False')
+        else:
+            raise ValueError('Dataset has unknown source attribute value')
+
 
         table, hdr = self._get_table_(aperture, verbose)
 
@@ -1059,9 +1069,9 @@ class Dataset(object):
             print('Number of non-flagged data points: {}'.format(len(ok)))
             print('Efficiency (non-flagged data): {:0.1f} %'.format(eff))
 
-        if aperture == 'PSF':
+        if self.source in ['PIPE', 'Kepler','TESS']:
             self.decontaminated = False
-            if verbose:
+            if verbose and decontaminate:
                 print('Ignored decontaminate=True for PSF photometry.')
         elif decontaminate:
             flux = flux/(1 + contam) 
@@ -1394,6 +1404,8 @@ class Dataset(object):
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
             dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None, 
             glint_scale=None, logrhoprior=None, extra_decorr_vectors=None,
+            t1=None, a1=None, w1=None, f1=None, s1=None,
+            t2=None, a2=None, w2=None, f2=None, s2=None, 
             log_sigma=None):
         """
         Fit a transit to the light curve in the current dataset.
@@ -1476,7 +1488,7 @@ class Dataset(object):
         specified using the 'label' key, e.g. 
 
           extra_decorr_vectors={'x2':{'x':dx**2,
-                                'label':'$d^2f/d(\Delta x)^2$'}}
+                                'label':'$d^2f/d(\Delta x)^2$'} }
 
         Initial values and priors for each linear coefficient can be specified
         in the same way as other parameters used in dataset.lmfit_transit() or
@@ -1484,10 +1496,45 @@ class Dataset(object):
 
           extra_decorr_vectors = { 'a':{'x':a, 'init':(-2,2)},
                                    'b':{'x':b, 'init':ufloat(0,1),
-                                   'c':{'x':c, 'init':0}}
+                                   'c':{'x':c, 'init':0} }
 
         If not specified, the parameter is initialised using (-1, 1), i.e. 
         initial value = 0, min=-1, max=1.
+
+        Up to two spot crossing events during the transit can be modelled
+        using a simple polynomial model with the following parameters:
+
+           * t1 - mid-point of spot crossing event 1
+           * c1 - contrast factor for spot crossing event 1 (0 <= c1 <= 1)
+           * w1 - half-width of spot crossing event 1 (> 0) 
+           * f1 - flattening parameter for spot crossing event 1 (0 <= f1 <= 1)
+           * s1 - skew parameter for spot crossing event 1 (-1 <= s1 <= 1) 
+           * t2 - mid-point of spot crossing event 2
+           * c2 - contrast factor for spot crossing event 2 (0 <= c2 <= 1)
+           * w2 - half-width of spot crossing event 2 (> 0) 
+           * f2 - flattening parameter for spot crossing event 2 (0 <= f2 <= 1)
+           * s2 - skew parameter for spot crossing event 2 (-2 <= s2 <= 1) 
+
+        The amplitude of the bump in the light curve for a spot crossing event 
+        See pycheops.models.SpotCrossingModel() for more details of this
+        model..
+
+        The times of the spot crossing events (t1, t2) are specified using the
+        same time scale as dataset.lc['time'], i.e. BJD_TDB-dataset.bjd_ref.
+
+        The half-widths of the spot crossing events (w1, w2) are specified in
+        units of days.
+
+        If a1 or a2 are not specified then the value 0.001 is used and the
+        range of the free parameter is set to (1e-6, 1e-2). 
+
+        N.B. /a1
+
+
+        If f1 or f2 are not specified then the fixed default value 0.5 is used.
+
+        If s1 or s2 are not specified then the fixed default value 0 is used.
+
 
         """
 
@@ -3069,7 +3116,7 @@ class Dataset(object):
             tmin, tmax = xlim
         tp = np.linspace(tmin, tmax, 10*len(time))
         fp = self.model.eval(params,t=tp)
-        glint = model.right.name == 'Model(_glint_func)'
+        glint = '_glint_func' in model.right.name
         if detrend:
             if glint:
                 flux -= model.right.eval(params, t=time)  # de-glint
@@ -3154,7 +3201,7 @@ class Dataset(object):
             tmin, tmax = xlim
         tp = np.linspace(tmin, tmax, 10*len(time))
         fp = model.eval(parbest,t=tp)
-        glint = model.right.name == 'Model(_glint_func)'
+        glint = '_glint_func' in model.right.name
         flux0 = copy(flux)
         if detrend:
             if glint:
