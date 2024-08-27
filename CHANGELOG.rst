@@ -3,9 +3,8 @@ Changes since 1.0.0 onwards.
 
 1.2.0 ()
 ~~~~~~~~~~~~~~~~~~~
-
-* Added models/SpotModel, etc,
-
+* Added SpotCrossingModel,TransitModel1Spot and TransitModel2Spot to models.
+* Fix to plotting with glint in dataset (#320)  
 * Avoid need for aperture and decontaminate keywords in
   dataset.get_lightcurve() for Kepler/TESS data from pycdata
 * Avoid "No metadata" warning when loading Kepler/TESS data from pycdata
