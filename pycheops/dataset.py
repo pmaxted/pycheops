@@ -3116,7 +3116,7 @@ class Dataset(object):
             tmin, tmax = xlim
         tp = np.linspace(tmin, tmax, 10*len(time))
         fp = self.model.eval(params,t=tp)
-        glint = model.right.name == 'Model(_glint_func)'
+        glint = '_glint_func' in model.right.name
         if detrend:
             if glint:
                 flux -= model.right.eval(params, t=time)  # de-glint
@@ -3201,7 +3201,7 @@ class Dataset(object):
             tmin, tmax = xlim
         tp = np.linspace(tmin, tmax, 10*len(time))
         fp = model.eval(parbest,t=tp)
-        glint = model.right.name == 'Model(_glint_func)'
+        glint = '_glint_func' in model.right.name
         flux0 = copy(flux)
         if detrend:
             if glint:
