@@ -1,7 +1,7 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1.2.0 ()
+1.1.13 (2024-09-17)
 ~~~~~~~~~~~~~~~~~~~
 * Added SpotCrossingModel,TransitModel1Spot and TransitModel2Spot to models.
 * Fix to plotting with glint in dataset (#320)  
