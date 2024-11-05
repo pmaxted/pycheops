@@ -73,7 +73,7 @@ import subprocess
 import pickle
 import warnings
 from astropy.units import UnitsWarning
-from photutils import CircularAperture, aperture_photometry
+from photutils.aperture import aperture_photometry, CircularAperture
 import cdspyreadme
 from textwrap import fill, indent
 import os
@@ -1457,7 +1457,7 @@ class Dataset(object):
 
         The times at which the basis vectors are sampled can be specified
         using the key 't'. Times are specfied using the same time scale as 
-        dataset.lc['time'], i.e. BJD_TDB-dataset.bjd_ref. Each basis vector
+        dataset.lc['time'], i.e. BJD_TT-dataset.bjd_ref. Each basis vector
         is then provided by the user using a dict with the value of the basis
         function at these times specified as an array-like object provided
         using the key 'x'. If 't' is not provided then the basis functions are
@@ -1520,7 +1520,7 @@ class Dataset(object):
         model..
 
         The times of the spot crossing events (t1, t2) are specified using the
-        same time scale as dataset.lc['time'], i.e. BJD_TDB-dataset.bjd_ref.
+        same time scale as dataset.lc['time'], i.e. BJD_TT-dataset.bjd_ref.
 
         The half-widths of the spot crossing events (w1, w2) are specified in
         units of days.
@@ -3523,7 +3523,7 @@ class Dataset(object):
 
         Generates ReadMe file and a data file with the following columns..
         Format Units  Label    Explanations
-        F11.6 d       time     Time of mid-exposure (BJD_TDB)
+        F11.6 d       time     Time of mid-exposure (BJD_TT)
         F8.6  ---     flux     Normalized flux 
         F8.6  ---     e_flux   Normalized flux error
         F8.6  ---     flux_d   Normalized flux corrected for instrumental trends

@@ -35,7 +35,7 @@ with open(path.join(here, 'VERSION')) as version_file:
  Create pickle files for interpolation within various data tables
 """
 from scipy.interpolate import interp1d, NearestNDInterpolator
-from photutils import CircularAperture, aperture_photometry
+from photutils.aperture import aperture_photometry, CircularAperture
 import numpy as np
 import pickle
 from astropy.table import Table
