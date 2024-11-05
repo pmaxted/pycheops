@@ -221,7 +221,7 @@ class MultiVisit(object):
     from the individual T_0 values so that the mean T_0 value corresponds
     to a time of mid-transit near the centre of the datasets.
 
-    N.B. The timescale for T_0 in BJD_TDB - 2457000.
+    N.B. The timescale for T_0 in BJD_TT - 2457000.
 
     Priors on transit parameters are only set if they are specified in the
     call to the fitting method using either a ufloat, or as an lmfit Parameter
@@ -1638,7 +1638,7 @@ class MultiVisit(object):
 
         Generates ReadMe file and data files with the following columns..
         Format Units  Label    Explanations
-        F11.6 d       time     Time of mid-exposure (BJD_TDB)
+        F11.6 d       time     Time of mid-exposure (BJD_TT)
         F8.6  ---     flux     Normalized flux 
         F8.6  ---     e_flux   Normalized flux error
         F8.6  ---     flux_d   Normalized flux corrected for instrumental trends
