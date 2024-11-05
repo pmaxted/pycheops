@@ -1,6 +1,13 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.14 (2024-11-05)
+~~~~~~~~~~~~~~~~~~~
+* Changed instances of BJD_TDB to BJD_TT in the docstrings for dataset.py and
+  multivisit.py. (Difference is < 1 ms)
+* Updated import commands in dataset.py and __init__.py for
+  photutils.CircularAperture and photutils.aperture_photometry
+
 1.1.13 (2024-09-17)
 ~~~~~~~~~~~~~~~~~~~
 * Added SpotCrossingModel,TransitModel1Spot and TransitModel2Spot to models.
