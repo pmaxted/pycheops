@@ -1,6 +1,12 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.15 (2025-02-05)
+~~~~~~~~~~~~~~~~~~~
+* Update visibility/efficiency calculation in instrument.py to account for
+  decrease in Sun Exclusion Angle from 120 degrees to 117 degrees - used by
+  make_xml_files. Uses new two visibility tables for bright/faint stars.
+
 1.1.14 (2024-11-05)
 ~~~~~~~~~~~~~~~~~~~
 * Changed instances of BJD_TDB to BJD_TT in the docstrings for dataset.py and

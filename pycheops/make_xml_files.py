@@ -1161,7 +1161,7 @@ def main():
             )
         f.close()
 
-        vis = visibility(coords.ra.degree,coords.dec.degree)
+        vis = visibility(coords.ra.degree,coords.dec.degree,_G)
         if vis < 50:
             flags += 256
         if vis == 0:

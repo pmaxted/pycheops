@@ -82,16 +82,26 @@ if not path.isfile(pfile) or (path.getmtime(pfile) < path.getmtime(psf_path)):
     with open(pfile,'wb') as fp:
         pickle.dump(I,fp)
 
-# Visibility calculator for instrument.py and make_xml_files
-pfile = path.join(cache_path,'visibility_interpolator.p')
-if not path.isfile(pfile):
-    vfile = path.join(data_path,'VisibilityTable.csv')
+# Visibility calculators for instrument.py and make_xml_files
+pfile6 = path.join(cache_path,'visibility_interpolator6.p')
+pfile12 = path.join(cache_path,'visibility_interpolator12.p')
+if not path.isfile(pfile6):
+    vfile = path.join(data_path,'VisibilityTable6.csv')
     visTable = Table.read(vfile)
     ra_ = visTable['RA']*180/np.pi
     dec_ = visTable['Dec']*180/np.pi
     vis = visTable['Efficiency']
     I = NearestNDInterpolator((np.array([ra_,dec_])).T,vis)
-    with open(pfile,'wb') as fp:
+    with open(pfile6,'wb') as fp:
+        pickle.dump(I,fp)
+if not path.isfile(pfile12):
+    vfile = path.join(data_path,'VisibilityTable12.csv')
+    visTable = Table.read(vfile)
+    ra_ = visTable['RA']*180/np.pi
+    dec_ = visTable['Dec']*180/np.pi
+    vis = visTable['Efficiency']
+    I = NearestNDInterpolator((np.array([ra_,dec_])).T,vis)
+    with open(pfile12,'wb') as fp:
         pickle.dump(I,fp)
 
 # T_eff v. G_BP-G_RP colour from 
