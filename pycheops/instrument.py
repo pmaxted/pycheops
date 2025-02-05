@@ -58,8 +58,11 @@ CHEOPS_ORBIT_MINUTES = 98.77
 with open(join(_cache_path,'C_G_Teff_interpolator.p'),'rb') as fp:
     _C_G_Teff_interpolator = pickle.load(fp)
 
-with open(join(_cache_path,'visibility_interpolator.p'),'rb') as fp:
-    _visibility_interpolator = pickle.load(fp)
+with open(join(_cache_path,'visibility_interpolator6.p'),'rb') as fp:
+    _visibility_interpolator6 = pickle.load(fp)
+
+with open(join(_cache_path,'visibility_interpolator12.p'),'rb') as fp:
+    _visibility_interpolator12 = pickle.load(fp)
 
 _cadence_Table = Table.read(join(_data_path,'instrument','cadence.csv'),
         format='ascii.csv', header_start=1)
@@ -93,32 +96,41 @@ def count_rate(G, Teff=6000):
 
 #-----------------------------
 
-def visibility(ra, dec):
+def visibility(ra, dec, Gmag):
     """
     Estimate of target visibility 
 
-    The target visibility estimated with this function is approximate. A more
-    reliable estimate of the observing efficiency can be made with the 
-    Feasibility Checker tool.
+    The visibility is based on two maps computed using various assumptions,
+    one for Gmag=6 and one for Gmag=12. The efficiency for Gmag = 6 represents
+    the best-case scenario for targets in the 6 < mag < 9 range, while the
+    efficiency for Gmag = 12 represents the worst-case scenario for targets
+    with mag > 9.
 
     :param ra: right ascension in degrees (scalar or array)
 
     :param dec: declination in degrees (scalar or array)
 
+    :param Gmag: target G-band magnitude
+
     :returns: target visibility (%)
 
     """
 
-    vis =  (_visibility_interpolator(ra, dec)*100).astype(int)
+    if Gmag > 9:
+        vis =  (_visibility_interpolator12(ra, dec)*100).astype(int)
+    else:
+        vis =  (_visibility_interpolator6(ra, dec)*100).astype(int)
+
     # Check if |ecliptic latitude| > 60 - never visible
     # (CHEOPS-UGE-PSO-MAN-001  section 1.3.2)  
+    # Update Jan 2025 - SEA decreased to 117 degrees so increase this limit to
+    # 63 degrees
     coo = SkyCoord(ra, dec, unit='degree')
     if np.isscalar(vis):
-        if abs(coo.barycentrictrueecliptic.lat.degree) > 60:
+        if abs(coo.barycentrictrueecliptic.lat.degree) > 63:
             vis = 0
     else:
-        vis[abs(coo.barycentrictrueecliptic.lat.degree) > 60] = 0
-
+        vis[abs(coo.barycentrictrueecliptic.lat.degree) > 63] = 0
     return vis
 
 
