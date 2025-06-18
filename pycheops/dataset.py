@@ -395,8 +395,9 @@ class Dataset(object):
             # Bodge to avoid logging errors in jupyter notebooks
             with open(os.devnull,'w+') as devnull:
                 with redirect_stderr(devnull):
-                    Cheops.download(file_type,
+                    Cheops.download(
                         filters={'file_key':{'contains':[file_key]}},
+                        file_type=file_type,
                         output_directory=str(tgzPath.parent),
                         output_filename=str(tgzPath.name) )
 
@@ -488,7 +489,8 @@ class Dataset(object):
             if metaPath.is_file():
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore", UnitsWarning)
-                    self.metadata = Table.read(metaPath)
+                    self.metadata = Table.read(metaPath,
+                                               hdu='SCI_RAW_ImageMetadata')
             else:
                 tar = tarfile.open(self.tgzfile)
                 r=re.compile('(?!\.)(.*SCI_RAW_SubArray.*.fits)')
@@ -559,31 +561,26 @@ class Dataset(object):
         if file_key == None:
             obs_id =  pipedata.meta['OBSID']
             db = Cheops.query_database(filters={'obs_id':{'equal':[obs_id]}})
-            file_key = db['file_key'][0][:-5]+'V9193'
+            dace_file_key = db['file_key'][0]
+        else:
+            dace_file_key = file_key
+        pipe_file_key = dace_file_key[:-5]+'V9193'
 
-        tgzPath = Path(_cache_path,file_key).with_suffix('.tgz')
+        tgzPath = Path(_cache_path,pipe_file_key).with_suffix('.tgz')
         tgzfile = str(tgzPath)
         file_stats = os.stat(pipe_file)
         if metadata:
-            dblist = list(Cheops.list_data_product(
-                visit_filepath=str(db.get('file_rootpath', [])[0]))['file'])
-            _re_meta = re.compile('(.*CH_.*SCI_RAW_SubArray.*.fits)')
-            dbmetapath = list(filter(_re_meta.match, dblist))
-            Cheops.download_files(files=dbmetapath, file_type='files',
-                                  output_filename=tgzfile)
-            metaFile = "{}-meta.fits".format(file_key)
-            metaPath = Path(_cache_path, metaFile)
-            tar = tarfile.open(tgzfile)
-            tarmetafile = tar.getnames()[0]
-            with tar.extractfile(tarmetafile) as fd:
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore", UnitsWarning)
-                    hdul = fits.open(fd)
-                    table = Table.read(hdul,hdu='SCI_RAW_ImageMetadata')
-                    table.write(metaPath, overwrite=True)
-            tar.close()
-
-        lcFile = (file_key[3:20] + '/' + file_key[:-5] +
+            filters = {'file_key':{'equal':[dace_file_key]}}
+            metaFile = "{}-meta.fits".format(pipe_file_key)
+            metaPath = Path(_cache_path,metaFile)
+            if metaPath.exists():
+                print('Using meta data from ',str(metaPath))
+            else:
+                Cheops.download(filters=filters,
+                                file_type='SCI_RAW_SubArray',
+                                output_directory=_cache_path,
+                                output_filename=metaFile)
+        lcFile = (pipe_file_key[3:20] + '/' + pipe_file_key[:-5] +
                   'TU'+pipedata.meta['DATE'].replace(':','-') +
                   '_SCI_COR_Lightcurve-PSF_V9193.fits')
         with tarfile.open(tgzfile, mode='w:gz') as tgz:
@@ -592,12 +589,11 @@ class Dataset(object):
             with open(pipe_file,'rb') as fp:
                 tgz.addfile(tarinfo=tarinfo, fileobj=fp)
             if metadata:
-                tarinfo = tarfile.TarInfo(name=tarmetafile)
-                tarinfo.size = os.stat(metaPath).st_size
+                tarinfo = tgz.gettarinfo(metaPath)
                 with open(metaPath,'rb') as fp:
                     tgz.addfile(tarinfo=tarinfo, fileobj=fp)
 
-        return self(file_key=file_key, target=target, metadata=metadata,
+        return self(file_key=pipe_file_key, target=target, metadata=metadata,
                     configFile=configFile, source='PIPE', verbose=verbose)
 
 #----

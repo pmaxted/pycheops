@@ -1,6 +1,10 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.16 (2025-06-18)
+~~~~~~~~~~~~~~~~~~~
+Updates for dace_query v2.0
+
 1.1.15 (2025-02-05)
 ~~~~~~~~~~~~~~~~~~~
 * Update visibility/efficiency calculation in instrument.py to account for
