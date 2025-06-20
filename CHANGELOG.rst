@@ -3,7 +3,8 @@ Changes since 1.0.0 onwards.
 
 1.1.16 (2025-06-18)
 ~~~~~~~~~~~~~~~~~~~
-Updates for dace_query v2.0
+* Updates for dace_query v2.0
+* Update to make_xml_files to fix KeyError: SOURCE_ID bug
 
 1.1.15 (2025-02-05)
 ~~~~~~~~~~~~~~~~~~~

@@ -424,10 +424,10 @@ def _GaiaDR2Match(row, fC, match_radius=1,  gaia_mag_tolerance=0.5,
                 .format(row['Vmag'], row['SpTy'], Gmag))
         print("Catalogue values: G = {:5.2f}, Source = {}"
                 .format(DR2Table['phot_g_mean_mag'][idx], 
-                    DR2Table['SOURCE_ID'][idx] ))
+                    DR2Table['source_id'][idx] ))
         raise ValueError('Nearest Gaia source does not match estimated G mag')
 
-    if (str(row['Old_Gaia_DR2']) != str(DR2Table['SOURCE_ID'][idx])):
+    if (str(row['Old_Gaia_DR2']) != str(DR2Table['source_id'][idx])):
         if id_check:
             raise ValueError('Nearest Gaia DR2 source does not match input ID')
         flags += 32768
@@ -1106,7 +1106,7 @@ def main():
         rastr  = coords.ra.to_string('hour', precision=2, sep=':', pad=True)
         decstr = coords.dec.to_string('deg', precision=1, sep=':', pad=True, 
                 alwayssign=True)
-        row['Gaia_DR2'] = DR2data['SOURCE_ID']
+        row['Gaia_DR2'] = DR2data['source_id']
         row['_RAJ2000'] = rastr
         row['_DEJ2000'] = decstr
         row['pmra'] = DR2data['pmra']
@@ -1169,7 +1169,7 @@ def main():
 
         c_tot, c_av, c_max = count_rate(_G, row['T_exp'])
         print(TerminalOutputFormat.format( row['ObsReqName'],
-            DR2data['SOURCE_ID'], DR2data['phot_g_mean_mag'],
+            DR2data['source_id'], DR2data['phot_g_mean_mag'],
             coords.ra.degree, coords.dec.degree,
             contam, vis, row['T_exp'],flags, c_tot, 100*frac, duty, img, igt))
 
