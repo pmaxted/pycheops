@@ -5,6 +5,7 @@ Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~
 * Updates for dace_query v2.0
 * Update to make_xml_files to fix KeyError: SOURCE_ID bug
+* Update sun exclusion angle in instrument.py (for make_xml_files).
 
 1.1.15 (2025-02-05)
 ~~~~~~~~~~~~~~~~~~~
