@@ -125,15 +125,15 @@ def visibility(ra, dec, Gmag):
     # (CHEOPS-UGE-PSO-MAN-001  section 1.3.2)  
     # Update Jan 2025 - SEA decreased to 117 degrees so increase this limit to
     # 63 degrees
+    # Update Jul 2025 - SEA decreased to 116.5 degrees so increase this limit to
+    # 63.5 degrees
     coo = SkyCoord(ra, dec, unit='degree')
     if np.isscalar(vis):
-        if abs(coo.barycentrictrueecliptic.lat.degree) > 63:
+        if abs(coo.barycentrictrueecliptic.lat.degree) > 63.5:
             vis = 0
     else:
-        vis[abs(coo.barycentrictrueecliptic.lat.degree) > 63] = 0
+        vis[abs(coo.barycentrictrueecliptic.lat.degree) > 63.5] = 0
     return vis
-
-
 
 #-----------------------------
 

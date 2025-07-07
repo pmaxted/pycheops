@@ -1,6 +1,19 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.17 (2025-06-18)
+~~~~~~~~~~~~~~~~~~~
+* Fixed incorrect definition / calculation of detrended fluxes in Multivisit
+  that caused residuals to be plotted upside down and detrended fluxes to be
+  plotted incorrectly (bug spotted by Xinyi Song).
+* Added lmfit_ntransit to Dataset (Xinyi Song)
+  
+1.1.16 (2025-06-18)
+~~~~~~~~~~~~~~~~~~~
+* Updates for dace_query v2.0
+* Update to make_xml_files to fix KeyError: SOURCE_ID bug
+* Update sun exclusion angle in instrument.py (for make_xml_files).
+
 1.1.15 (2025-02-05)
 ~~~~~~~~~~~~~~~~~~~
 * Update visibility/efficiency calculation in instrument.py to account for
