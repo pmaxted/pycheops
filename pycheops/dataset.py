@@ -318,6 +318,23 @@ def _make_labels(plotkeys, bjd_ref, extra_decorr_vectors=None):
     return labels
 
 #---------------
+def _event_ok(table, saa_max=0, temp_max=0, earth_max=1,
+                 moon_max=0, sun_max=0, cr_max=2):
+    saa_flag   = table['EVENT']  % 10
+    temp_flag  = (table['EVENT'] % 100) // 10
+    earth_flag = (table['EVENT'] % 1000) // 100
+    moon_flag  = (table['EVENT'] % 10000) // 1000
+    sun_flag   = (table['EVENT'] % 100000) // 10000
+    cr_flag    = table['EVENT']  // 100000
+    ok = (saa_flag <= saa_max)
+    ok &= (temp_flag <= temp_max)
+    ok &= (earth_flag <= earth_max)
+    ok &= (moon_flag <= moon_max)
+    ok &= (sun_flag <= sun_max)
+    ok &= (cr_flag <= cr_max)
+    return ok
+
+#---------------
 
 class Dataset(object):
     """
@@ -956,7 +973,9 @@ class Dataset(object):
 #----
 
     def get_lightcurve(self, aperture=None, decontaminate=None,
-            returnTable=False, reject_highpoints=False, verbose=True):
+            returnTable=False, reject_highpoints=False,
+            saa_max=0, temp_max=0, earth_max=1, moon_max=0, sun_max=0, 
+            cr_max=2, verbose=True):
         """
         Read light curve data for current data set for selected aperture.
 
@@ -966,10 +985,22 @@ class Dataset(object):
         Use reject_highpoints=True to remove points to remove positive
         outliers automatically. 
 
+        Use saa_max, temp_max, etc. to exclude data based on the value of the
+        EVENT column in DRP light curve data. See section 1.1.1.15 of the
+        CHEOPS Observers Manual (issue 5.0) for the encoding of these flags
+        within the EVENT values.  These flag values are stored in 
+        dataset.lc['saa_flag'], dataset.lc['temp_flag'], etc. 
+
         :param aperture: use dataset.list_apertures() to list options
         :param decontaminate: if True, subtract flux from background stars 
         :param returnTable: 
         :param reject_highpoints: 
+        :param saa_max:
+        :param temp_max:
+        :param earth_max:
+        :param moon_max:
+        :param sun_max:
+        :param cr_max:
         :param verbose:
 
         :returns: time, flux, flux_err
@@ -977,7 +1008,9 @@ class Dataset(object):
         The offset of the telescope tube temperature from its nominal value 
         (thermFront_2 + 12) is stored in dataset.lc['deltaT']
 
-        N.B. for PIPE data (aperture='PSF'), only data with FLAG=0 are used.
+
+        N.B. for PIPE data (aperture='PSF'), only data with FLAG=0 are used,
+        and saa_max, temp_max, etc. are not used. 
 
         """
 
@@ -999,11 +1032,15 @@ class Dataset(object):
 
         table, hdr = self._get_table_(aperture, verbose)
 
-        if aperture == 'PSF':
+        if self.source == 'PIPE':
             ok = table['FLAG'] == 0
+        elif self.source == 'CHEOPS':
+            ok = _event_ok(table, saa_max, temp_max, earth_max, moon_max,
+                           sun_max, cr_max)
         else:
-            ok = (table['EVENT'] == 0) | (table['EVENT'] == 100)
+            ok = np.full(len(table), True)
         ok &= table['FLUX'] > 0
+        ok &= np.isfinite(table['FLUX'])
         m = np.isnan(table['FLUX'])
         if sum(m) > 0:
             msg = "Light curve contains {} NaN values".format(sum(m))
@@ -1041,6 +1078,10 @@ class Dataset(object):
             deltaT = np.array(self.metadata['thermFront_2'][ok]) + 12
         except:
             deltaT = np.zeros_like(bjd)
+        try:
+            event = np.array(table['EVENT'][ok])
+        except:
+            event = np.zeros_like(bjd)
         self.bjd_ref = bjd_ref
         self.ap_rad = ap_rad
         self.aperture = aperture
@@ -1132,6 +1173,14 @@ class Dataset(object):
                 'contam':contam, 'smear':smear, 'deltaT':deltaT,
                 'centroid_x':xc, 'centroid_y':yc,
                 'roll_angle':roll_angle, 'aperture':aperture}
+
+        if self.source == 'CHEOPS':
+            self.lc['saa_flag']   = event % 10
+            self.lc['temp_flag']  = (event % 100) // 10
+            self.lc['earth_flag'] = (event % 1000) // 100
+            self.lc['moon_flag']  = (event % 10000) // 1000
+            self.lc['sun_flag']   = (event % 100000) // 10000
+            self.lc['cr_flag']    = event // 100000
 
         if returnTable:
             return table
@@ -2772,8 +2821,8 @@ class Dataset(object):
                     continue
                 rad_var.add(rad)
 
-            ok = (((table['EVENT'] == 0) | (table['EVENT'] == 100))
-                & (table['FLUX']>0) & np.isfinite(table['FLUX']))
+            ok = _event_ok(table)
+            ok &= (table['FLUX']>0) & np.isfinite(table['FLUX'])
             bjd = np.array(table['BJD_TIME'])[ok]
             time = bjd-self.bjd_ref
             flux = np.array(table['FLUX'][ok])
@@ -4335,7 +4384,7 @@ class Dataset(object):
         except AttributeError:
             raise AttributeError("Use get_lightcurve() to load data first.")
 
-        EventMask = (D['EVENT'] > 0) & (D['EVENT'] != 100)
+        EventMask = _event_ok(D)
         D['FLUX'].mask = EventMask
         D['FLUX_BAD'] = MaskedColumn(self.lc['table']['FLUX'], 
                 mask = (EventMask == False))

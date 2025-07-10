@@ -1,12 +1,13 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1.1.17 (2025-06-18)
+1.1.17 (2025-07-10)
 ~~~~~~~~~~~~~~~~~~~
 * Fixed incorrect definition / calculation of detrended fluxes in Multivisit
   that caused residuals to be plotted upside down and detrended fluxes to be
   plotted incorrectly (bug spotted by Xinyi Song).
 * Added lmfit_ntransit to Dataset (Xinyi Song)
+* Added saa_max, temp_max, etc. keywords to dataset.get_lightcurve
   
 1.1.16 (2025-06-18)
 ~~~~~~~~~~~~~~~~~~~
