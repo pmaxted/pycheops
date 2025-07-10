@@ -1101,7 +1101,7 @@ def massradius(P=None, k=None, sini=None, ecc=None,
     if ellipse:
         for nsig in ell_sigma:
             xy, w, h, theta = ellpar(ps['m_p'],ps['r_p'],nsig)
-            ax.add_patch(Ellipse(xy, w, h, theta, **ell_kws))
+            ax.add_patch(Ellipse(xy, w, h, angle=theta, **ell_kws))
 
     return result, fig
         
