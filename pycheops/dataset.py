@@ -2189,20 +2189,69 @@ class Dataset(object):
         return result
 
     # ----------------------------------------------------------------
+
     def lmfit_ntransit(self, n_planet=2,
-                       T_0=None, P=None, D=None, W=None, b=None, f_c=None,
-                       f_s=None, h_1=None, h_2=None, l_3=None, scale=True,
-                       c=None, dfdbg=None, dfdcontam=None, dfdsmear=None,
-                       ramp=None, dfdx=None, dfdy=None, d2fdx2=None,
-                       d2fdy2=None, dfdsinphi=None, dfdcosphi=None,
-                       dfdsin2phi=None, dfdcos2phi=None, dfdsin3phi=None,
-                       dfdcos3phi=None, dfdsin4phi=None, dfdcos4phi=None,
-                       dfdsin5phi=None, dfdcos5phi=None, dfdt=None,
-                       d2fdt2=None, glint_scale=None, logrhoprior=None,
-                       extra_decorr_vectors=None, t1=None, a1=None, w1=None,
-                       f1=None, s1=None, t2=None, a2=None, w2=None, f2=None,
-                       s2=None, log_sigma=None, c_T_0=None, c_P=None,
-                       c_D=None, c_W=None, c_b=None, c_f_c=None, c_f_s=None):
+                   T_0=None, P=None, D=None, W=None, b=None, f_c=None,
+                   f_s=None, h_1=None, h_2=None, l_3=None, scale=True, c=None,
+                   dfdbg=None, dfdcontam=None, dfdsmear=None, ramp=None,
+                   dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
+                   dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None,
+                   dfdcos2phi=None, dfdsin3phi=None, dfdcos3phi=None,
+                   dfdsin4phi=None, dfdcos4phi=None, dfdsin5phi=None,
+                   dfdcos5phi=None, dfdt=None, d2fdt2=None, glint_scale=None,
+                   logrhoprior=None, extra_decorr_vectors=None, t1=None,
+                   a1=None, w1=None, f1=None, s1=None, t2=None, a2=None,
+                   w2=None, f2=None, s2=None, log_sigma=None):
+        """
+        Fit multi-planet transits to the light curve in the current dataset.
+
+        The base structure is the same as lmfit_transit, but the parameters are 
+        specified a bit differently.
+        
+        * n_planet: int
+            Number of planets to fit.
+            
+        * T_0, P, D, W, b, f_c, f_s: list
+            Orbital and transit parameters for each planet. Units and meanings are
+            identical to those in 'lmfit_transit', but must be provided as lists,
+            e.g.: [planet1, planet2, planet3].
+            
+            For each planet, same as in lmfit_transit, values can be specified in
+            one of the following ways:
+            - fixed value, e.g., P=[1.234, 2.345, 3.456]
+            - free parameter with uniform prior interval specified as a 2-tuple,
+              e.g., b=[(0, 0.6),(0.83, 0.92),(0.35, 0.65)]. The initial value is
+              taken as the mid-point of the allowed interval;
+            - free parameter with uniform prior interval and initial value
+              specified as a 3-tuple, e.g.,
+              b=[(0, 0.15,0.6),(0.83,0.87,0.92),(0.35, 0.505, 0.65)];
+            - free parameter with a Gaussian prior specified as a ufloat, e.g.,
+              P=[ufloat(10,1), ufloat(20,1), ufloat(30,1)];
+            - as an lmfit Parameter object.
+            
+        * h_1, h_2: float or tuple or ufloat
+            First and second limb-darkening coefficient, only one value for all
+            the planets. Can be specified in one of the following ways:
+            - fixed value, e.g., h_1=0.5, h_2=0.3;
+            - uniform prior (2-tuple): e.g., h_1 = (0, 0.6), h_2=(0.83, 0.92);
+            - Uniform prior with initial guess (3-tuple):
+              e.g., h_1=(0, 0.15,0.6), h_2=(0.83,0.87,0.92);
+            - Gaussian prior ('ufloat'): e.g.,
+              h_1=ufloat(0.5,0.1), h_2=ufloat(0.3,0.1).
+            
+        * c:
+            Flux scaling factor (default = 1). Applies globally to all planets,
+            like h_1/h_2.
+            
+        * decorrelation parameters and glint_scale:
+            These are also shared among all planets, not planet-specific. Same as
+            in lmfit_transit.
+        
+        Parameter names in lmfit report:
+            Parameters for the first planet follow the same naming as in
+            'lmfit_transit'. The second planet's parameters are prefixed with
+            'b_', the third with 'c_', and so on.
+        """
         def _chisq_prior(params, *args):
             r = (flux - model.eval(params, t=time)) / flux_err
             for p in params:
@@ -2210,7 +2259,7 @@ class Dataset(object):
                 if isinstance(u, UFloat):
                     r = np.append(r, (u.n - params[p].value) / u.s)
             return r
-    
+
         try:
             time = self.lc['time']
             flux = self.lc['flux']
@@ -2224,7 +2273,7 @@ class Dataset(object):
             deltaT = self.lc['deltaT']
         except AttributeError:
             raise AttributeError("Use get_lightcurve() to load data first.")
-    
+
         params = Parameters()
         for i_planet in range(n_planet):
             if i_planet == 0:
@@ -2235,48 +2284,38 @@ class Dataset(object):
                 params.add(name=f'{letter}T_0', value=np.nanmedian(time),
                            min=min(time), max=max(time))
             else:
-                params[f'{letter}T_0'] = _kw_to_Parameter(f'{letter}T_0',
-                                                          T_0[i_planet])
+                params[f'{letter}T_0'] = _kw_to_Parameter(f'{letter}T_0', T_0[i_planet])
             if P == None:
                 params.add(name=f'{letter}P', value=1, vary=False)
             else:
-                params[f'{letter}P'] = _kw_to_Parameter(f'{letter}P',
-                                                        P[i_planet])
+                params[f'{letter}P'] = _kw_to_Parameter(f'{letter}P', P[i_planet])
             _P = params[f'{letter}P'].value  # todo: handle T_0 indexing error
             if D == None:
-                params.add(name=f'{letter}D', value=1 - min(flux), min=0,
-                           max=0.5)
+                params.add(name=f'{letter}D', value=1 - min(flux), min=0, max=0.5)
             else:
-                params[f'{letter}D'] = _kw_to_Parameter(f'{letter}D',
-                                                        D[i_planet])
+                params[f'{letter}D'] = _kw_to_Parameter(f'{letter}D', D[i_planet])
             k = np.sqrt(params[f'{letter}D'].value)
             if W == None:
                 params.add(name=f'{letter}W', value=np.ptp(time) / 2 / _P,
-                           min=np.ptp(time) / len(time) / _P,
-                           max=np.ptp(time) / _P)
+                           min=np.ptp(time) / len(time) / _P, max=np.ptp(time) / _P)
             else:
-                params[f'{letter}W'] = _kw_to_Parameter(f'{letter}W',
-                                                        W[i_planet])
+                params[f'{letter}W'] = _kw_to_Parameter(f'{letter}W', W[i_planet])
             if b == None:
                 params.add(name=f'{letter}b', value=0.5, min=0, max=1)
             else:
-                params[f'{letter}b'] = _kw_to_Parameter(f'{letter}b',
-                                                        b[i_planet])
+                params[f'{letter}b'] = _kw_to_Parameter(f'{letter}b', b[i_planet])
             if f_c == None:
                 params.add(name=f'{letter}f_c', value=0, vary=False)
             else:
-                params[f'{letter}f_c'] = _kw_to_Parameter(f'{letter}f_c',
-                                                          f_c[i_planet])
+                params[f'{letter}f_c'] = _kw_to_Parameter(f'{letter}f_c', f_c[i_planet])
             if f_s == None:
                 params.add(name=f'{letter}f_s', value=0, vary=False)
             else:
-                params[f'{letter}f_s'] = _kw_to_Parameter(f'{letter}f_s',
-                                                          f_s[i_planet])
+                params[f'{letter}f_s'] = _kw_to_Parameter(f'{letter}f_s', f_s[i_planet])
             if l_3 == None:
                 params.add(name=f'{letter}l_3', value=0, vary=False)
             else:
-                params[f'{letter}l_3'] = _kw_to_Parameter(f'{letter}l_3',
-                                                          l_3[i_planet])
+                params[f'{letter}l_3'] = _kw_to_Parameter(f'{letter}l_3', l_3[i_planet])
             if h_1 == None:
                 params.add(name=f'{letter}h_1', value=0.7224, vary=False)
             else:
@@ -2286,8 +2325,7 @@ class Dataset(object):
             else:
                 params[f'{letter}h_2'] = _kw_to_Parameter(f'{letter}h_2', h_2)
             if c == None:
-                params.add(name='c', value=1, min=min(flux) / 2,
-                           max=2 * max(flux))
+                params.add(name='c', value=1, min=min(flux) / 2, max=2 * max(flux))
             else:
                 params['c'] = _kw_to_Parameter('c', c)
             # Derived parameters
@@ -2304,7 +2342,7 @@ class Dataset(object):
                 params.add(f'{letter}b_tra', expr=f'{letter}b*(1-{letter}e**2)/(1+{letter}esinw)')
                 params.add(f'{letter}b_occ', expr=f'{letter}b*(1-{letter}e**2)/(1-{letter}esinw)')
                 params.add(f'{letter}T_tot', expr=f'{letter}P*{letter}W*sqrt(1-{letter}e**2)/(1+{letter}esinw)')
-    
+
         params.add('logrho', expr=expr, min=-9, max=6)
         params['logrho'].user_data = logrhoprior
         params.add('q_1', min=0, max=1, expr='(1-h_2)**2')
@@ -2371,21 +2409,21 @@ class Dataset(object):
             params['dfdsin5phi'] = _kw_to_Parameter('dfdsin5phi', dfdsin5phi)
         if dfdcos5phi is not None:
             params['dfdcos5phi'] = _kw_to_Parameter('dfdcos5phi', dfdcos5phi)
-    
+
         if glint_scale is not None:
             params['glint_scale'] = _kw_to_Parameter('glint_scale', glint_scale)
-    
-        l = ['dfdbg','dfdcontam','dfdsmear','dfdx','dfdy','d2fdx2','d2fdy2']
+
+        l = ['dfdbg', 'dfdcontam', 'dfdsmear', 'dfdx', 'dfdy', 'd2fdx2', 'd2fdy2']
         if True in [p in l for p in params]:
             self.__scale__ = scale
         else:
             self.__scale__ = None
-    
+
         self.extra_decorr_vectors = extra_decorr_vectors
         extra_basis_funcs = self.__make_extra_basis_funcs__(
             extra_decorr_vectors, time, params)
         self.__extra_basis_funcs__ = extra_basis_funcs
-    
+
         model = TransitModel()
         for i_planet in range(1, n_planet):
             letter = chr(ord('a') + i_planet) + "_"
@@ -2399,12 +2437,12 @@ class Dataset(object):
                 raise AttributeError("Use add_glint() to first.")
             model += Model(_glint_func, independent_vars=['t'],
                            f_theta=f_theta, f_glint=f_glint)
-    
+
         # Additional white noise
         if log_sigma is not None:
             flux_err = np.hypot(flux_err, np.exp(log_sigma))
             params.add(name='log_sigma', value=log_sigma, vary=False)
-    
+
         result = minimize(_chisq_prior, params, nan_policy='propagate',
                           args=(model, time, flux, flux_err))
         self.model = model
@@ -2423,12 +2461,11 @@ class Dataset(object):
             result.chisqr = np.sum(result.residual ** 2)
             result.redchi = result.chisqr / (result.ndata - result.nvarys)
         # Renormalize AIC and BIC so they are consistent with emcee values
-        lnlike = -0.5 * np.sum(result.residual ** 2 +
-                               np.log(2 * np.pi * flux_err ** 2))
+        lnlike = -0.5*np.sum(result.residual**2 + np.log(2*np.pi * flux_err**2))
         result.lnlike = lnlike
         result.aic = 2 * result.nvarys - 2 * lnlike
         result.bic = result.nvarys * np.log(result.ndata) - 2 * lnlike
-    
+
         self.lmfit = result
         self.__lastfit__ = 'lmfit'
         return result
