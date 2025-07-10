@@ -1103,7 +1103,7 @@ class Dataset(object):
             yloc = np.median(yc)
             print(f'Target location on CCD: ({xloc:0.1f}, {yloc:0.1f})')
             eff = 100*len(ok)/(1+duration/self.texptime)
-            print('Number of non-flagged data points: {}'.format(len(ok)))
+            print('Number of non-flagged data points: {}'.format(sum(ok)))
             print('Efficiency (non-flagged data): {:0.1f} %'.format(eff))
 
         if self.source in ['PIPE', 'Kepler','TESS']:
