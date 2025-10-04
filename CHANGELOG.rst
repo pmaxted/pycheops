@@ -1,6 +1,10 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.18 (205-10-04)
+~~~~~~~~~~~~~~~~~~~
+* Suppress NonRotationTransformationWarning in dataset.planet_check().
+
 1.1.17 (2025-07-10)
 ~~~~~~~~~~~~~~~~~~~
 * Fixed incorrect definition / calculation of detrended fluxes in Multivisit
