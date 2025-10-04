@@ -1,7 +1,7 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1.1.19 (2025-10-  )
+1.1.19 (2025-10-04)
 ~~~~~~~~~~~~~~~~~~~
 * Improved integration of PIPE photometry into pycheops - all columns now
   populated in dataset.lc['table'], e.g. EVENT, CENTROID_X, CONTA_LC, etc. 
