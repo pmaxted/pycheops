@@ -1,7 +1,14 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-1.1.18 (205-10-04)
+1.1.19 (2025-10-  )
+~~~~~~~~~~~~~~~~~~~
+* Improved integration of PIPE photometry into pycheops - all columns now
+  populated in dataset.lc['table'], e.g. EVENT, CENTROID_X, CONTA_LC, etc. 
+  Dataset.decorr() and Dataset.diagnostic_plot() now work.
+* Added flag_max keyword to Dataset.from_pipe_file()
+
+1.1.18 (2025-10-04)
 ~~~~~~~~~~~~~~~~~~~
 * Suppress NonRotationTransformationWarning in dataset.planet_check().
 

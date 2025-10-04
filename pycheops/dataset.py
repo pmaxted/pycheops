@@ -35,6 +35,7 @@ from pathlib import Path
 from .core import load_config
 from astropy.io import fits
 from astropy.table import Table, MaskedColumn
+from astropy.table import join as table_join
 import matplotlib.pyplot as plt
 from .instrument import transit_noise
 from ftplib import FTP
@@ -538,7 +539,8 @@ class Dataset(object):
 
     @classmethod
     def from_pipe_file(self, pipe_file, file_key=None, configFile=None,
-                       metadata=True, verbose=True):
+                       metadata=True, aperture='default', flag_max = 0,
+                       verbose=True):
         """
         Create a Dataset object from a PIPE output file.
 
@@ -559,10 +561,25 @@ class Dataset(object):
         >>> dataset = Dataset('CH_PR100001_TG000101_V9193').
         >>> time, flux, flux_err = dataset.get_lightcurve()
 
+        Photometry from the CHEOPS archive computed with an aperture radius
+        defined by the aperture keyword is added to dataset.lc['table'] with
+        the column names APFLUX, APFLUXERR.
+        The following columns are also added to dataset.lc['table'] from the
+        CHEOPS archive light curve file: CONTA_LC, CONTA_LC_ERR, CENTROID_X,
+        CENTROID_Y, BACKGROUND, ROLL_ANGLE.
+        SMEARING_LC is added but is set to 0 for all rows.
+        Use 
+
+         >>> Cheops.get_lightcurve? 
+        
+        to see the list of available aperture values.
+
         :param pipe_file: PIPE output FITS file
         :param file_key: (optional) file_key to use for saving data
         :param configFile: pycheops configuration file
         :param metadata: download metadata
+        :param aperture: aperture for aperture photometry, default='default'
+        :param flag_max: Maximum value of FLAG for imported data (default 0) 
         :param verbose: (optional, default=True) verbose output, none if False
 
         """
@@ -578,14 +595,15 @@ class Dataset(object):
         if file_key == None:
             obs_id =  pipedata.meta['OBSID']
             db = Cheops.query_database(filters={'obs_id':{'equal':[obs_id]}})
-            dace_file_key = db['file_key'][0]
+            file_keys = db['file_key']
+            file_keys.sort()
+            dace_file_key = db['file_key'][-1]
         else:
             dace_file_key = file_key
         pipe_file_key = dace_file_key[:-5]+'V9193'
 
         tgzPath = Path(_cache_path,pipe_file_key).with_suffix('.tgz')
         tgzfile = str(tgzPath)
-        file_stats = os.stat(pipe_file)
         if metadata:
             filters = {'file_key':{'equal':[dace_file_key]}}
             metaFile = "{}-meta.fits".format(pipe_file_key)
@@ -597,13 +615,55 @@ class Dataset(object):
                                 file_type='SCI_RAW_SubArray',
                                 output_directory=_cache_path,
                                 output_filename=metaFile)
+        #
+        # Get aperture fluxes and meta data per observation
+        pipedata.meta['aperture']  = aperture
+        target_name = pipedata.meta['TARGNAME']
+        filters = {'file_key':{'equal':[dace_file_key]}}
+        lcdict = Cheops.get_lightcurve(target_name,
+                                       filters=filters,
+                                       aperture=aperture)
+        if verbose:
+            m = 'Adding APFLUX, APFLUXERR, EVENT, etc. for aperture "'
+            m += aperture+'"'
+            print(m)
+        bjd_join = np.round(lcdict['obj_date_bjd_vect'],6)
+        lctable = Table([bjd_join],names=['BJD_JOIN'])
+        lctable['APFLUX'] = lcdict['photom_flux_vect']
+        lctable['APFLUXERR'] = lcdict['photom_flux_vect_err']
+        lctable['EVENT'] = lcdict['photom_event_vect'].astype(int)
+        lctable['CONTA_LC'] = lcdict['photom_conta_lc_vect']
+        lctable['CONTA_LC_ERR'] = lcdict['photom_conta_lc_vect_err']
+        lctable['CENTROID_X'] = lcdict['photom_centroid_x_vect']
+        lctable['CENTROID_Y'] = lcdict['photom_centroid_y_vect']
+        lctable['BACKGROUND'] = lcdict['photom_background_vect']
+        lctable['SMEARING_LC'] = np.zeros(len(lctable))
+        lctable['LOCATION_X'] = np.full(len(lctable),pipedata.meta['X_WINOFF']+100)
+        lctable['LOCATION_Y'] = np.full(len(lctable),pipedata.meta['Y_WINOFF']+100)
+        lctable['ROLL_ANGLE'] = lcdict['photom_roll_angle_vect']
+        pipedata['BJD_JOIN'] = np.round(pipedata['BJD_TIME']-2400000,6)
+        pipedata = table_join(pipedata,lctable,keys='BJD_JOIN')
+        pipedata.remove_column('BJD_JOIN')
+
+        # Exclude flagged data
+        pipedata = pipedata[pipedata['FLAG'] <= flag_max]
+
+        #  File name for TGZ file
         lcFile = (pipe_file_key[3:20] + '/' + pipe_file_key[:-5] +
                   'TU'+pipedata.meta['DATE'].replace(':','-') +
                   '_SCI_COR_Lightcurve-PSF_V9193.fits')
+        # File name for cached data file
+        pipeFile = pipe_file_key+'-PSF.fits'
+        pipePath =  Path(_cache_path,pipeFile)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UnitsWarning)
+            pipedata.write(pipePath,overwrite=True)
+        file_stats = os.stat(pipePath)
+
         with tarfile.open(tgzfile, mode='w:gz') as tgz:
             tarinfo = tarfile.TarInfo(name=lcFile)
             tarinfo.size = file_stats.st_size
-            with open(pipe_file,'rb') as fp:
+            with open(pipePath,'rb') as fp:
                 tgz.addfile(tarinfo=tarinfo, fileobj=fp)
             if metadata:
                 tarinfo = tgz.gettarinfo(metaPath)
@@ -1032,9 +1092,7 @@ class Dataset(object):
 
         table, hdr = self._get_table_(aperture, verbose)
 
-        if self.source == 'PIPE':
-            ok = table['FLAG'] == 0
-        elif self.source == 'CHEOPS':
+        if self.source == 'CHEOPS':
             ok = _event_ok(table, saa_max, temp_max, earth_max, moon_max,
                            sun_max, cr_max)
         else:
@@ -1052,24 +1110,18 @@ class Dataset(object):
         time = bjd-bjd_ref
         flux = np.array(table['FLUX'][ok])
         flux_err = np.array(table['FLUXERR'][ok])
-        if aperture == 'PSF':
-            xc = table['XC'][ok]
-            xoff = np.array(xc - np.mean(xc))
-            yc = table['YC'][ok]
-            yoff = np.array(yc - np.mean(yc))
-            roll_angle = np.array(table['ROLL'][ok])
-            bg = np.array(table['BG'][ok])
-            contam = np.zeros_like(bjd)
-            ap_rad = np.nan
-        else:
-            xc = table['CENTROID_X'][ok]
-            yc = table['CENTROID_Y'][ok]
-            xoff = np.array(xc - table['LOCATION_X'][ok])
-            yoff = np.array(yc - table['LOCATION_Y'][ok])
-            roll_angle = np.array(table['ROLL_ANGLE'][ok])
-            bg = np.array(table['BACKGROUND'][ok])
-            contam = np.array(table['CONTA_LC'][ok])
+        xc = table['CENTROID_X'][ok]
+        yc = table['CENTROID_Y'][ok]
+        xoff = np.array(xc - table['LOCATION_X'][ok])
+        yoff = np.array(yc - table['LOCATION_Y'][ok])
+        roll_angle = np.array(table['ROLL_ANGLE'][ok])
+        bg = np.array(table['BACKGROUND'][ok])
+        contam = np.array(table['CONTA_LC'][ok])
+        try:
             ap_rad = hdr['AP_RADI']
+        except:
+            ap_rad = np.nan
+
         try:
             smear = np.array(table['SMEARING_LC'][ok])
         except:
