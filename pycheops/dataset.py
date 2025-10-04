@@ -3836,7 +3836,7 @@ class Dataset(object):
             ra = c.ra.to_string(precision=2,unit='hour',sep=':',pad=True)
             dec = c.dec.to_string(precision=1,sep=':',unit='degree',
                     alwayssign=True,pad=True)
-            sep = c.separation(target_coo).degree
+            sep = c.separation(target_coo, origin_mismatch="ignore").degree
             print(f'{p.capitalize():8s} {ra:12s} {dec:12s} {sep:8.1f}')
         
     
