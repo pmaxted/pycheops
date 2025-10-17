@@ -285,7 +285,8 @@ class TransitModel(Model):
     :param T_0:  - time of mid-transit
     :param P:    - orbital period
     :param D:    - (R_p/R_s)**2 = k**2
-    :param W:    - (R_s/a)*sqrt((1+k)**2 - b**2)/pi
+    :param W:    - (R_s/a)*sqrt((1+k)**2 - b**2)/pi  or
+                   -(R_s/a)*sqrt(b**2-(1+k)**2)/pi (if b > (1+k))
     :param b:    - a*cos(i)/R_s
     :param f_c:  - sqrt(ecc)*cos(omega)
     :param f_s:  - sqrt(ecc)*sin(omega)
@@ -301,7 +302,7 @@ class TransitModel(Model):
     The transit depth, width shape are parameterised by D, W and b. These
     parameters are defined above in terms of the radius of the star and
     planet, R_s and R_p, respectively, the semi-major axis, a, and the orbital
-    inclination, i. The eccentricy and longitude of periastron for the star's
+    inclination, i. The eccentricity and longitude of periastron for the star's
     orbit are e and omega, respectively.
 
     The following parameters are defined for convenience:
@@ -331,7 +332,7 @@ class TransitModel(Model):
 
         def _transit_func(t, T_0, P, D, W, b, f_c, f_s, h_1, h_2, l_3):
 
-            if (D <= 0) or (D > 0.25) or (W <= 0) or (b < 0):
+            if (D <= 0) or (D > 0.25) or (abs(W) > 0.5) or (b < 0):
                 return np.ones_like(t)
             if ((1-abs(f_c)) <= 0) or ((1-abs(f_s)) <= 0):
                 return np.ones_like(t)
@@ -341,8 +342,7 @@ class TransitModel(Model):
             if (q2 <= 0) or (q2 >=1): return np.ones_like(t)
             k = np.sqrt(D)
             q = (1+k)**2 - b**2
-            if q <= 0: return np.ones_like(t)
-            r_star = np.pi*W/np.sqrt(q)
+            r_star = np.pi*abs(W)/np.sqrt(abs(q))
             q = 1-b**2*r_star**2
             if q <= 0: return np.ones_like(t)
             sini = np.sqrt(q)
@@ -383,7 +383,7 @@ class TransitModel(Model):
         expr = "sqrt({p:s}D)".format(p=self.prefix)
         self.set_param_hint(f'{p}k'.format(p=self.prefix), 
                 expr=expr, min=0, max=0.5)
-        expr ="sqrt((1+{p:s}k)**2-{p:s}b**2)/{p:s}W/pi".format(p=self.prefix)
+        expr ="sqrt(abs((1+{p:s}k)**2-{p:s}b**2))/abs({p:s}W)/pi".format(p=self.prefix)
         self.set_param_hint(f'{p}aR',min=1, expr=expr)
         expr = "0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix)
         self.set_param_hint(f'{p}rho', min=0, expr = expr)

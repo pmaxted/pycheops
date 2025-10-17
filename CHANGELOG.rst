@@ -1,6 +1,13 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+
+1.1.20 (2025-10-17)
+~~~~~~~~~~~~~~~~~~~
+* Use W = -(R_s/a)*sqrt(b^2-(1+k)^2)/pi to cope with cases b > (1+k).
+  Updates to models, Dataset and MultiVisit
+* Added example notebook HD_17156 to demonstrate/test new functionality
+  
 1.1.19 (2025-10-04)
 ~~~~~~~~~~~~~~~~~~~
 * Improved integration of PIPE photometry into pycheops - all columns now
