@@ -187,12 +187,11 @@ def _log_prior(D, W, b):
     if (D < 2e-6) or (D > 0.25): return -np.inf
     k = np.sqrt(D)
     if (b < 0) : return -np.inf
-    if (W < 1e-4): return -np.inf
+    if abs(W)> 0.5: return -np.inf
     q = (1+k)**2 - b**2
-    if (q < 0): return -np.inf
-    aR = np.sqrt(q)/(np.pi*W)
+    aR = np.sqrt(abs(q))/abs(np.pi*W)
     if (aR < 1): return -np.inf
-    return -np.log(2*k*W) - np.log(k) - np.log(aR)
+    return -np.log(2*k*abs(W)) - np.log(k) - np.log(aR)
 
 #---
 
@@ -1625,8 +1624,7 @@ class Dataset(object):
         If a1 or a2 are not specified then the value 0.001 is used and the
         range of the free parameter is set to (1e-6, 1e-2). 
 
-        N.B. /a1
-
+        N.B. 
 
         If f1 or f2 are not specified then the fixed default value 0.5 is used.
 
@@ -1675,7 +1673,7 @@ class Dataset(object):
         k = np.sqrt(params['D'].value)
         if W == None:
             params.add(name='W', value=np.ptp(time)/2/_P,
-                    min=np.ptp(time)/len(time)/_P, max=np.ptp(time)/_P) 
+                    min=-np.ptp(time)/_P, max=np.ptp(time)/_P) 
         else:
             params['W'] = _kw_to_Parameter('W', W)
         if b == None:
@@ -1764,10 +1762,10 @@ class Dataset(object):
 
         # Derived parameters
         params.add('k',expr='sqrt(D)',min=0,max=1)
-        params.add('aR',expr='sqrt((1+k)**2-b**2)/W/pi',min=1)
+        params.add('aR',expr='sqrt(abs((1+k)**2-b**2))/abs(W)/pi',min=1)
         params.add('sini',expr='sqrt(1 - (b/aR)**2)')
         # Avoid use of aR in this expr for logrho - breaks error propogation.
-        expr = 'log10(4.3275e-4*((1+k)**2-b**2)**1.5/W**3/P**2)'
+        expr = 'log10(4.3275e-4*(abs((1+k)**2-b**2))**1.5/abs(W)**3/P**2)'
         params.add('logrho',expr=expr,min=-9,max=6)
         params['logrho'].user_data=logrhoprior
         params.add('e',min=0,max=1,expr='f_c**2 + f_s**2')
@@ -1779,7 +1777,10 @@ class Dataset(object):
             params.add('ecosw',expr='sqrt(e)*f_c')
             params.add('b_tra',expr='b*(1-e**2)/(1+esinw)')
             params.add('b_occ',expr='b*(1-e**2)/(1-esinw)')
-            params.add('T_tot',expr='P*W*sqrt(1-e**2)/(1+esinw)')
+            if params['W'].value > 0:
+                params.add('T_tot',expr='P*W*sqrt(1-e**2)/(1+esinw)')
+            else:
+                params.add('T_tot',0,vary=False)
 
         l = ['dfdbg','dfdcontam','dfdsmear','dfdx','dfdy','d2fdx2','d2fdy2']
         if True in [p in l for p in params]:
@@ -2175,7 +2176,7 @@ class Dataset(object):
 
         # Derived parameters
         params.add('k',expr='sqrt(D)',min=0,max=1)
-        params.add('aR',expr='sqrt((1+k)**2-b**2)/W/pi',min=1)
+        params.add('aR',expr='sqrt(abs((1+k)**2-b**2))/abs(W)/pi',min=1)
         params.add('sini',expr='sqrt(1 - (b/aR)**2)')
         params.add('e',min=0,max=1,expr='f_c**2 + f_s**2')
         # For eccentric orbits only from Winn, arXiv:1001.2010
@@ -2382,7 +2383,8 @@ class Dataset(object):
                 params['c'] = _kw_to_Parameter('c', c)
             # Derived parameters
             params.add(f'{letter}k', expr=f'sqrt({letter}D)', min=0, max=1)
-            params.add(f'{letter}aR', expr=f'sqrt((1+{letter}k)**2-{letter}b**2)/{letter}W/pi', min=1)
+            params.add(f'{letter}aR',
+                       expr=f'sqrt(abs((1+{letter}k)**2-{letter}b**2))/abs({letter}W)/pi', min=1)
             params.add(f'{letter}sini', expr=f'sqrt(1 - ({letter}b/{letter}aR)**2)')
             # Avoid use of aR in this expr for logrho - breaks error propogation.
             expr = f'log10(4.3275e-4*((1+{letter}k)**2-{letter}b**2)**1.5/{letter}W**3/{letter}P**2)'
@@ -2573,7 +2575,9 @@ class Dataset(object):
             if not has_notes:
                 report += '\n[[Notes]]'
                 has_notes = True
-            report +='\n    T_tot from Winn, arXiv:1001.2010 is approximate'
+            if  params['W'].value > 0:
+                report +='\n    T_tot from Winn, arXiv:1001.2010 is approximate'
+
 
         report += '\n[[Software versions]]'
         report += '\n    CHEOPS DRP : %s' % self.pipe_ver
@@ -3343,7 +3347,7 @@ class Dataset(object):
             else:
                 W = params['W'].value
 
-            aR = np.sqrt((1+k)**2-b**2)/W/np.pi
+            aR = np.sqrt(abs((1+k)**2-b**2))/abs(W)/np.pi
             if key == 'aR':
                 xs.append(aR)
 
@@ -3780,7 +3784,7 @@ class Dataset(object):
             b = _v('b')
             W = _v('W')
             P = _v('P')
-            aR = np.sqrt((1+k)**2-b**2)/W/np.pi
+            aR = np.sqrt(abs((1+k)**2-b**2))/abs(W)/np.pi
             sini = np.sqrt(1 - (b/aR)**2)
             f_c = _v('f_c')
             f_s = _v('f_s')
@@ -3802,7 +3806,7 @@ class Dataset(object):
             b = _u('b')
             W = _u('W')
             P = _u('P')
-            aR = usqrt((1+k)**2-b**2)/W/np.pi
+            aR = usqrt(abs((1+k)**2-b**2))/abs(W)/np.pi
             sini = usqrt(1 - (b/aR)**2)
             ecc = _u('e')
             _q = ufloat(q[0], q[1]) if isinstance(q, tuple) else q

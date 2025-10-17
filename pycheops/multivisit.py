@@ -500,7 +500,7 @@ class MultiVisit(object):
             vals[k] = kwargs[k]
 
         # dicts of parameter limits and step sizes for initialisation
-        pmin = {'P':0, 'D':0, 'W':0, 'b':0, 'f_c':-1, 'f_s':-1,
+        pmin = {'P':0, 'D':0, 'W':-0.3, 'b':0, 'f_c':-1, 'f_s':-1,
                 'h_1':0, 'h_2':0, 'L':0, 'F_max':0, 'l_3':-0.99}
         pmax = {'D':0.3, 'W':0.3, 'b':2.0, 'f_c':1, 'f_s':1,
                 'h_1':1, 'h_2':1, 'L':1.0, 'F_max':1.0, 'l_3':1e6}
@@ -559,8 +559,8 @@ class MultiVisit(object):
                     c -= c.max()//2
                     t -= c*params['P']
                     val = t.mean()
-                    vmin = val - params['W']*params['P']/2
-                    vmax = val + params['W']*params['P']/2
+                    vmin = val - abs(params['W'])*params['P']/2
+                    vmax = val + abs(params['W'])*params['P']/2
                     if vary:
                         stds = [p[kp].stderr for p in plist]
                         stderr = robust_stderr(t, stds, step['T_0'])
@@ -621,10 +621,10 @@ class MultiVisit(object):
 
         # Derived parameters
         params.add('k',expr='sqrt(D)',min=0,max=1)
-        params.add('aR',expr='sqrt((1+k)**2-b**2)/W/pi',min=1)
+        params.add('aR',expr='sqrt(abs((1+k)**2-b**2))/abs(W)/pi',min=1)
         params.add('sini',expr='sqrt(1 - (b/aR)**2)')
         # Avoid use of aR in this expr for logrho - breaks error propogation.
-        expr = 'log10(4.3275e-4*((1+k)**2-b**2)**1.5/W**3/P**2)'
+        expr = 'log10(4.3275e-4*abs((1+k)**2-b**2)**1.5/abs(W)**3/P**2)'
         params.add('logrho',expr=expr,min=-9,max=6)
         params.add('e',min=0,max=1,expr='f_c**2 + f_s**2')
         # For eccentric orbits only from Winn, arXiv:1001.2010
@@ -633,8 +633,8 @@ class MultiVisit(object):
             params.add('ecosw',expr='sqrt(e)*f_c')
             params.add('b_tra',expr='b*(1-e**2)/(1+esinw)')
             params.add('b_occ',expr='b*(1-e**2)/(1-esinw)')
-            params.add('T_tra',expr='P*W*sqrt(1-e**2)/(1+esinw)')
-            params.add('T_occ',expr='P*W*sqrt(1-e**2)/(1-esinw)')
+            params.add('T_tra',expr='P*abs(W)*sqrt(1-e**2)/(1+esinw)')
+            params.add('T_occ',expr='P*abs(W)*sqrt(1-e**2)/(1-esinw)')
 
         if 'F_min' in params:
             params.add('A',min=0,max=1,expr='F_max-F_min')
@@ -1546,7 +1546,7 @@ class MultiVisit(object):
         else:
             W = params['W'].value  # Needed for later calculations
 
-        aR = np.sqrt((1+k)**2-b**2)/W/np.pi
+        aR = np.sqrt(abs((1+k)**2-b**2))/abs(W)/np.pi
         sini = np.sqrt(1 - (b/aR)**2)
 
         for key in plotkeys:
@@ -1573,7 +1573,7 @@ class MultiVisit(object):
                     P = chain[:,var_names.index('P')]
                 else:
                     P = params['P'].value   # Needed for later calculations
-                logrho = np.log10(4.3275e-4*((1+k)**2-b**2)**1.5/W**3/P**2)
+                logrho = np.log10(4.3275e-4*abs((1+k)**2-b**2)**1.5/abs(W)**3/P**2)
                 xs.append(logrho)
 
             elif key == 'L_0':
@@ -2185,7 +2185,7 @@ class MultiVisit(object):
         b = _v('b')
         W = _v('W')
         P = _v('P')
-        aR = np.sqrt((1+k)**2-b**2)/W/np.pi
+        aR = np.sqrt(abs((1+k)**2-b**2))/abs(W)/np.pi
         sini = np.sqrt(1 - (b/aR)**2)
         f_c = _v('f_c')
         f_s = _v('f_s')
