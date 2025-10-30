@@ -2586,7 +2586,7 @@ class Dataset(object):
         return(report)
 
     # ----------------------------------------------------------------
-    def select_detrend(self, max_bayes_factor=1, exclude=None,
+    def select_detrend(self, max_bayes_factor=0.5, exclude=None,
                        keep_original=False, dprior=None, tprior=None,
                        t2prior=None, verbose=True):
         """
@@ -2656,7 +2656,7 @@ class Dataset(object):
 
         >>> lmfit0 = dataset.lmfit_transit(P=0.123, T_0=0.654)
         >>> x = ['d2fdt2','d2fdx2','d2fdy2']
-        >>> detrend = dataset.select_detrend(exclude=x, max_bayes_factor=0.5)
+        >>> detrend = dataset.select_detrend(exclude=x, max_bayes_factor=0.1)
         >>> lmfit = dataset.lmfit_transit(iP=0.123, T_0=0.654, **detrend)
 
         """

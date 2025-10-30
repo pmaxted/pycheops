@@ -1,6 +1,10 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.21 (2025-10-30)
+~~~~~~~~~~~~~~~~~~~
+* Default max_bayes_factor for Dataset.select_detrend() now set to 0.5
+* Sun exclusion angle chnaged to 115 degrees in instrument sub-module.  
 
 1.1.20 (2025-10-17)
 ~~~~~~~~~~~~~~~~~~~
