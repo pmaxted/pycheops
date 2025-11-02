@@ -1,6 +1,10 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.23 (2025-11-02)
+~~~~~~~~~~~~~~~~~~~
+* Visibility map update.
+
 1.1.22 (2025-11-02)
 ~~~~~~~~~~~~~~~~~~~
 * Dataset.from_pipe_file() change default to metadata=False
