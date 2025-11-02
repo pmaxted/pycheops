@@ -538,7 +538,7 @@ class Dataset(object):
 
     @classmethod
     def from_pipe_file(self, pipe_file, file_key=None, configFile=None,
-                       metadata=True, aperture='default', flag_max = 0,
+                       metadata=False, aperture='default', flag_max = 0,
                        verbose=True):
         """
         Create a Dataset object from a PIPE output file.
@@ -576,7 +576,7 @@ class Dataset(object):
         :param pipe_file: PIPE output FITS file
         :param file_key: (optional) file_key to use for saving data
         :param configFile: pycheops configuration file
-        :param metadata: download metadata
+        :param metadata: download metadata (default False)
         :param aperture: aperture for aperture photometry, default='default'
         :param flag_max: Maximum value of FLAG for imported data (default 0) 
         :param verbose: (optional, default=True) verbose output, none if False

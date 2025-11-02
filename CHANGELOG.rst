@@ -1,6 +1,10 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.22 (2025-11-02)
+~~~~~~~~~~~~~~~~~~~
+* Dataset.from_pipe_file() change default to metadata=False
+
 1.1.21 (2025-10-30)
 ~~~~~~~~~~~~~~~~~~~
 * Default max_bayes_factor for Dataset.select_detrend() now set to 0.5
