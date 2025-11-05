@@ -538,8 +538,8 @@ class Dataset(object):
 
     @classmethod
     def from_pipe_file(self, pipe_file, file_key=None, configFile=None,
-                       metadata=False, aperture='default', flag_max = 0,
-                       verbose=True):
+                       metadata=False, aperture='DEFAULT', flag_max = 0,
+                       force_download=False, verbose=True):
         """
         Create a Dataset object from a PIPE output file.
 
@@ -554,7 +554,7 @@ class Dataset(object):
 
         The output is saved in the directory data_cache_path specified in the
         pycheops configuration file. It can subsequently be loaded as a normal
-        Dataset object. The aperture name for dataset_get_lightcurve is 'PSF'.
+        Dataset object. The aperture name for dataset.get_lightcurve is 'PSF'.
         This is detected automatically by get_lightcurve(), e.g. 
 
         >>> dataset = Dataset('CH_PR100001_TG000101_V9193').
@@ -565,8 +565,8 @@ class Dataset(object):
         the column names APFLUX, APFLUXERR.
         The following columns are also added to dataset.lc['table'] from the
         CHEOPS archive light curve file: CONTA_LC, CONTA_LC_ERR, CENTROID_X,
-        CENTROID_Y, BACKGROUND, ROLL_ANGLE.
-        SMEARING_LC is added but is set to 0 for all rows.
+        CENTROID_Y, BACKGROUND, ROLL_ANGLE, SMEARING_LC.
+
         Use 
 
          >>> Cheops.get_lightcurve? 
@@ -577,9 +577,10 @@ class Dataset(object):
         :param file_key: (optional) file_key to use for saving data
         :param configFile: pycheops configuration file
         :param metadata: download metadata (default False)
-        :param aperture: aperture for aperture photometry, default='default'
+        :param aperture: aperture for aperture photometry, default='DEFAULt'
         :param flag_max: Maximum value of FLAG for imported data (default 0) 
         :param verbose: (optional, default=True) verbose output, none if False
+        :param force_download: download all files even if already cached
 
         """
 
@@ -600,9 +601,53 @@ class Dataset(object):
         else:
             dace_file_key = file_key
         pipe_file_key = dace_file_key[:-5]+'V9193'
+        aperture = aperture.upper()   # because was "default" previously
+        pipedata.meta['aperture']  = aperture
 
-        tgzPath = Path(_cache_path,pipe_file_key).with_suffix('.tgz')
-        tgzfile = str(tgzPath)
+        # Download/read DRP data to get meta data, e.g. smearing correction,
+        # background, etc. 
+        target_name = pipedata.meta['TARGNAME']
+        filters = {'file_key':{'equal':[dace_file_key]}}
+        apFile = f'{dace_file_key}-{aperture}.fits'
+        apPath = Path(_cache_path) / apFile
+        if not apPath.is_file() or force_download:
+            # Bodge to avoid logging errors in jupyter notebooks
+            with open(os.devnull,'w+') as devnull:
+                with redirect_stderr(devnull):
+                    products = Cheops.browse_products(
+                        filters={'file_key':{'equal':[dace_file_key]}},
+                        file_type='lightcurves',
+                        aperture=aperture)
+                    Cheops.download(
+                        filters={'file_key':{'equal':[dace_file_key]}},
+                        file_type='lightcurves',
+                        aperture=aperture,
+                        output_directory=_cache_path,
+                        output_filename=apFile )
+            # DRP light curve file name for tgz file
+            apFile  = products['file'][0].split('/')[-1]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UnitsWarning)
+            drptable = Table.read(apPath)
+
+        if verbose:
+            m = 'Adding APFLUX, APFLUXERR, EVENT, etc. for aperture "'
+            m += aperture+'"'
+            print(m)
+        bjd_join = np.round(drptable['BJD_TIME'],6)
+        lctable = Table([bjd_join],names=['BJD_JOIN'])
+        for c in ['BACKGROUND', 'CONTA_LC','CONTA_LC_ERR',
+                  'SMEARING_LC','ROLL_ANGLE','EVENT',
+                  'LOCATION_X', 'LOCATION_Y', 'CENTROID_X', 'CENTROID_Y']:
+            lctable[c] = drptable[c]
+        lctable['APFLUX'] = drptable['FLUX']
+        lctable['APFLUXERR'] = drptable['FLUXERR']
+        pipedata['BJD_JOIN'] = np.round(pipedata['BJD_TIME'],6)
+        pipedata = table_join(pipedata,lctable,keys='BJD_JOIN')
+        pipedata.remove_column('BJD_JOIN')
+        pipedata.remove_column('ROLL')
+
         if metadata:
             filters = {'file_key':{'equal':[dace_file_key]}}
             metaFile = "{}-meta.fits".format(pipe_file_key)
@@ -614,35 +659,6 @@ class Dataset(object):
                                 file_type='SCI_RAW_SubArray',
                                 output_directory=_cache_path,
                                 output_filename=metaFile)
-        #
-        # Get aperture fluxes and meta data per observation
-        pipedata.meta['aperture']  = aperture
-        target_name = pipedata.meta['TARGNAME']
-        filters = {'file_key':{'equal':[dace_file_key]}}
-        lcdict = Cheops.get_lightcurve(target_name,
-                                       filters=filters,
-                                       aperture=aperture)
-        if verbose:
-            m = 'Adding APFLUX, APFLUXERR, EVENT, etc. for aperture "'
-            m += aperture+'"'
-            print(m)
-        bjd_join = np.round(lcdict['obj_date_bjd_vect'],6)
-        lctable = Table([bjd_join],names=['BJD_JOIN'])
-        lctable['APFLUX'] = lcdict['photom_flux_vect']
-        lctable['APFLUXERR'] = lcdict['photom_flux_vect_err']
-        lctable['EVENT'] = lcdict['photom_event_vect'].astype(int)
-        lctable['CONTA_LC'] = lcdict['photom_conta_lc_vect']
-        lctable['CONTA_LC_ERR'] = lcdict['photom_conta_lc_vect_err']
-        lctable['CENTROID_X'] = lcdict['photom_centroid_x_vect']
-        lctable['CENTROID_Y'] = lcdict['photom_centroid_y_vect']
-        lctable['BACKGROUND'] = lcdict['photom_background_vect']
-        lctable['SMEARING_LC'] = np.zeros(len(lctable))
-        lctable['LOCATION_X'] = np.full(len(lctable),pipedata.meta['X_WINOFF']+100)
-        lctable['LOCATION_Y'] = np.full(len(lctable),pipedata.meta['Y_WINOFF']+100)
-        lctable['ROLL_ANGLE'] = lcdict['photom_roll_angle_vect']
-        pipedata['BJD_JOIN'] = np.round(pipedata['BJD_TIME']-2400000,6)
-        pipedata = table_join(pipedata,lctable,keys='BJD_JOIN')
-        pipedata.remove_column('BJD_JOIN')
 
         # Exclude flagged data
         pipedata = pipedata[pipedata['FLAG'] <= flag_max]
@@ -657,12 +673,17 @@ class Dataset(object):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UnitsWarning)
             pipedata.write(pipePath,overwrite=True)
-        file_stats = os.stat(pipePath)
 
+        tgzPath = Path(_cache_path,pipe_file_key).with_suffix('.tgz')
+        tgzfile = str(tgzPath)
         with tarfile.open(tgzfile, mode='w:gz') as tgz:
             tarinfo = tarfile.TarInfo(name=lcFile)
-            tarinfo.size = file_stats.st_size
+            tarinfo.size = os.stat(pipePath).st_size
             with open(pipePath,'rb') as fp:
+                tgz.addfile(tarinfo=tarinfo, fileobj=fp)
+            tarinfo = tarfile.TarInfo(name=apFile)
+            tarinfo.size = os.stat(apPath).st_size
+            with open(apPath,'rb') as fp:
                 tgz.addfile(tarinfo=tarinfo, fileobj=fp)
             if metadata:
                 tarinfo = tgz.gettarinfo(metaPath)
@@ -4477,7 +4498,7 @@ class Dataset(object):
         except AttributeError:
             raise AttributeError("Use get_lightcurve() to load data first.")
 
-        EventMask = _event_ok(D)
+        EventMask = ~_event_ok(D)
         D['FLUX'].mask = EventMask
         D['FLUX_BAD'] = MaskedColumn(self.lc['table']['FLUX'], 
                 mask = (EventMask == False))
@@ -4506,8 +4527,9 @@ class Dataset(object):
         yloc_table = D['LOCATION_Y']
 
         time = np.array(self.lc['time'])+self.lc['bjd_ref']
-        flux = np.array(self.lc['flux'])*np.nanmean(flux_table)
-        flux_err = np.array(self.lc['flux_err'])*np.nanmean(flux_table)
+        flux_mean = np.mean(flux_table[~EventMask])
+        flux = np.array(self.lc['flux'])*flux_mean
+        flux_err = np.array(self.lc['flux_err'])*flux_mean
         rollangle = np.array(self.lc['roll_angle'])
         xcen = np.array(self.lc['centroid_x'])
         ycen = np.array(self.lc['centroid_y'])
@@ -4529,6 +4551,7 @@ class Dataset(object):
             flux_measure = copy(flux_table)
         else:
             flux_measure = copy(flux)
+        flux_measure = np.array(flux_measure)
         ax[0,0].scatter(time,flux,s=2,c=cgood)
         if flagged:
             ax[0,0].scatter(tjdb_table,flux_bad_table,s=2,c=cbad)
