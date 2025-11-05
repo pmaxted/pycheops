@@ -1,6 +1,13 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.24 (2025-11-05)
+~~~~~~~~~~~~~~~~~~~
+* Dataset.from_pipe_file() now downloads the DRP light curve file directly so
+  that the SMEARING_LC data can be included in the dataset.
+* Added force_download option to Dataset.from_pipe_file()
+* Bug fixes for Dataset.diagnostic_plot()
+
 1.1.23 (2025-11-02)
 ~~~~~~~~~~~~~~~~~~~
 * Visibility map update.
