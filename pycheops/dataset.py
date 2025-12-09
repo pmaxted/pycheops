@@ -1208,6 +1208,7 @@ class Dataset(object):
             smear = smear[ok]
             deltaT = deltaT[ok]
             N_cut = len(bjd) - len(time)
+            event = event[ok]
 
         fluxmed = np.nanmedian(flux)
         self.flux_mean = flux.mean()
