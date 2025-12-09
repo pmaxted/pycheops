@@ -1,6 +1,11 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.25 (2025-12-09)
+~~~~~~~~~~~~~~~~~~~
+* Fix reject highpoints bug in get_lightcurve (#343)
+* Update TESS_fit_TOI562.1.ipynb and TESS_HD211970_radius_limit.ipynb
+
 1.1.24 (2025-11-05)
 ~~~~~~~~~~~~~~~~~~~
 * Dataset.from_pipe_file() now downloads the DRP light curve file directly so
