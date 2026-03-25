@@ -6,6 +6,7 @@ Changes since 1.0.0 onwards.
 * Improved calculation of angle0 for Dataset.add_glint().
 * Added MultiVisit.jktebop_export()
 * Frozen versions for dependencies in setup.py
+* Added nspline=None option to dataset.add_glint() - automatic nspline value
 
 1.1.25 (2025-12-09)
 ~~~~~~~~~~~~~~~~~~~
