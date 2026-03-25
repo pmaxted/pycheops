@@ -368,25 +368,33 @@ class TransitModel(Model):
         self.set_param_hint(f'{p}b', value=0.3, min=0, max=1.0)
         self.set_param_hint(f'{p}f_c', value=0, min=-1, max=1, vary=False)
         self.set_param_hint(f'{p}f_s', value=0, min=-1, max=1, vary=False)
-        expr = "{p:s}f_c**2 + {p:s}f_s**2".format(p=self.prefix)
+        expr = f'{p}f_c**2 + {p}f_s**2'
         self.set_param_hint(f'{p}e',min=0,max=1,expr=expr)
-        expr = "degrees(atan2({p:s}f_s,{p:s}f_c))".format(p=self.prefix)
+        expr = f'degrees(atan2({p}f_s,{p}f_c))'
         self.set_param_hint(f'{p}omega'.format(p=self.prefix),
                             min=-360,max=360,expr=expr)
         self.set_param_hint(f'{p}h_1', value=0.7224,min=0,max=1,vary=False)
         self.set_param_hint(f'{p}h_2', value=0.6713,min=0,max=1,vary=False)
         self.set_param_hint(f'{p}l_3', value=0,min=-0.99,max=1e6,vary=False)
-        expr = "(1-{p:s}h_2)**2".format(p=self.prefix)
+        expr = f'(1-{p}h_2)**2'
         self.set_param_hint(f'{p}q_1',min=0,max=1,expr=expr)
-        expr = "({p:s}h_1-{p:s}h_2)/(1-{p:s}h_2)".format(p=self.prefix)
+        expr = f'({p}h_1-{p}h_2)/(1-{p}h_2)'
         self.set_param_hint(f'{p}q_2',min=0,max=1,expr=expr)
-        expr = "sqrt({p:s}D)".format(p=self.prefix)
+        expr = f'sqrt({p}D)'
         self.set_param_hint(f'{p}k'.format(p=self.prefix), 
                 expr=expr, min=0, max=0.5)
-        expr ="sqrt(abs((1+{p:s}k)**2-{p:s}b**2))/abs({p:s}W)/pi".format(p=self.prefix)
+        expr =f'sqrt(abs((1+{p}k)**2-{p}b**2))/abs({p}W)/pi'
         self.set_param_hint(f'{p}aR',min=1, expr=expr)
-        expr = "0.013418*{p:s}aR**3/{p:s}P**2".format(p=self.prefix)
+        expr = f'0.013418*{p}aR**3/{p:s}P**2'
         self.set_param_hint(f'{p}rho', min=0, expr = expr)
+        expr = f'1 - {p}h_1 + {p}h_2'.format(p=self.prefix)
+        self.set_param_hint(f'{p}c_ld', min=0,max=1, expr = expr)
+        expr = f'log((1 - {p}h_1 + {p}h_2)/{p}h_2)/log(2)'
+        self.set_param_hint(f'{p}alpha_ld', min=0, expr = expr)
+        expr = f'1 - {p}c_ld*(1-(2/3)**{p}alpha_ld)'
+        self.set_param_hint(f'{p}h_1_prime', min=0, expr = expr)
+        expr = f'{p}h_1_prime - (1 - {p}c_ld*(1-(1/3)**{p}alpha_ld))'
+        self.set_param_hint(f'{p}h_2_prime', min=0, expr = expr)
 
 #----------------------
 

@@ -80,6 +80,7 @@ from textwrap import fill, indent
 import os
 from contextlib import redirect_stderr
 from dace_query.cheops import Cheops
+from . import ld
 
 _file_key_re = re.compile(r'CH_PR(\d{2})(\d{4})_TG(\d{4})(\d{2})_V(\d{4})')
 _file_key_reT = re.compile(r'TIC_(\d{10})_SEC(\d{4})_V(\d{4})')
@@ -445,7 +446,7 @@ class Dataset(object):
                 hdr = hdul[1].header
         else:
             tar = tarfile.open(self.tgzfile)
-            s = '(?!\.)(.*_SCI_COR_Lightcurve-{}_V[0-9]{{4}}.fits)'
+            s = r'(?!\.)(.*_SCI_COR_Lightcurve-{}_V[0-9]{{4}}.fits)'
             r=re.compile(s.format(aperture))
             datafile = list(filter(r.match, self.list))
             if len(datafile) == 0:
@@ -510,7 +511,7 @@ class Dataset(object):
                                                hdu='SCI_RAW_ImageMetadata')
             else:
                 tar = tarfile.open(self.tgzfile)
-                r=re.compile('(?!\.)(.*SCI_RAW_SubArray.*.fits)')
+                r=re.compile(r'(?!\.)(.*SCI_RAW_SubArray.*.fits)')
                 metafile = list(filter(r.match, self.list))
                 if len(metafile) > 1:
                     raise Exception('Multiple metadata files in datset')
@@ -938,7 +939,7 @@ class Dataset(object):
             if verbose: print ('Imagette data loaded from ',imPath)
         else:
             if verbose: print ('Extracting imagette data from ',self.tgzfile)
-            r=re.compile('(?!\.)(.*SCI_RAW_Imagette.*.fits)' )
+            r=re.compile(r'(?!\.)(.*SCI_RAW_Imagette.*.fits)' )
             datafile = list(filter(r.match, self.list))
             if len(datafile) == 0:
                 raise Exception('Dataset does not contains imagette data.')
@@ -976,10 +977,10 @@ class Dataset(object):
             if verbose: print ('Subarray data loaded from ',subPath)
         else:
             if verbose: print ('Extracting subarray data from ',self.tgzfile)
-            r=re.compile('(?!\.)(.*SCI_COR_SubArray.*.fits)' )
+            r=re.compile(r'(?!\.)(.*SCI_COR_SubArray.*.fits)' )
             datafile = list(filter(r.match, self.list))
             if len(datafile) == 0:
-                r=re.compile('(?!\.)(.*SCI_RAW_SubArray.*.fits)' )
+                r=re.compile(r'(?!\.)(.*SCI_RAW_SubArray.*.fits)' )
                 datafile = list(filter(r.match, self.list))
             if len(datafile) == 0:
                 raise Exception('Dataset does not contains subarray data.')
@@ -1032,7 +1033,7 @@ class Dataset(object):
         else:
             if verbose: print ('Extracting light curve from ',self.tgzfile)
             tar = tarfile.open(self.tgzfile)
-            s = '(?!\.)(.*_SCI_COR_Lightcurve-{}_V[0-9]{{4}}.fits)'
+            s = r'(?!\.)(.*_SCI_COR_Lightcurve-{}_V[0-9]{{4}}.fits)'
             r=re.compile(s.format(aperture))
             datafile = list(filter(r.match, self.list))
             if len(datafile) == 0:
@@ -1516,9 +1517,9 @@ class Dataset(object):
 
     def lmfit_transit(self, 
             T_0=None, P=None, D=None, W=None, b=None, f_c=None, f_s=None,
-            h_1=None, h_2=None, l_3=None, scale=True, 
-            c=None, dfdbg=None, dfdcontam=None, dfdsmear=None, ramp=None,
-            dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
+            h_1=None, h_2=None, ldprior_teff = None, l_3=None,
+            scale=True, c=None, dfdbg=None, dfdcontam=None, dfdsmear=None,
+            ramp=None, dfdx=None, dfdy=None, d2fdx2=None, d2fdy2=None,
             dfdsinphi=None, dfdcosphi=None, dfdsin2phi=None, dfdcos2phi=None,
             dfdsin3phi=None, dfdcos3phi=None, dfdt=None, d2fdt2=None, 
             glint_scale=None, logrhoprior=None, extra_decorr_vectors=None,
@@ -1601,12 +1602,12 @@ class Dataset(object):
         also advisable to avoid basis vectors that are strongly correlated
         with one another or other parameters being using for decorrelation.
 
-        By default, the coefficients for each basis vector are labeled in
+        By default, the coefficients for each basis vector are labelled in
         plots using the key prefixed by 'dfd'. Alternative labels can be
         specified using the 'label' key, e.g. 
 
           extra_decorr_vectors={'x2':{'x':dx**2,
-                                'label':'$d^2f/d(\Delta x)^2$'} }
+                                'label':'$d^2f/d(\\Delta x)^2$'} }
 
         Initial values and priors for each linear coefficient can be specified
         in the same way as other parameters used in dataset.lmfit_transit() or
@@ -1618,6 +1619,17 @@ class Dataset(object):
 
         If not specified, the parameter is initialised using (-1, 1), i.e. 
         initial value = 0, min=-1, max=1.
+
+        Priors on the limb-darkening parameters h1' and h2' computed from
+        the host star's effective temperature (T_eff) can be included using the
+        keyword argument ldprior_teff to specify T_eff and its standard error
+        as a ufloat. The priors are computed using the following empirical
+        relation that is valid over the range 5500 K < T_eff < 7000 K in the
+        CHEOPS band:
+
+           * h1' = 0.8349 + 0.0524 (T_eff/1000K - 6), rms = 0.011 
+           * h2' = 0.1861 - 0.0225 (T_eff/1000K - 6), rms = 0.007 
+
 
         Up to two spot crossing events during the transit can be modelled
         using a simple polynomial model with the following parameters:
@@ -1651,7 +1663,6 @@ class Dataset(object):
         If f1 or f2 are not specified then the fixed default value 0.5 is used.
 
         If s1 or s2 are not specified then the fixed default value 0 is used.
-
 
         """
 
@@ -1714,14 +1725,24 @@ class Dataset(object):
             params.add(name='l_3', value=0, vary=False)
         else:
             params['l_3'] = _kw_to_Parameter('l_3', l_3)
+
+        if ldprior_teff:
+            h1p,h2p = ld.empirical_h1ph2p('C', ldprior_teff)
+            h1_default, h2_default = ld.h1ph2p_to_h1h2(h1p,h2p)
+            h1_default = h1_default.n
+            h2_default = h2_default.n
+        else:
+            h1_default = 0.7224  # Solar values
+            h2_default = 0.6713
         if h_1 == None:
-            params.add(name='h_1', value=0.7224, vary=False)
+            params.add(name='h_1', value=h1_default, vary=False)
         else:
             params['h_1'] = _kw_to_Parameter('h_1', h_1)
         if h_2 == None:
-            params.add(name='h_2', value=0.6713, vary=False)
+            params.add(name='h_2', value=h2_default, vary=False)
         else:
             params['h_2'] = _kw_to_Parameter('h_2', h_2)
+
         if c == None:
             params.add(name='c', value=1, min=min(flux)/2,max=2*max(flux))
         else:
@@ -1803,6 +1824,17 @@ class Dataset(object):
                 params.add('T_tot',expr='P*W*sqrt(1-e**2)/(1+esinw)')
             else:
                 params.add('T_tot',0,vary=False)
+        # Limb darkening parameters
+        params.add(f'c_ld', min=0,max=1, expr = '1 - h_1 + h_2')
+        params.add(f'alpha_ld', min=0, expr = 'log((1 - h_1 + h_2)/h_2)/log(2)')
+        params.add(f'h_1_prime', min=0, expr = '1 - c_ld*(1-(2/3)**alpha_ld)')
+        params.add(f'h_2_prime', min=0,
+                   expr = 'h_1_prime - (1 - c_ld*(1-(1/3)**alpha_ld))')
+        if ldprior_teff:
+            h1p,h2p = ld.empirical_h1ph2p('C', ldprior_teff)
+            params['h_1_prime'].user_data = h1p
+            params['h_2_prime'].user_data = h2p
+
 
         l = ['dfdbg','dfdcontam','dfdsmear','dfdx','dfdy','d2fdx2','d2fdy2']
         if True in [p in l for p in params]:
@@ -1931,7 +1963,7 @@ class Dataset(object):
 
     # ----------------------------------------------------------------
     
-    def add_glint(self, nspline=8, mask=None, fit_flux=False,
+    def add_glint(self, nspline=None, mask=None, fit_flux=False,
             moon=False, angle0=None, gapmax=30, 
             show_plot=True, binwidth=15,  figsize=(6,3), fontsize=11):
         """
@@ -1946,6 +1978,11 @@ class Dataset(object):
 
         To use this model, include the the parameter glint_scale in the
         lmfit least-squares fit.
+
+        If nspline=None (default) then the number of splines (up to a maximum
+        of 24) is selected automatically by setting nspline to the value that
+        minimizes the Bayesian information criterion. The value of nspline is
+        stored in Dataset attribute nspline.
 
         * nspline - number of splines in the fit
         * mask - fit only data for which mask array is False
@@ -1965,6 +2002,7 @@ class Dataset(object):
         try:
             time = np.array(self.lc['time'])
             flux = np.array(self.lc['flux'])
+            flux_err = np.array(self.lc['flux_err'])
             angle = np.array(self.lc['roll_angle'])
         except AttributeError:
             raise AttributeError("Use get_lightcurve() to load data first.")
@@ -1995,7 +2033,7 @@ class Dataset(object):
             x = np.sort(angle)
             gap = np.hstack((x[0], x[1:]-x[:-1]))
             if max(gap) > gapmax:
-                angle0 = x[np.argmax(gap)]
+                angle0 = np.floor(x[np.argmax(gap)]) - 1
             else:
                 angle0 = 0 
         if abs(angle0) < 0.01:
@@ -2022,14 +2060,28 @@ class Dataset(object):
 
         # Copies of data for theta-360 and theta+360 used to make
         # interpolating function periodic
+        x = np.sort(theta)
+        xs = np.hstack([x-360,x,x+360])
         y = y - np.nanmedian(y)
         y = y[np.argsort(theta)]
-        x = np.sort(theta)
+        ys = np.hstack([y,y,y])
+        if nspline is None:
+            bic_min = np.inf
+            ndata = len(theta)
+            for n in range(2,16):
+                t = np.linspace(min(x),max(x),1+n,endpoint=False)[1:]
+                ts = np.hstack([t-360,t,t+360])
+                fs = LSQUnivariateSpline(xs,ys,ts,ext='const')
+                f = fs(x)
+                chisq = np.sum((y-f)**2/flux_err**2) 
+                bic = chisq + 3*n*np.log(len(x))
+                if bic < bic_min:
+                    nspline = n
+                    bic_min = bic
+        self.nspline = nspline
         t = np.linspace(min(x),max(x),1+nspline,endpoint=False)[1:]
-        x = np.hstack([x-360,x,x+360])
-        y = np.hstack([y,y,y])
-        t = np.hstack([t-360,t,t+360])
-        f_glint = LSQUnivariateSpline(x,y,t,ext='const')
+        ts = np.hstack([t-360,t,t+360])
+        f_glint = LSQUnivariateSpline(xs,ys,ts,ext='const')
 
         self.glint_moon = moon
         self.glint_angle0 = angle0
@@ -2041,7 +2093,7 @@ class Dataset(object):
             fig,ax=plt.subplots(nrows=1, figsize=figsize, sharex=True)
             ax.plot(x, y, 'o',c='skyblue',ms=2)
             if binwidth:
-                r_, f_, e_, n_ = lcbin(x, y, binwidth=binwidth)
+                r_, f_, e_, n_ = lcbin(xs, ys, binwidth=binwidth)
                 ax.errorbar(r_,f_,yerr=e_,fmt='o',c='midnightblue',ms=5,
                     capsize=2)
             ax.set_xlim(xlim)
@@ -2052,6 +2104,7 @@ class Dataset(object):
             ax.plot(xt, yt, color='saddlebrown')
             ax.set_xlabel(xlab)
             ax.set_ylabel('Glint')
+            ax.set_title(f'{nspline=}')
 
         return f_glint(f_theta(time))
 
@@ -3475,7 +3528,7 @@ class Dataset(object):
         ax.loglog(frequency*1e6,p_smooth/1e6,c='darkcyan')
         # nu_max from Campante et al. (2016) eq (20)
         if star is not None:
-            if abs(star.teff-6000) < 1000:
+            if abs(star.teff.n-6000) < 1000:
                 nu_max = 3090 * 10**(star.logg-4.438)*usqrt(star.teff/5777)
                 ax.axvline(nu_max.n-nu_max.s,ls='--',c='g')
                 ax.axvline(nu_max.n+nu_max.s,ls='--',c='g')
@@ -3484,7 +3537,7 @@ class Dataset(object):
             ax.axvline(h*f_cheops,ls=':',c='darkred')
         ax.set_xlim(10**logxlim[0],10**logxlim[1])
         ax.set_xlabel(r'Frequency [$\mu$Hz]')
-        ax.set_ylabel('Power [ppm$^2$ $\mu$Hz$^{-1}$]');
+        ax.set_ylabel(r'Power [ppm$^2$ $\mu$Hz$^{-1}$]');
         ax.set_title(title)
         return fig
 

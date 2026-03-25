@@ -1,6 +1,11 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.26 (2025-12-19)
+~~~~~~~~~~~~~~~~~~~
+* Improved calculation of angle0 for Dataset.add_glint().
+* Added MultiVisit.jktebop_export()
+
 1.1.25 (2025-12-09)
 ~~~~~~~~~~~~~~~~~~~
 * Fix reject highpoints bug in get_lightcurve (#343)

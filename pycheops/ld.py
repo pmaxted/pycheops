@@ -17,7 +17,7 @@
 #   You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-"""
+r"""
 ld
 ==
 Limb darkening functions 
@@ -35,6 +35,8 @@ The available passband names are:
 The power-2 limb-darkening law is described in Maxted (2018) [1]_.
 Uninformative sampling of the parameter space for the power-2 law
 is described in Short et al. (2019) [2]_.
+The parameters h_1' = I(2/3) and h_2' = h_1' - I(1/3) are 
+described in Maxted (2023) [3]_.
 
 Examples
 --------
@@ -62,6 +64,7 @@ Examples
 .. rubric:: References
 .. [1] Maxted, P.F.L., 2018, A&A, 616, A39 
 .. [2] Short, D.R., et al., 2019, RNAAS, 3, 117
+.. [2] Maxted, P.F.L., 2023, MNRAS, 519, 3723
 
 """
 
@@ -73,9 +76,12 @@ from os.path import join,abspath,dirname,isfile
 import pickle
 from astropy.table import Table
 from scipy.interpolate import pchip_interpolate, LinearNDInterpolator
-from scipy.optimize import minimize
+from scipy.optimize import minimize, brentq
 from .core import load_config
 from .funcs import transit_width
+from uncertainties import ufloat, wrap
+from uncertainties.umath import log
+
 try:
     from ellc import lc
 except:
@@ -83,7 +89,8 @@ except:
 
 __all__ = ['ld_power2', 'ld_claret', 'stagger_power2_interpolator',
         'atlas_h1h2_interpolator', 'phoenix_h1h2_interpolator',
-        'ca_to_h1h2', 'h1h2_to_ca' , 'q1q2_to_h1h2', 'h1h2_to_q1q2']
+        'ca_to_h1h2', 'h1h2_to_ca' , 'q1q2_to_h1h2', 'h1h2_to_q1q2',
+        'h1h2_to_h1ph2p','h1ph2p_to_h1h2','empirical_h1ph2p']
 
 _data_path_ = join(dirname(abspath(__file__)),'data','limbdarkening')
 config = load_config()
@@ -129,7 +136,55 @@ def h1h2_to_ca(h1, h2):
     returns: c, alpha
 
     """
-    return 1 - h1 + h2, np.log2((1 - h1 + h2)/h2)
+    return 1 - h1 + h2, log((1 - h1 + h2)/h2)/log(2)
+
+
+def h1h2_to_h1ph2p(h1, h2):
+    """
+    Tranform (h1,h2) to (h1', h2')
+
+    h1' = 1 - c*(1-(2/3)**alpha)
+
+    h2' = h1' - (1 - c*(1-(1/3)**alpha))
+
+    :param h1: 1 - c*(1-0.5**alpha)
+    :param h2: c*0.5**alpha
+
+    returns: h1', h2'
+
+    """
+    c = 1 - h1 + h2
+    alpha = log((1 - h1 + h2)/h2)/log(2)
+    h1p = 1 - c*(1-(2/3)**alpha)
+    h2p = h1p - (1 - c*(1-(1/3)**alpha))
+    return h1p, h2p
+
+def h1ph2p_to_h1h2(h1p, h2p):
+    """
+    Tranform (h1', h2') to (h1,h2)
+
+    h1 =  1 - c*(1-0.5**alpha)
+
+    h2 =  c*0.5**alpha
+
+    :param h1p: 1 - c*(1-(2/3)**alpha)
+    :param h2p: h1' - (1 - c*(1-(1/3)**alpha))
+
+    returns: h1, h2
+
+    """
+
+    # wrap function to find alpha so we can be called for ufloats
+    def get_alpha(h1p,h2p):
+        def f(alpha, h1p, h2p):
+            c = h2p/( (2/3)**alpha - (1/3)**alpha )
+            return h1p - (1 - c*(1 - (2/3)**alpha))
+        return brentq(f,0.1,10,args=(h1p,h2p))
+    u_get_alpha = wrap(get_alpha)
+    alpha = u_get_alpha(h1p,h2p)
+    c = h2p/( (2/3)**alpha - (1/3)**alpha )
+    return  1 - c*(1-0.5**alpha), c*0.5**alpha
+
 
 def h1h2_to_q1q2(h1, h2):
     """
@@ -160,6 +215,49 @@ def q1q2_to_h1h2(q1, q2):
 
     """
     return 1 - np.sqrt(q1) + q2*np.sqrt(q1), 1 - np.sqrt(q1)
+
+def empirical_h1ph2p(band, teff):
+    """
+    Empirical estimates for h1',h2' from effective temperature, T_eff
+
+    Valid for 
+
+    :param band: 'C', 'T' or 'K'
+    :param teff: float or ufloat, 5000K < teff < 7000K
+
+    If Teff is not a ufloat value then a nominal error of 100K on Teff is
+    assumed.
+
+    returns: h1p, h2p as ufloats.
+
+    """
+
+
+    try:
+        t = ufloat(teff, 100)
+    except TypeError:
+        t = teff 
+    if (t.n  < 5000) | (t.n > 7000):
+        raise ValueError('Teff out of valid range 5000-7000K')
+
+    x = t/1000 - 6
+    b = band[0].upper()
+
+    if b == 'K':
+        h1p = (0.8426 + 0.0471*x) + ufloat(0, 0.006)
+        h2p = (0.1856 - 0.0255*x) + ufloat(0, 0.015)
+    elif b == 'T':
+        h1p = (0.8801 + 0.0205*x) + ufloat(0, 0.009)
+        h2p = (0.1607 - 0.0310*x) + ufloat(0, 0.020)
+    elif b == 'C':
+        h1p = (0.8349 + 0.0524*x) + ufloat(0, 0.011)
+        h2p = (0.1861 - 0.0225*x) + ufloat(0, 0.007)
+    else:
+        raise ValueError('Band not in recognised list "K", "T", "C"')
+
+    h1p = ufloat(np.round(h1p.n,4), np.round(h1p.s,4), tag = f'h1p_{b}')
+    h2p = ufloat(np.round(h2p.n,4), np.round(h2p.s,4), tag = f'h2p_{b}')
+    return h1p, h2p
 
 
 def ld_claret(mu, a):
