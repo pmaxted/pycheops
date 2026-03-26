@@ -2071,7 +2071,10 @@ class Dataset(object):
             for n in range(2,16):
                 t = np.linspace(min(x),max(x),1+n,endpoint=False)[1:]
                 ts = np.hstack([t-360,t,t+360])
-                fs = LSQUnivariateSpline(xs,ys,ts,ext='const')
+                try:
+                    fs = LSQUnivariateSpline(xs,ys,ts,ext='const')
+                except ValueError:
+                    continue
                 f = fs(x)
                 chisq = np.sum((y-f)**2/flux_err**2) 
                 bic = chisq + 3*n*np.log(len(x))
