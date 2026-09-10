@@ -1,6 +1,11 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.27 (2026-09-10)
+~~~~~~~~~~~~~~~~~~~
+* Restored missing files to pycheops/data/limbdarkening/ for WASP-189 example.
+* Increased range of allow e values in models.py
+
 1.1.26 (2025-12-19)
 ~~~~~~~~~~~~~~~~~~~
 * Improved calculation of angle0 for Dataset.add_glint().

@@ -347,7 +347,7 @@ class TransitModel(Model):
             if q <= 0: return np.ones_like(t)
             sini = np.sqrt(q)
             ecc = f_c**2 + f_s**2
-            if ecc > 0.95 : return np.ones_like(t)
+            if ecc > 0.99 : return np.ones_like(t)
             om = np.arctan2(f_s, f_c)*180/np.pi
             c_2 = 1 - h_1 + h_2
             a_2 = np.log2(c_2/h_2)
