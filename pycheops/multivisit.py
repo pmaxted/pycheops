@@ -796,7 +796,8 @@ class MultiVisit(object):
                 model = PlanetModel()*factor_model
             elif fittype == 'hotplanet':
                 model = HotPlanetModel()*factor_model
-            l = ['dfdbg','dfdcontam','dfdsmear','dfdx','dfdy']
+            l = ['dfdbg','dfdcontam','dfdsmear','dfdx','dfdy',
+                 'd2fdx2', 'd2fdx2']
             if True in [p_ in l for p_ in p]:
                 scales.append(d.__scale__)
             else:
@@ -1780,6 +1781,9 @@ class MultiVisit(object):
         y-axis limits for the data and residuals plots can be set using the
         data_ylim and res_ylim keywords, e.g. res_ylim = (-0.001,0.001).
 
+        Use detrend=True to subtract the best-fit instrument noise model from
+        the data before plotting.
+
         With renorm=True and detrend=False, each data set is re-scaled by the
         value of c_01, c_02, for that data set.
 
@@ -2095,6 +2099,184 @@ class MultiVisit(object):
 
         fig.tight_layout()
         return fig
+        
+    # ------------------------------------------------------------
+
+    def jktebop_export(self,lcfile='lc.dat',cbvfile='cbvs.dat',
+                       renorm=True, detrend=True, unroll=False):
+        '''
+        Export data for analysis with jktebop [1]
+
+        The use of co-trending basis vectors (CBVs) is available in jktebop
+        version v45 onwards.
+        
+        One set of CBVs is exported for each dataset according to the all the
+        parameters that were included as free parameters in the last fit to
+        each dataset using MultiVisit.fit_transit(), or MultiVisit.fit_eblm(),
+        or MultiVisit.fit_eclipse(), etc. This includes CBVs for sin(i.phi)
+        and cos(i.phi), i=1, .., nroll if unroll=True. If unroll=False
+        (default), the CBVs for decorrelation against roll angle are only
+        included in the output if the corresponding coefficient (dfdsinphi,
+        dfdcosphi, etc.) was included as a free parameter in the last fit to
+        the dataset using Dataset.fit_transit() or Dataset.fit_eclipse().
+
+        If detrend=True, each dataset is divided by the best-fit instrument
+        noise model before export.
+
+        With renorm=True, each data set is re-scaled by the value of c_01,
+        c_02, for that data set before export.
+
+        :param lcfile: name of file for light curve data
+        :param cbvfile: name of file for CBVs (or None to not export CBVs)
+        :param detrend: export detrended data
+        :param renorm: divide fluxes by best-fit c_01, c_02, etc.
+        :param unroll: see above.
+
+        [1] https://www.astro.keele.ac.uk/jkt/codes/jktebop.html
+
+        '''
+        MAXCBV = 100 
+        time = np.array([])
+        mag = np.array([])
+        e_mag =  np.array([])
+        n = len(self.datasets)
+        par = self.__parbest__
+        result = self.__result__
+        for j,dataset in enumerate(self.datasets):
+            lc = dataset.lc
+            time = np.append(time, lc['time'])
+            c = 1
+            if detrend:
+                try:
+                    flux = self.__fluxes_det__[j]
+                except:
+                    m = 'No multivisit fit available for detrending'
+                    raise Exception(m)
+            else:
+                if renorm and (f'c_{j+1:02d}' in self.__parbest__):
+                    c = self.__parbest__[f'c_{j+1:02d}'].value
+                flux = copy(lc['flux'])/c
+            mag = np.append(mag, np.log10(flux))
+            e_mag = np.append(e_mag, 1.0857*lc['flux_err']/lc['flux'])
+
+        np.savetxt(lcfile,np.array([time,mag,e_mag]).T,fmt='%12.6f')
+        nt = len(time)
+        print(f'Saved {nt} magnitudes for {n} datasets to {lcfile}.')
+
+        if cbvfile is None: return
+
+        j0 = 0  # position of data for next dataset in output vectors 
+        ncbvs = 0 
+        header = ''
+        w = 14 # Width of output columns
+        def range_scale(x):
+            return (x-np.median(x))/np.ptp(x)
+
+        for j,dataset in enumerate(self.datasets):
+            cbv = np.zeros(nt) 
+            lc = dataset.lc
+            t = lc['time']
+            phi = lc['roll_angle']*np.pi/180
+            nj = len(t)
+            jn = j0 + nj
+            if dataset.extra_decorr_vectors:
+                m = 'extra_decorr_vectors not yet implemented'
+                raise NotImplementedError(m)
+            if dataset.__lastfit__ == 'emcee':
+                params = dataset.emcee.params 
+            else:
+                params = dataset.lmfit.params
+            params = [p for p in params if params[p].vary]
+            for p in params:
+                cbv = np.zeros(nt) 
+                if 'c' == p:
+                    cbv[j0:jn] = np.ones(nj)
+                    header += f'c_{j+1:02d}'.ljust(w)
+                if 'dfdt' == p:
+                    cbv[j0:jn] = t - np.median(t)
+                    header += f't_{j+1:02d}'.ljust(w)
+                if 'd2fdt2' == p:
+                    cbv[j0:jn] = (t - np.median(t))**2
+                    header += f't2_{j+1:02d}'.ljust(w)
+                if 'dfdx' == p:
+                    cbv[j0:jn] = range_scale(lc['xoff'])
+                    header += f'x_{j+1:02d}'.ljust(w)
+                if 'd2fdx2' == p:
+                    cbv[j0:jn] = range_scale(lc['xoff'])**2
+                    header += f'x2_{j+1:02d}'.ljust(w)
+                if 'dfdy' == p:
+                    cbv[j0:jn] = range_scale(lc['yoff'])
+                    header += f'y_{j+1:02d}'.ljust(w)
+                if 'd2fdy2' == p:
+                    cbv[j0:jn] = range_scale(lc['yoff'])**2
+                    header += f'y2_{j+1:02d}'.ljust(w)
+                if 'dfdbg' == p:
+                    cbv[j0:jn] = range_scale(lc['bg'])
+                    header += f'bg_{j+1:02d}'.ljust(w)
+                if 'dfdcontam' == p:
+                    cbv[j0:jn] = range_scale(lc['contam'])
+                    header += f'contam_{j+1:02d}'.ljust(w)
+                if 'dfdsmear' == p:
+                    cbv[j0:jn] = range_scale(lc['smear'])
+                    header += f'smear_{j+1:02d}'.ljust(w)
+                if 'glint_scale' == p:
+                    delta_t = dataset._old_bjd_ref - dataset.bjd_ref
+                    g = dataset.f_glint(dataset.f_theta(t-delta_t))
+                    cbv[j0:jn] = range_scale(g)
+                    header += f'glint_{j+1:02d}'.ljust(w)
+                if not unroll:
+                    sinphi = np.sin(phi)
+                    cosphi = np.cos(phi)
+                    if 'dfdsinphi' == p:
+                        cbv[j0:jn] = sinphi
+                        header += f'sinphi_{j+1:02d}'.ljust(w)
+                    if 'dfdcosphi' == p:
+                        cbv[j0:jn] = cosphi
+                        header += f'cosphi_{j+1:02d}'.ljust(w)
+                    if 'dfdsin2phi' == p:
+                        cbv[j0:jn] = 2*sinphi*cosphi
+                        header += f'sin2phi_{j+1:02d}'.ljust(w)
+                    if 'dfdcos2phi' == p:
+                        cbv[j0:jn] = 2*cosphi**2 - 1
+                        header += f'cos2phi_{j+1:02d}'.ljust(w)
+                    if 'dfdsin3phi' == p:
+                        cbv[j0:jn] = 3*sinphi - 4* sinphi**3
+                        header += f'sin3phi_{j+1:02d}'.ljust(w)
+                    if 'dfdcos3phi' == p:
+                        cbv[j0:jn] = 4*cosphi**3 - 3*cosphi
+                        header += f'cos3phi_{j+1:02d}'.ljust(w)
+                if np.ptp(cbv) > 0:
+                    if ncbvs > 0:
+                        cbvs = np.column_stack((cbvs,cbv))
+                    else:
+                        cbvs = cbv + 0  # "+0" to get a copy, not a pointer
+                    ncbvs += 1
+            if unroll:
+                nroll = self.__nroll__
+                for i in range(1,nroll+1):
+                    cbv[j0:jn] = np.sin(i*phi)
+                    if ncbvs > 0:
+                        cbvs = np.column_stack((cbvs,cbv))
+                    else:
+                        cbvs = cbv + 0 
+                    cbv[j0:jn] = np.cos(i*phi)
+                    cbvs = np.column_stack((cbvs,cbv))
+                    if i > 1:
+                        header += f'sin{i}phi_{j+1:02d}'.ljust(w)
+                        header += f'cos{i}phi_{j+1:02d}'.ljust(w)
+                    else:
+                        header += f'sinphi_{j+1:02d}'.ljust(w)
+                        header += f'cosphi_{j+1:02d}'.ljust(w)
+                    ncbvs += 2
+            j0 = jn
+
+        if ncbvs > MAXCBV:
+            m = f'Number of CBVs {ncbvs}  exceeds maximum {MAXCBV}'
+            raise ValueError(m)
+
+        np.savetxt(cbvfile, cbvs, fmt=f'%{w-1}.{w-8}e', header=header)
+        print(f'Saved {ncbvs} CBVs to {cbvfile}.')
+
         
     # ------------------------------------------------------------
 

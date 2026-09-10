@@ -76,22 +76,25 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
+    # Version numbers frozen 25 March 2026 - PFLM
     install_requires=[
-            'numpy>=1.17.2',
-            'scipy',
-            'astropy>=3.2.2',
-            'emcee>=3.0.0',
-            'astroquery',
-            'numba>=0.44.1',
-            'lmfit>=0.9.14', 
-            'corner', 
-            'photutils',
-            'matplotlib>3.2',
-            'celerite2',
-            'cdspyreadme',
-            'dace-query>=2.0.0',
-            'IPython',
-            'tqdm'],
+            'numpy==1.24.4',
+            'scipy==1.11.3',
+            'astropy==7.2.0',
+            'emcee==3.1.6',
+            'astroquery==0.4.11',
+            'numba==0.57.1',
+            'notebook==7.0.6',
+            'lmfit==1.3.4',
+            'corner==2.2.3',
+            'photutils==2.2.0',
+            'matplotlib==3.8.0',
+            'celerite2==0.3.2',
+            'cdspyreadme==1.9',
+            'dace-query==2.0.0',
+            'IPython==8.16.1',
+            'tqdm==4.66.1',
+            'llvmlite==0.40.1'],
 
     dependency_links=[],
 

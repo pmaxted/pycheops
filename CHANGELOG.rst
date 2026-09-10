@@ -1,6 +1,18 @@
 Changes since 1.0.0 onwards.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+1.1.27 (2026-09-10)
+~~~~~~~~~~~~~~~~~~~
+* Restored missing files to pycheops/data/limbdarkening/ for WASP-189 example.
+* Increased range of allow e values in models.py
+
+1.1.26 (2025-12-19)
+~~~~~~~~~~~~~~~~~~~
+* Improved calculation of angle0 for Dataset.add_glint().
+* Added MultiVisit.jktebop_export()
+* Frozen versions for dependencies in setup.py
+* Added nspline=None option to dataset.add_glint() - automatic nspline value
+
 1.1.25 (2025-12-09)
 ~~~~~~~~~~~~~~~~~~~
 * Fix reject highpoints bug in get_lightcurve (#343)
