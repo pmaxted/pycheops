@@ -84,7 +84,7 @@ setup(
             'emcee==3.1.6',
             'astroquery==0.4.11',
             'numba==0.57.1',
-            'notebook==7.0.6',
+            'notebook==7.5.6',
             'lmfit==1.3.4',
             'corner==2.2.3',
             'photutils==2.2.0',
