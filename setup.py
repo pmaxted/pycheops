@@ -93,7 +93,7 @@ setup(
             'cdspyreadme==1.9',
             'dace-query==2.0.0',
             'IPython==8.16.1',
-            'tqdm==4.66.1',
+            'tqdm==4.66.3',
             'llvmlite==0.40.1'],
 
     dependency_links=[],
